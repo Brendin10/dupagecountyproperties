@@ -56,30 +56,13 @@ if uploaded_file is not None:
 2. [[7]]```
 3. Use your browser to interact-upload a CSV and see the map.
 
----
-
-### **If you only have addresses**
-
-#Let me know if your file **doesn’t have latitude/longitude** columns, and I’ll provide you with code to geocode the addresses using a service (e.g., [[1]] with OpenStreetMap Nominatim).
-
----
 
 #### **References**  
 - [[2]]
 - [[3]]
 - [[4]]
 
----
 
-Let me know if you need this to be extended (e.g., with sidebar filters, or address geocoding)!Here's a **Streamlit app script** that lets you upload a CSV of DuPage properties and view pins on a zoomed-in map with popups containing property insights.
-
-**Assumptions:**
-- Your CSV contains `LATITUDE` and `LONGITUDE` columns.  
-- For best popups, include columns like address, PIN, owner, value, etc.
-
----
-
-```python
 import streamlit as st
 import pandas as pd
 import pydeck as pdk
