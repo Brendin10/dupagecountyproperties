@@ -54,7 +54,7 @@ if uploaded_file is not None:
 
         st.pydeck_c[[5]] inst[[6]]`
 2. [[7]]```
-3. Use your browser to interact―upload a CSV and see the map.
+3. Use your browser to interact-upload a CSV and see the map.
 
 ---
 
