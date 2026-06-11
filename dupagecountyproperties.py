@@ -60,7 +60,7 @@ if uploaded_file is not None:
 
 ### **If you only have addresses**
 
-Let me know if your file **doesn’t have latitude/longitude** columns, and I’ll provide you with code to geocode the addresses using a service (e.g., [[1]] with OpenStreetMap Nominatim).
+#Let me know if your file **doesn’t have latitude/longitude** columns, and I’ll provide you with code to geocode the addresses using a service (e.g., [[1]] with OpenStreetMap Nominatim).
 
 ---
 
