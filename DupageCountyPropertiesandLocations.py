@@ -94,8 +94,10 @@ if uploaded_file:
         tooltip = {"html": tooltip_html, "style": {"backgroundColor": "steelblue", "color": "white"}}
 
         # Render the pydeck map
+       # Render the pydeck map
         r = pdk.Deck(
-            map_style="mapbox://styles/mapbox/light-v9",
+            # Swapped Mapbox for Carto's 'Voyager' style (a colorful, detailed street map)
+            map_style="https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
             initial_view_state=pdk.ViewState(
                 latitude=midpoint[0], longitude=midpoint[1], zoom=10, pitch=0
             ),
