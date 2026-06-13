@@ -75,12 +75,14 @@ if uploaded_file:
             st.write(df_clean)
 
         # Define the map layer
+       # Define the map layer
         layer = pdk.Layer(
             "ScatterplotLayer",
             data=df_clean,
             get_position='[LONGITUDE, LATITUDE]',
-            get_radius=80,
-            get_color=[0, 100, 255],
+            get_radius=5,              # Changed from 80 to 5
+            radius_units="pixels",     # Forces dots to stay 5 pixels wide on your screen!
+            get_color=[0, 100, 255, 140], # Added a 4th number (140) for transparency
             pickable=True,
         )
 
