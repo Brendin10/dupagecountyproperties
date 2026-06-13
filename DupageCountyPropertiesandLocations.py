@@ -67,18 +67,17 @@ if uploaded_file:
             mime='text/csv',
         )
 
-        # --- THE FIX: STRICT 2-METER RADIUS ---
-       # --- THE FAILSAFE LAYER ---
+      # --- THE PERFECT SCALE LAYER ---
         layer = pdk.Layer(
             "ScatterplotLayer",
             data=df_clean,
             get_position='[LONGITUDE, LATITUDE]',
-            get_radius=2,                        # Strictly 2 meters
-            radius_units="meters",               # Real-world scale
-            radius_min_pixels=1,                 # Failsafe: Never disappears when zoomed out
-            radius_max_pixels=15,                # Failsafe: FORBIDS the dot from blowing up and covering the screen
-            get_fill_color=[0, 100, 255, 180],   # get_fill_color is safer in modern Pydeck
-            get_line_color=[255, 255, 255, 200], # Adds a thin white border so overlapping dots stand out
+            get_radius=2,                        # Target size of 2 meters when zoomed in
+            radius_units="meters",               # Anchored to real-world ground meters
+            radius_min_pixels=0,                 # ALLOWS dots to shrink to 0 when zooming out (Prevents the giant blob!)
+            radius_max_pixels=8,                 # Prevents dots from ever getting too large on screen
+            get_fill_color=[0, 100, 255, 160],   # Smooth blue with clean transparency
+            get_line_color=[255, 255, 255, 200], # White outline to keep overlapping properties distinct
             stroked=True,
             pickable=True,
         )
