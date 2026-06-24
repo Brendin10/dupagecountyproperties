@@ -1,5 +1,5 @@
-import io
 import re
+from datetime import datetime
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 import pandas as pd
@@ -98,6 +98,83 @@ SUPPORTED_COUNTIES = {
 
 COUNTY_LABELS = [county["label"] for county in SUPPORTED_COUNTIES.values()]
 COUNTY_BY_LABEL = {county["label"]: key for key, county in SUPPORTED_COUNTIES.items()}
+
+CITY_COORDINATES = {
+    "dupage_il": {
+        "addison": (41.9317, -87.9889),
+        "aurora": (41.7606, -88.3201),
+        "bartlett": (41.9950, -88.1856),
+        "bensenville": (41.9550, -87.9401),
+        "bloomingdale": (41.9575, -88.0809),
+        "bolingbrook": (41.6986, -88.0684),
+        "burr ridge": (41.7489, -87.9184),
+        "carol stream": (41.9125, -88.1348),
+        "clarendon hills": (41.7975, -87.9548),
+        "darien": (41.7519, -87.9739),
+        "downers grove": (41.8089, -88.0112),
+        "elmhurst": (41.8995, -87.9403),
+        "glen ellyn": (41.8775, -88.0670),
+        "glendale heights": (41.9103, -88.0717),
+        "hanover park": (41.9995, -88.1451),
+        "hinsdale": (41.8009, -87.9370),
+        "itasca": (41.9750, -88.0073),
+        "lisle": (41.8011, -88.0748),
+        "lombard": (41.8800, -88.0078),
+        "naperville": (41.7508, -88.1535),
+        "oak brook": (41.8328, -87.9289),
+        "roselle": (41.9848, -88.0798),
+        "villa park": (41.8898, -87.9889),
+        "warrenville": (41.8178, -88.1734),
+        "wayne": (41.9506, -88.2420),
+        "west chicago": (41.8848, -88.2039),
+        "westmont": (41.7959, -87.9756),
+        "wheaton": (41.8661, -88.1070),
+        "willowbrook": (41.7698, -87.9359),
+        "winfield": (41.8617, -88.1609),
+        "wood dale": (41.9634, -87.9789),
+        "woodridge": (41.7469, -88.0503),
+    },
+    "lake_in": {
+        "cedar lake": (41.3648, -87.4411),
+        "crown point": (41.4169, -87.3653),
+        "dyer": (41.4942, -87.5217),
+        "east chicago": (41.6392, -87.4548),
+        "gary": (41.5934, -87.3464),
+        "griffith": (41.5284, -87.4237),
+        "hammond": (41.5834, -87.5000),
+        "highland": (41.5536, -87.4519),
+        "hobart": (41.5323, -87.2550),
+        "lake station": (41.5750, -87.2389),
+        "lowell": (41.2914, -87.4206),
+        "merrillville": (41.4828, -87.3328),
+        "munster": (41.5645, -87.5125),
+        "new chicago": (41.5584, -87.2745),
+        "schererville": (41.4789, -87.4548),
+        "st john": (41.4500, -87.4700),
+        "whiting": (41.6798, -87.4945),
+    },
+    "porter_in": {
+        "beverly shores": (41.6925, -86.9775),
+        "burns harbor": (41.6259, -87.1331),
+        "chesterton": (41.6106, -87.0642),
+        "hebron": (41.3181, -87.2003),
+        "kouts": (41.3167, -87.0250),
+        "ogden dunes": (41.6225, -87.1914),
+        "portage": (41.5759, -87.1761),
+        "porter": (41.6156, -87.0742),
+        "south haven": (41.5414, -87.1370),
+        "valparaiso": (41.4731, -87.0611),
+        "wheeler": (41.5114, -87.1792),
+    },
+}
+
+SCORING_OUTPUT_COLUMNS = (
+    "Lead Score",
+    "Lead Temperature",
+    "County Match",
+    "Distress Evidence",
+    "Suggested Next Action",
+)
 
 DISTRESS_KEYWORDS = {
     "Pre-foreclosure": [
@@ -448,8 +525,9 @@ def score_leads(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df.copy()
 
-    scored_rows = df.apply(score_lead_row, axis=1, result_type="expand").reset_index(drop=True)
-    scored = pd.concat([scored_rows, df.reset_index(drop=True)], axis=1)
+    source_df = df.drop(columns=list(SCORING_OUTPUT_COLUMNS), errors="ignore").copy()
+    scored_rows = source_df.apply(score_lead_row, axis=1, result_type="expand").reset_index(drop=True)
+    scored = pd.concat([scored_rows, source_df.reset_index(drop=True)], axis=1)
     return scored.sort_values(["Lead Score"], ascending=False).reset_index(drop=True)
 
 
@@ -627,6 +705,11 @@ def render_map(df: pd.DataFrame, default_county_key: str = "dupage_il") -> None:
         ),
         axis=1,
     )
+    map_df["MAP_LEAD_ID"] = map_df["Lead ID"] if "Lead ID" in map_df.columns else ""
+    map_df["MAP_OWNER"] = map_df.apply(
+        lambda row: row_value(row, ("owner name", "billname", "name")) or "Owner research needed",
+        axis=1,
+    )
     score_series = (
         pd.to_numeric(map_df["Lead Score"], errors="coerce")
         if "Lead Score" in map_df.columns
@@ -634,6 +717,7 @@ def render_map(df: pd.DataFrame, default_county_key: str = "dupage_il") -> None:
     )
     map_df["MAP_SCORE"] = map_df["Lead Score"] if "Lead Score" in map_df.columns else ""
     map_df["MAP_EVIDENCE"] = map_df["Distress Evidence"] if "Distress Evidence" in map_df.columns else ""
+    map_df["MAP_ACTION"] = map_df["Suggested Next Action"] if "Suggested Next Action" in map_df.columns else ""
     map_df["RED"] = score_series.apply(lambda score: 220 if score >= 70 else 50)
     map_df["GREEN"] = score_series.apply(lambda score: 140 if score >= 40 else 110)
     map_df["BLUE"] = score_series.apply(lambda score: 55 if score >= 40 else 220)
@@ -662,7 +746,12 @@ def render_map(df: pd.DataFrame, default_county_key: str = "dupage_il") -> None:
         initial_view_state=pdk.ViewState(latitude=center_lat, longitude=center_lon, zoom=10, pitch=0),
         layers=[layer],
         tooltip={
-            "html": "<b>{MAP_ADDRESS}</b><br/>Score: {MAP_SCORE}<br/>{MAP_EVIDENCE}",
+            "html": (
+                "<b>{MAP_LEAD_ID} {MAP_ADDRESS}</b><br/>"
+                "Owner: {MAP_OWNER}<br/>"
+                "Score: {MAP_SCORE}<br/>{MAP_EVIDENCE}<br/>"
+                "<i>{MAP_ACTION}</i>"
+            ),
             "style": {"backgroundColor": "#0f172a", "color": "white"},
         },
     )
@@ -819,135 +908,615 @@ def render_seller_landing() -> None:
         dataframe_download(lead_record, "seller_property_review.csv", "Download seller lead record")
 
 
+def county_key_from_label_or_text(value: object) -> str:
+    text = normalize_text(value).lower()
+    if text in COUNTY_BY_LABEL:
+        return COUNTY_BY_LABEL[text]
+    for label, county_key in COUNTY_BY_LABEL.items():
+        if text == label.lower():
+            return county_key
+    if "dupage" in text or "du page" in text:
+        return "dupage_il"
+    if "porter" in text:
+        return "porter_in"
+    if "lake" in text:
+        return "lake_in"
+    return "dupage_il"
+
+
+def county_label_from_any(value: object) -> str:
+    county_key = county_key_from_label_or_text(value)
+    return SUPPORTED_COUNTIES[county_key]["label"]
+
+
+def city_options_for_county(county_label: str) -> List[str]:
+    county_key = county_key_from_label_or_text(county_label)
+    return sorted(city.title() for city in SUPPORTED_COUNTIES[county_key]["cities"])
+
+
+def approximate_coordinates(county_label: str, city: object) -> Tuple[float, float]:
+    county_key = county_key_from_label_or_text(county_label)
+    normalized_city = normalize_text(city).lower()
+    if normalized_city in CITY_COORDINATES[county_key]:
+        return CITY_COORDINATES[county_key][normalized_city]
+    return SUPPORTED_COUNTIES[county_key]["center"]
+
+
+@st.cache_data(show_spinner=False)
+def geocode_single_address(address: str) -> Optional[Tuple[float, float]]:
+    if not address:
+        return None
+    geolocator = Nominatim(user_agent="property_lead_agent_single")
+    location = geolocator.geocode(address)
+    if not location:
+        return None
+    return float(location.latitude), float(location.longitude)
+
+
+def resolve_coordinates(
+    address: str,
+    city: str,
+    county_label: str,
+    latitude: float,
+    longitude: float,
+    use_geocoder: bool,
+) -> Tuple[float, float, str]:
+    if latitude and longitude:
+        return float(latitude), float(longitude), "Manual coordinates"
+
+    full_address = ", ".join(
+        part
+        for part in [
+            normalize_text(address),
+            normalize_text(city),
+            SUPPORTED_COUNTIES[county_key_from_label_or_text(county_label)]["state"],
+        ]
+        if part
+    )
+    if use_geocoder and full_address:
+        geocoded = geocode_single_address(full_address)
+        if geocoded:
+            return geocoded[0], geocoded[1], "Geocoded from address"
+
+    approx_lat, approx_lon = approximate_coordinates(county_label, city)
+    return approx_lat, approx_lon, "Approximate city/county center"
+
+
+def starter_leads() -> pd.DataFrame:
+    today = datetime.utcnow().date().isoformat()
+    return pd.DataFrame(
+        [
+            {
+                "Lead ID": "DL-001",
+                "Property Address": "Verify vacant property near downtown Wheaton",
+                "City": "Wheaton",
+                "State": "IL",
+                "County": "DuPage County, Illinois",
+                "Property Type": "Single-family",
+                "Occupancy": "Vacant",
+                "Property Condition": "Needs major repairs",
+                "Distress Signals": "Vacant; code violation; major repairs",
+                "Owner Name": "Owner research needed",
+                "Owner Type": "Unknown",
+                "Mailing Address": "Research mailing address",
+                "Preferred Contact": "Skip trace needed",
+                "Phone": "",
+                "Email": "",
+                "Estimated Value": 285000,
+                "Mortgage Balance": 95000,
+                "Estimated Repairs": 65000,
+                "Bedrooms": 3,
+                "Bathrooms": 1.5,
+                "Square Feet": 1450,
+                "Lead Source": "Starter lead - replace with verified research",
+                "Lead Created": today,
+                "Owner Notes": "Confirm vacancy, owner mailing address, and any municipal violations.",
+                "Property Notes": "Drive-by and photo verification needed before outreach.",
+                "LATITUDE": 41.8661,
+                "LONGITUDE": -88.1070,
+            },
+            {
+                "Lead ID": "DL-002",
+                "Property Address": "Pre-foreclosure research lead in Downers Grove",
+                "City": "Downers Grove",
+                "State": "IL",
+                "County": "DuPage County, Illinois",
+                "Property Type": "Single-family",
+                "Occupancy": "Unknown",
+                "Property Condition": "Average",
+                "Distress Signals": "Pre-foreclosure; notice of sale",
+                "Owner Name": "Owner research needed",
+                "Owner Type": "Owner occupant",
+                "Mailing Address": "Research mailing address",
+                "Preferred Contact": "Call after verification",
+                "Phone": "",
+                "Email": "",
+                "Estimated Value": 360000,
+                "Mortgage Balance": 250000,
+                "Estimated Repairs": 25000,
+                "Bedrooms": 4,
+                "Bathrooms": 2.0,
+                "Square Feet": 1900,
+                "Lead Source": "Starter lead - verify court/recorder status",
+                "Lead Created": today,
+                "Owner Notes": "Verify filing status, sale date, and payoff before outreach.",
+                "Property Notes": "Prioritize a sensitive foreclosure-help conversation.",
+                "LATITUDE": 41.8089,
+                "LONGITUDE": -88.0112,
+            },
+            {
+                "Lead ID": "LI-001",
+                "Property Address": "Tax delinquency lead in Gary",
+                "City": "Gary",
+                "State": "IN",
+                "County": "Lake County, Indiana",
+                "Property Type": "Single-family",
+                "Occupancy": "Vacant",
+                "Property Condition": "Vacant or distressed",
+                "Distress Signals": "Vacant; tax delinquent; boarded",
+                "Owner Name": "Owner research needed",
+                "Owner Type": "Absentee owner",
+                "Mailing Address": "Out-of-state owner address to verify",
+                "Preferred Contact": "Skip trace needed",
+                "Phone": "",
+                "Email": "",
+                "Estimated Value": 95000,
+                "Mortgage Balance": 15000,
+                "Estimated Repairs": 40000,
+                "Bedrooms": 3,
+                "Bathrooms": 1.0,
+                "Square Feet": 1200,
+                "Lead Source": "Starter lead - verify treasurer records",
+                "Lead Created": today,
+                "Owner Notes": "Check tax sale, redemption status, and mailing address.",
+                "Property Notes": "Vacancy and exterior condition need field confirmation.",
+                "LATITUDE": 41.5934,
+                "LONGITUDE": -87.3464,
+            },
+            {
+                "Lead ID": "PI-001",
+                "Property Address": "Inherited property research lead in Valparaiso",
+                "City": "Valparaiso",
+                "State": "IN",
+                "County": "Porter County, Indiana",
+                "Property Type": "Single-family",
+                "Occupancy": "Unknown",
+                "Property Condition": "Needs cosmetic updates",
+                "Distress Signals": "Probate; inherited; estate",
+                "Owner Name": "Estate contact research needed",
+                "Owner Type": "Estate / probate",
+                "Mailing Address": "Research executor address",
+                "Preferred Contact": "Direct mail first",
+                "Phone": "",
+                "Email": "",
+                "Estimated Value": 240000,
+                "Mortgage Balance": 45000,
+                "Estimated Repairs": 30000,
+                "Bedrooms": 3,
+                "Bathrooms": 2.0,
+                "Square Feet": 1650,
+                "Lead Source": "Starter lead - verify probate filing",
+                "Lead Created": today,
+                "Owner Notes": "Research executor or administrator before contact.",
+                "Property Notes": "Likely equity lead; verify occupancy and condition.",
+                "LATITUDE": 41.4731,
+                "LONGITUDE": -87.0611,
+            },
+        ]
+    )
+
+
+def ensure_lead_pipeline() -> None:
+    if "lead_sequence" not in st.session_state:
+        st.session_state["lead_sequence"] = 5
+    if "lead_pipeline" not in st.session_state:
+        st.session_state["lead_pipeline"] = score_leads(starter_leads())
+
+
+def next_lead_id(county_label: str) -> str:
+    ensure_lead_pipeline()
+    lead_id = generated_lead_id(county_label, st.session_state["lead_sequence"])
+    st.session_state["lead_sequence"] += 1
+    return lead_id
+
+
+def generated_lead_id(county_label: str, sequence: int) -> str:
+    county_key = county_key_from_label_or_text(county_label)
+    prefix = {"dupage_il": "DL", "lake_in": "LI", "porter_in": "PI"}[county_key]
+    return f"{prefix}-{sequence:03d}"
+
+
+def add_leads_to_pipeline(new_leads: pd.DataFrame) -> None:
+    ensure_lead_pipeline()
+    if new_leads.empty:
+        return
+
+    assigned_lead_count = int(new_leads.attrs.get("assigned_lead_count", 0))
+    if assigned_lead_count:
+        st.session_state["lead_sequence"] += assigned_lead_count
+
+    existing = st.session_state["lead_pipeline"].drop(
+        columns=list(SCORING_OUTPUT_COLUMNS), errors="ignore"
+    )
+    combined = pd.concat([existing, new_leads], ignore_index=True, sort=False)
+    st.session_state["lead_pipeline"] = score_leads(enrich_lead_coordinates(combined))
+
+
+def enrich_lead_coordinates(df: pd.DataFrame) -> pd.DataFrame:
+    enriched = df.copy()
+    if "LATITUDE" not in enriched.columns:
+        enriched["LATITUDE"] = None
+    if "LONGITUDE" not in enriched.columns:
+        enriched["LONGITUDE"] = None
+
+    for idx, row in enriched.iterrows():
+        lat = parse_number(row.get("LATITUDE"))
+        lon = parse_number(row.get("LONGITUDE"))
+        if lat is not None and lon is not None:
+            enriched.at[idx, "LATITUDE"] = lat
+            enriched.at[idx, "LONGITUDE"] = lon
+            continue
+
+        county_label = county_label_from_any(row_value(row, ("county", "county match")))
+        city = row_value(row, ("city", "property city", "situs city", "billcity"))
+        approx_lat, approx_lon = approximate_coordinates(county_label, city)
+        enriched.at[idx, "LATITUDE"] = approx_lat
+        enriched.at[idx, "LONGITUDE"] = approx_lon
+        if not normalize_text(row.get("Coordinate Source")):
+            enriched.at[idx, "Coordinate Source"] = "Approximate city/county center"
+
+    return enriched
+
+
+def prepare_imported_leads(df: pd.DataFrame) -> pd.DataFrame:
+    ensure_lead_pipeline()
+    imported = df.copy()
+    if "Lead ID" not in imported.columns:
+        imported["Lead ID"] = ""
+    assigned_lead_count = 0
+    next_sequence = st.session_state["lead_sequence"]
+    for idx, row in imported.iterrows():
+        if not normalize_text(row.get("Lead ID")):
+            county_label = county_label_from_any(row_value(row, ("county", "county match")))
+            imported.at[idx, "Lead ID"] = generated_lead_id(
+                county_label, next_sequence + assigned_lead_count
+            )
+            assigned_lead_count += 1
+        if "Lead Source" not in imported.columns or not normalize_text(row.get("Lead Source")):
+            imported.at[idx, "Lead Source"] = "Optional CSV import"
+        if "Lead Created" not in imported.columns or not normalize_text(row.get("Lead Created")):
+            imported.at[idx, "Lead Created"] = datetime.utcnow().date().isoformat()
+    prepared = enrich_lead_coordinates(imported)
+    prepared.attrs["assigned_lead_count"] = assigned_lead_count
+    return prepared
+
+
+def apply_lead_filters(
+    leads: pd.DataFrame,
+    selected_counties: Sequence[str],
+    selected_temperatures: Sequence[str],
+    min_score: int,
+    search_text: str,
+) -> pd.DataFrame:
+    filtered = leads.copy()
+    if selected_counties:
+        filtered = filtered[filtered["County Match"].isin(selected_counties)]
+    if selected_temperatures:
+        filtered = filtered[filtered["Lead Temperature"].isin(selected_temperatures)]
+    filtered = filtered[pd.to_numeric(filtered["Lead Score"], errors="coerce").fillna(0) >= min_score]
+    if search_text:
+        needle = search_text.lower()
+        filtered = filtered[
+            filtered.apply(lambda row: needle in combined_row_text(row), axis=1)
+        ]
+    return filtered.reset_index(drop=True)
+
+
+def lead_display_columns(leads: pd.DataFrame) -> List[str]:
+    preferred_columns = [
+        "Lead ID",
+        "Lead Score",
+        "Lead Temperature",
+        "County Match",
+        "Property Address",
+        "City",
+        "Owner Name",
+        "Occupancy",
+        "Property Condition",
+        "Distress Evidence",
+        "Suggested Next Action",
+    ]
+    return [column for column in preferred_columns if column in leads.columns]
+
+
+def display_value(value: object) -> str:
+    text = normalize_text(value)
+    return text if text else "Not provided"
+
+
+def render_detail_field(label: str, value: object) -> None:
+    st.markdown(f"**{label}:** {display_value(value)}")
+
+
+def render_lead_detail(lead: pd.Series) -> None:
+    estimated_value = lead.get("Estimated Value")
+    if not normalize_text(estimated_value):
+        estimated_value = lead.get("Market Value")
+
+    st.markdown(
+        f"""
+        <div class="detail-card">
+            <div class="metric-title">Selected Lead</div>
+            <h3>{display_value(lead.get('Lead ID'))} - {display_value(lead.get('Property Address'))}</h3>
+            <p><strong>{display_value(lead.get('Lead Temperature'))}</strong> lead with score
+            <strong>{display_value(lead.get('Lead Score'))}/100</strong>.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    property_tab, owner_tab, action_tab = st.tabs(["Property details", "Owner details", "Follow-up plan"])
+    with property_tab:
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            render_detail_field("Address", lead.get("Property Address"))
+            render_detail_field("City", lead.get("City"))
+            render_detail_field("County", lead.get("County Match") or lead.get("County"))
+            render_detail_field("Property type", lead.get("Property Type"))
+        with col_b:
+            render_detail_field("Occupancy", lead.get("Occupancy"))
+            render_detail_field("Condition", lead.get("Property Condition"))
+            render_detail_field("Bedrooms", lead.get("Bedrooms"))
+            render_detail_field("Bathrooms", lead.get("Bathrooms"))
+        with col_c:
+            render_detail_field("Estimated value", money(estimated_value))
+            render_detail_field("Mortgage balance", money(lead.get("Mortgage Balance")))
+            render_detail_field("Estimated repairs", money(lead.get("Estimated Repairs")))
+            render_detail_field("Square feet", lead.get("Square Feet"))
+        render_detail_field("Property notes", lead.get("Property Notes") or lead.get("Notes"))
+
+    with owner_tab:
+        col_a, col_b = st.columns(2)
+        with col_a:
+            render_detail_field("Owner name", lead.get("Owner Name") or lead.get("BILLNAME"))
+            render_detail_field("Owner type", lead.get("Owner Type"))
+            render_detail_field("Mailing address", lead.get("Mailing Address") or lead.get("Consolidated Bill Address"))
+        with col_b:
+            render_detail_field("Phone", lead.get("Phone"))
+            render_detail_field("Email", lead.get("Email"))
+            render_detail_field("Preferred contact", lead.get("Preferred Contact"))
+        render_detail_field("Owner notes", lead.get("Owner Notes"))
+
+    with action_tab:
+        col_a, col_b = st.columns(2)
+        with col_a:
+            render_detail_field("Distress evidence", lead.get("Distress Evidence"))
+            render_detail_field("Raw distress signals", lead.get("Distress Signals"))
+            render_detail_field("Lead source", lead.get("Lead Source"))
+        with col_b:
+            render_detail_field("Suggested next action", lead.get("Suggested Next Action"))
+            render_detail_field("Lead created", lead.get("Lead Created"))
+            render_detail_field("Coordinate source", lead.get("Coordinate Source"))
+
+
 def render_lead_agent() -> None:
+    ensure_lead_pipeline()
     st.header("Lead Scout Agent")
     st.write(
-        "Upload property, tax, foreclosure, code, probate, or vacancy lists. "
-        "The agent scores records for hot-lead signals in DuPage County IL, Lake County IN, and Porter County IN."
+        "Create, score, map, and review property leads. CSV import is available below as a supporting tool, "
+        "but the main workflow is building a live lead pipeline and working it from the map and table."
     )
 
-    source_col, scoring_col = st.columns([1, 1])
-    with source_col:
-        st.subheader("Target lead signals")
-        st.markdown(
-            """
-            - Vacant, abandoned, boarded, or returned-mail properties
-            - Pre-foreclosure, sheriff sale, lis pendens, or auction records
-            - Tax delinquency, tax sale, liens, or municipal debt
-            - Code violations, unsafe structures, fire/water damage, or heavy repairs
-            - Absentee or out-of-state owners with likely equity
-            - Probate, inherited, estate, or executor situations
-            """
-        )
-    with scoring_col:
-        st.subheader("Suggested data sources")
-        st.markdown(
-            """
-            - County treasurer tax delinquency lists
-            - Recorder or court foreclosure filings
-            - Sheriff sale calendars
-            - Municipal code violation and vacant-building lists
-            - Probate filings and public notices
-            - Parcel exports with mailing address vs. site address
-            """
-        )
+    with st.expander("Create a new lead", expanded=True):
+        with st.form("new_lead_form", clear_on_submit=True):
+            property_col, owner_col, signal_col = st.columns([1.1, 1, 1])
+            with property_col:
+                county = st.selectbox("Target county", COUNTY_LABELS, key="new_lead_county")
+                city = st.selectbox("City", city_options_for_county(county))
+                address = st.text_input("Property address or research label")
+                property_type = st.selectbox(
+                    "Property type",
+                    ["Single-family", "Townhome", "Condo", "2-4 unit", "Vacant land", "Commercial", "Other"],
+                )
+                occupancy = st.selectbox(
+                    "Occupancy",
+                    ["Unknown", "Owner occupied", "Tenant occupied", "Tenant occupied - problem tenant", "Vacant"],
+                )
+                condition = st.selectbox(
+                    "Condition",
+                    ["Unknown", "Move-in ready", "Good", "Average", "Needs cosmetic updates", "Needs major repairs", "Vacant or distressed"],
+                )
+            with owner_col:
+                owner_name = st.text_input("Owner name")
+                owner_type = st.selectbox(
+                    "Owner type",
+                    ["Unknown", "Owner occupant", "Absentee owner", "Out-of-state owner", "Estate / probate", "LLC / company"],
+                )
+                mailing_address = st.text_input("Owner mailing address")
+                phone = st.text_input("Phone")
+                email = st.text_input("Email")
+                preferred_contact = st.selectbox("Preferred contact", ["Unknown", "Call", "Text", "Email", "Direct mail", "Skip trace needed"])
+            with signal_col:
+                distress_signals = st.multiselect(
+                    "Distress or motivation signals",
+                    [
+                        "Vacant",
+                        "Pre-foreclosure",
+                        "Tax delinquent",
+                        "Code violation",
+                        "Major repairs",
+                        "Fire damage",
+                        "Water damage",
+                        "Probate / inherited",
+                        "Absentee owner",
+                        "Out-of-state owner",
+                        "Tired landlord",
+                        "Need cash quickly",
+                    ],
+                )
+                estimated_value = st.number_input("Estimated value", min_value=0, value=0, step=5000)
+                mortgage_balance = st.number_input("Mortgage/lien balance", min_value=0, value=0, step=5000)
+                estimated_repairs = st.number_input("Estimated repairs", min_value=0, value=0, step=2500)
 
-    st.download_button(
-        "Download CSV template",
-        data=lead_template_csv(),
-        file_name="lead_scout_template.csv",
-        mime="text/csv",
-    )
+            details_col, geo_col = st.columns([1.2, 1])
+            with details_col:
+                property_notes = st.text_area("Property notes", height=90)
+                owner_notes = st.text_area("Owner notes", height=90)
+            with geo_col:
+                latitude = st.number_input("Latitude (optional)", value=0.0, format="%.6f")
+                longitude = st.number_input("Longitude (optional)", value=0.0, format="%.6f")
+                use_geocoder = st.checkbox(
+                    "Try to geocode from address",
+                    value=False,
+                    help="If unchecked or no exact match is found, the map uses an approximate city/county point.",
+                )
+                lead_source = st.text_input("Lead source", value="Manual research")
 
-    uploaded_file = st.file_uploader("Upload lead CSV", type="csv", key="lead_agent_upload")
-    if not uploaded_file:
-        st.info("Upload a CSV to rank leads. The template shows useful columns, but the agent also scans free-text fields.")
-        return
+            submitted = st.form_submit_button("Add lead to map")
 
-    try:
-        df = pd.read_csv(uploaded_file, low_memory=False)
-    except Exception as exc:
-        st.error(f"Could not read the CSV: {exc}")
-        return
+        if submitted:
+            if not normalize_text(address):
+                st.error("Add a property address or research label so the lead is easy to recognize.")
+            else:
+                resolved_lat, resolved_lon, coordinate_source = resolve_coordinates(
+                    address,
+                    city,
+                    county,
+                    latitude,
+                    longitude,
+                    use_geocoder,
+                )
+                state = SUPPORTED_COUNTIES[county_key_from_label_or_text(county)]["state"]
+                raw_lead = pd.DataFrame(
+                    [
+                        {
+                            "Lead ID": next_lead_id(county),
+                            "Property Address": address,
+                            "City": city,
+                            "State": state,
+                            "County": county,
+                            "Property Type": property_type,
+                            "Occupancy": occupancy,
+                            "Property Condition": condition,
+                            "Distress Signals": "; ".join(distress_signals),
+                            "Owner Name": owner_name or "Owner research needed",
+                            "Owner Type": owner_type,
+                            "Mailing Address": mailing_address,
+                            "Phone": phone,
+                            "Email": email,
+                            "Preferred Contact": preferred_contact,
+                            "Estimated Value": estimated_value,
+                            "Market Value": estimated_value,
+                            "Mortgage Balance": mortgage_balance,
+                            "Estimated Repairs": estimated_repairs,
+                            "Lead Source": lead_source,
+                            "Lead Created": datetime.utcnow().date().isoformat(),
+                            "Owner Notes": owner_notes,
+                            "Property Notes": property_notes,
+                            "Coordinate Source": coordinate_source,
+                            "LATITUDE": resolved_lat,
+                            "LONGITUDE": resolved_lon,
+                        }
+                    ]
+                )
+                add_leads_to_pipeline(raw_lead)
+                st.success("Lead added, scored, and placed on the map.")
 
-    if df.empty:
-        st.warning("The uploaded CSV did not contain any rows.")
-        return
-
-    scored = score_leads(df)
-    only_target_counties = st.checkbox("Only show target counties", value=True)
-    temperatures = st.multiselect(
-        "Lead temperatures",
-        ["Hot", "Warm", "Nurture"],
-        default=["Hot", "Warm"],
-    )
-    min_score = st.slider("Minimum lead score", min_value=0, max_value=100, value=40, step=5)
-
-    filtered = scored.copy()
-    if only_target_counties:
-        filtered = filtered[filtered["County Match"].isin(COUNTY_LABELS)]
-    if temperatures:
-        filtered = filtered[filtered["Lead Temperature"].isin(temperatures)]
-    filtered = filtered[filtered["Lead Score"] >= min_score]
-
-    hot_count = int((filtered["Lead Temperature"] == "Hot").sum()) if not filtered.empty else 0
-    warm_count = int((filtered["Lead Temperature"] == "Warm").sum()) if not filtered.empty else 0
-    avg_score = int(filtered["Lead Score"].mean()) if not filtered.empty else 0
+    leads = st.session_state["lead_pipeline"]
+    hot_count = int((leads["Lead Temperature"] == "Hot").sum()) if not leads.empty else 0
+    warm_count = int((leads["Lead Temperature"] == "Warm").sum()) if not leads.empty else 0
+    avg_score = int(leads["Lead Score"].mean()) if not leads.empty else 0
 
     metric_a, metric_b, metric_c, metric_d = st.columns(4)
-    metric_a.metric("Ranked leads", len(filtered))
+    metric_a.metric("Total leads", len(leads))
     metric_b.metric("Hot leads", hot_count)
     metric_c.metric("Warm leads", warm_count)
     metric_d.metric("Average score", avg_score)
 
-    st.subheader("Prioritized action queue")
-    priority_columns = [
-        column
-        for column in [
-            "Lead Score",
-            "Lead Temperature",
-            "County Match",
-            "Distress Evidence",
-            "Suggested Next Action",
-            "Property Address",
-            "Address",
-            "City",
-            "State",
-            "Owner Name",
-            "Mailing Address",
-            "Phone",
-            "Email",
-        ]
-        if column in filtered.columns
-    ]
-    display_df = filtered[priority_columns] if priority_columns else filtered
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
-    dataframe_download(filtered, "ranked_hot_property_leads.csv", "Download ranked leads")
+    filter_col, temp_col, score_col, search_col = st.columns([1.2, 1, 1, 1.2])
+    with filter_col:
+        selected_counties = st.multiselect("Counties on map", COUNTY_LABELS, default=COUNTY_LABELS)
+    with temp_col:
+        selected_temperatures = st.multiselect(
+            "Lead temperatures",
+            ["Hot", "Warm", "Nurture"],
+            default=["Hot", "Warm", "Nurture"],
+        )
+    with score_col:
+        min_score = st.slider("Minimum score", min_value=0, max_value=100, value=0, step=5)
+    with search_col:
+        search_text = st.text_input("Search leads", placeholder="owner, city, signal...")
 
-    st.subheader("Map")
+    filtered = apply_lead_filters(
+        leads,
+        selected_counties,
+        selected_temperatures,
+        min_score,
+        search_text,
+    )
+
+    st.subheader("Lead map")
+    st.caption("Map points are exact when latitude/longitude or geocoding is available; otherwise they use approximate city/county centers.")
     render_map(filtered)
 
-    if not filtered.empty:
-        top_lead = filtered.iloc[0]
-        st.subheader("Top lead playbook")
-        st.markdown(
-            f"""
-            **Lead temperature:** {top_lead['Lead Temperature']} ({top_lead['Lead Score']}/100)
-
-            **Evidence:** {top_lead['Distress Evidence']}
-
-            **Recommended next action:** {top_lead['Suggested Next Action']}
-
-            **Contact sequence:** call or skip trace first, send a short SMS if compliant, mail a personal letter,
-            then re-check county records before making an offer.
-            """
+    st.subheader("Lead table")
+    st.caption("Click a row to inspect the property, owner, and recommended next action.")
+    if filtered.empty:
+        st.warning("No leads match the current filters.")
+    else:
+        display_df = filtered[lead_display_columns(filtered)].copy()
+        table_event = st.dataframe(
+            display_df,
+            use_container_width=True,
+            hide_index=True,
+            on_select="rerun",
+            selection_mode="single-row",
+            key="lead_pipeline_table",
         )
+        selection = getattr(table_event, "selection", None)
+        selected_rows = getattr(selection, "rows", []) if selection is not None else []
+        selected_index = selected_rows[0] if selected_rows else 0
+        selected_lead = filtered.iloc[selected_index]
+        render_lead_detail(selected_lead)
+
+    with st.expander("Optional CSV import/export"):
+        st.write(
+            "Use CSVs as a secondary way to bulk add leads. Imported records are scored and added to the same map."
+        )
+        st.download_button(
+            "Download CSV template",
+            data=lead_template_csv(),
+            file_name="lead_scout_template.csv",
+            mime="text/csv",
+        )
+        uploaded_file = st.file_uploader("Optional lead CSV", type="csv", key="lead_agent_upload")
+        if uploaded_file:
+            try:
+                imported_df = pd.read_csv(uploaded_file, low_memory=False)
+                prepared_import = prepare_imported_leads(imported_df)
+                scored_import = score_leads(prepared_import)
+                st.dataframe(
+                    scored_import[lead_display_columns(scored_import)],
+                    use_container_width=True,
+                    hide_index=True,
+                )
+                if st.button("Add uploaded CSV leads to map"):
+                    add_leads_to_pipeline(prepared_import)
+                    st.success(f"Added {len(prepared_import)} uploaded leads to the map.")
+            except Exception as exc:
+                st.error(f"Could not import the CSV: {exc}")
+
+        dataframe_download(leads, "current_property_lead_pipeline.csv", "Download current lead pipeline")
+        if st.button("Reset to starter leads"):
+            st.session_state["lead_pipeline"] = score_leads(starter_leads())
+            st.session_state["lead_sequence"] = 5
+            st.success("Lead pipeline reset to the starter target leads.")
 
 
 def render_map_tools() -> None:
-    st.header("Map and data tools")
+    st.header("Optional CSV tools")
     st.write(
-        "Use this workspace for parcel CSVs. If coordinates are missing, choose an address column and geocode before mapping."
+        "Use this secondary workspace for parcel CSVs. If coordinates are missing, choose an address column and geocode before mapping."
     )
 
     uploaded_file = st.file_uploader(
@@ -1072,6 +1641,17 @@ def render_styles() -> None:
             font-size: 1rem;
             line-height: 1.35;
         }
+        .detail-card {
+            border: 1px solid #cbd5e1;
+            border-left: 6px solid #2563eb;
+            border-radius: 1rem;
+            padding: 1rem 1.25rem;
+            background: #f8fafc;
+            margin: 1rem 0;
+        }
+        .detail-card h3 {
+            margin: 0.1rem 0 0.4rem 0;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -1086,18 +1666,18 @@ def main() -> None:
     )
     render_styles()
     st.sidebar.title("Property Lead System")
-    st.sidebar.write("Seller intake, hot-lead scoring, and property mapping.")
+    st.sidebar.write("Create leads, map opportunities, inspect owners, and keep CSV upload as an optional utility.")
     st.sidebar.markdown("**Target markets**")
     for county in SUPPORTED_COUNTIES.values():
         st.sidebar.write(f"- {county['label']}")
 
-    seller_tab, agent_tab, map_tab = st.tabs(
-        ["Seller landing page", "Lead Scout Agent", "Map and data tools"]
+    agent_tab, seller_tab, map_tab = st.tabs(
+        ["Lead Scout Agent", "Seller landing page", "Optional CSV tools"]
     )
-    with seller_tab:
-        render_seller_landing()
     with agent_tab:
         render_lead_agent()
+    with seller_tab:
+        render_seller_landing()
     with map_tab:
         render_map_tools()
 
