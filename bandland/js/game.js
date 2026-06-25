@@ -21,6 +21,7 @@ const Game = (() => {
     equippedInstrument: 'trash-lid',
     equippedSong: 'street-jam',
     equippedWear: { clothes: null, makeup: null, accessories: null },
+    shopNotice: null,
   };
 
   let parallaxCleanup = null;
@@ -79,6 +80,29 @@ const Game = (() => {
       ...m,
       id: m.id || getBandmateId(m),
     }));
+  }
+
+  function slotMax() {
+    return typeof MAX_BAND_SLOTS !== 'undefined' ? MAX_BAND_SLOTS : 30;
+  }
+
+  function getBandSlotCount() {
+    return Math.max(1, Math.floor(Number(state.bandSlots)) || 1);
+  }
+
+  function getOpenBandSlots() {
+    return Math.max(0, getBandSlotCount() - state.bandMembers.length);
+  }
+
+  function canRecruitBandmate() {
+    return getOpenBandSlots() > 0;
+  }
+
+  function nextBandSlotCost() {
+    const slots = getBandSlotCount();
+    if (slots >= slotMax()) return null;
+    const cost = BAND_SLOT_COSTS[slots];
+    return cost !== undefined ? cost : null;
   }
 
   function persist() {
@@ -159,10 +183,12 @@ const Game = (() => {
   }
 
   function buyBandSlot() {
-    const nextCost = BAND_SLOT_COSTS[state.bandSlots] ?? 9999;
-    if (state.bandCash < nextCost || state.bandSlots >= MAX_BAND_SLOTS) return false;
+    const slots = getBandSlotCount();
+    const nextCost = nextBandSlotCost();
+    if (nextCost === null || state.bandCash < nextCost) return false;
     state.bandCash -= nextCost;
-    state.bandSlots += 1;
+    state.bandSlots = slots + 1;
+    state.shopNotice = `Band slot purchased! ${getOpenBandSlots()} open slot${getOpenBandSlots() === 1 ? '' : 's'} available.`;
     updateHud();
     persist();
     return true;
@@ -170,7 +196,7 @@ const Game = (() => {
 
   function acceptRecruit() {
     if (!state.pendingRecruit) return false;
-    if (state.bandMembers.length >= state.bandSlots) return false;
+    if (!canRecruitBandmate()) return false;
     state.bandMembers.push(state.pendingRecruit);
     normalizeBandMembers();
     state.starMeter += 5;
@@ -303,17 +329,27 @@ const Game = (() => {
       `;
     }).join('');
 
+    const openSlots = getOpenBandSlots();
+    const slotCount = getBandSlotCount();
+
     const bandSection = `
       <div class="inv-section">
-        <h4>Band (${state.bandMembers.length}/${state.bandSlots})</h4>
+        <h4>Band (${state.bandMembers.length}/${slotCount})</h4>
+        <p class="band-open-slots">${openSlots} open slot${openSlots === 1 ? '' : 's'} · play gigs to recruit</p>
         <div class="inv-items band-roster">
-          ${state.bandMembers.length
-            ? state.bandMembers.map((m) => `
+          ${state.bandMembers.map((m) => `
                 <div class="bandmate-chip" title="${m.role}">
                   ${renderBandmateCharacter(m, 52)}
                   <span>${m.name}</span>
-                </div>`).join('')
-            : '<span class="inv-empty">Solo act</span>'}
+                </div>`).join('')}
+          ${Array.from({ length: openSlots }, (_, i) => `
+                <div class="bandmate-chip empty-slot" title="Open slot — recruit during gigs">
+                  <div class="empty-slot-icon">➕</div>
+                  <span>Open</span>
+                </div>`).join('')}
+          ${!state.bandMembers.length && !openSlots
+            ? '<span class="inv-empty">Solo act</span>'
+            : ''}
         </div>
       </div>
     `;
@@ -351,7 +387,9 @@ const Game = (() => {
 
   function renderRecruitModal() {
     const r = state.pendingRecruit;
-    const full = state.bandMembers.length >= state.bandSlots;
+    const openSlots = getOpenBandSlots();
+    const full = openSlots <= 0;
+    const slotCount = getBandSlotCount();
     return `
       <div class="modal-overlay">
         <div class="modal recruit-modal">
@@ -359,8 +397,8 @@ const Game = (() => {
           <h3>🌟 Someone Wants In!</h3>
           <p><strong>${r.name}</strong> (${r.role}) wants to join your band!</p>
           ${full
-            ? `<p class="warn">Buy a band slot in the shop first! (${state.bandMembers.length}/${state.bandSlots})</p>`
-            : `<p>They'll boost your crowd and star power.</p>`}
+            ? `<p class="warn">No open band slots! Buy a slot in the shop. (${state.bandMembers.length}/${slotCount} filled)</p>`
+            : `<p>${openSlots} open slot${openSlots === 1 ? '' : 's'} — they'll boost your crowd and star power.</p>`}
           <div class="modal-actions">
             ${full ? '' : `<button class="btn btn-primary" id="btn-accept-recruit">Welcome Aboard!</button>`}
             <button class="btn btn-ghost" id="btn-decline-recruit">Not Now</button>
@@ -380,16 +418,20 @@ const Game = (() => {
 
     let content = '';
     if (state.shopTab === 'band') {
-      const nextCost = BAND_SLOT_COSTS[state.bandSlots] ?? null;
+      const nextCost = nextBandSlotCost();
+      const openSlots = getOpenBandSlots();
+      const slotCount = getBandSlotCount();
+      const canBuy = nextCost !== null;
       content = `
         <div class="shop-list">
+          ${state.shopNotice ? `<p class="shop-notice">${state.shopNotice}</p>` : ''}
           <div class="shop-item">
             <span class="shop-emoji">👥</span>
             <div class="shop-info">
               <strong>Band Member Slot</strong>
-              <span>Current: ${state.bandMembers.length} / ${state.bandSlots} slots</span>
+              <span>${state.bandMembers.length} bandmates · ${openSlots} open · ${slotCount} total slots</span>
             </div>
-            ${nextCost !== null && state.bandSlots < MAX_BAND_SLOTS
+            ${canBuy
               ? `<button class="btn btn-buy" data-buy-slot="1" ${state.bandCash < nextCost ? 'disabled' : ''}>$${nextCost}</button>`
               : '<span class="owned-badge">MAX</span>'}
           </div>
@@ -611,6 +653,7 @@ const Game = (() => {
     $$('.shop-tab').forEach((tab) => {
       tab.addEventListener('click', () => {
         state.shopTab = tab.dataset.tab;
+        state.shopNotice = null;
         render();
       });
     });
@@ -622,7 +665,12 @@ const Game = (() => {
     });
 
     $('[data-buy-slot]')?.addEventListener('click', () => {
-      if (buyBandSlot()) render();
+      if (buyBandSlot()) {
+        render();
+      } else {
+        state.shopNotice = 'Could not buy slot — need more BandCash or you are at max slots.';
+        render();
+      }
     });
 
     $('#btn-accept-recruit')?.addEventListener('click', () => {
