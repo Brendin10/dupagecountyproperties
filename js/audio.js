@@ -711,7 +711,7 @@ const AudioEngine = (() => {
       : [NOTE_FREQ[note.note] || 440];
     const master = ac.createGain();
     master.gain.setValueAtTime(0, now);
-    master.gain.linearRampToValueAtTime(0.12, now + 0.04);
+    master.gain.linearRampToValueAtTime(0.08, now + 0.04);
     connectToMix(master, 0, 'music');
     const nodes = [];
     freqs.forEach((freq, i) => {
@@ -836,20 +836,163 @@ const AudioEngine = (() => {
     playMelodicBySubtype(ac, now, instrument.subtype, c, 1, instrument.id);
   }
 
+  function playFourOnFloorKick(ac, now, vol = 0.62) {
+    playKick(ac, now, vol);
+    const sub = ac.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(95, now);
+    sub.frequency.exponentialRampToValueAtTime(38, now + 0.12);
+    const g = masterGain(ac, now, vol * 0.45, 0.18, 0, 'perc');
+    sub.connect(g);
+    sub.start(now);
+    sub.stop(now + 0.18);
+  }
+
+  function playDanceClap(ac, now, vol = 0.24) {
+    playSnare(ac, now, vol);
+    const click = ac.createOscillator();
+    click.type = 'square';
+    click.frequency.value = 1200;
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 2200;
+    bp.Q.value = 1.2;
+    const g = masterGain(ac, now, vol * 0.35, 0.06, 0, 'perc');
+    click.connect(bp);
+    bp.connect(g);
+    click.start(now);
+    click.stop(now + 0.05);
+  }
+
+  function playDanceBeat(ac, now, beatIdx, danceStyle, chord, secId, intensity = 1) {
+    const v = intensity;
+    const beat = beatIdx % 4;
+    const isChorus = secId === 'chorus';
+    const isVerse = secId === 'verse';
+
+    playFourOnFloorKick(ac, now, 0.6 * v);
+
+    switch (danceStyle) {
+      case 'funk-house':
+        if (beatIdx % 2 === 1) playHihat(ac, now, 0.13 * v);
+        if (beat === 1 || beat === 3) playDanceClap(ac, now, 0.26 * v);
+        if (beatIdx % 2 === 0) playLiveBass(ac, now, chord, 0.34 * v);
+        if (beatIdx % 4 === 0) playSynth(ac, now, chord, 0.12 * v, true);
+        if (beatIdx % 16 === 0) playSongPad(ac, now, chord, 0.13 * v);
+        break;
+      case 'deep-house':
+        if (beatIdx % 2 === 1) playHihat(ac, now, 0.11 * v);
+        if (beat === 1 || beat === 3) playDanceClap(ac, now, 0.2 * v);
+        playLiveBass(ac, now, chord, 0.36 * v);
+        if (beatIdx % 8 === 0) playSongPad(ac, now, chord, 0.15 * v);
+        if (isChorus && beatIdx % 4 === 2) playLiveShimmer(ac, now, chord, 0.07 * v);
+        break;
+      case 'euro':
+        if (beatIdx % 2 === 1) playHihat(ac, now, 0.14 * v);
+        if (beat === 1 || beat === 3) playSnare(ac, now, 0.3 * v);
+        playLiveBass(ac, now, chord, 0.38 * v);
+        if (isChorus || isVerse) playSynth(ac, now, chord, 0.1 * v, beatIdx % 2 === 0);
+        if (beatIdx % 8 === 0) playLiveStrum(ac, now, chord, 0.1 * v);
+        if (beatIdx % 16 === 0) playSongPad(ac, now, chord, 0.12 * v);
+        break;
+      case 'disco':
+        if (beatIdx % 2 === 1) playHihat(ac, now, 0.15 * v);
+        if (beat === 1 || beat === 3) playDanceClap(ac, now, 0.28 * v);
+        playLiveBass(ac, now, chord, 0.4 * v);
+        if (beatIdx % 4 === 0) playLiveShimmer(ac, now, chord, 0.08 * v);
+        if (beatIdx % 8 === 0) playOrgan(ac, now, chord, 0.14 * v);
+        if (isChorus && beatIdx % 16 === 0) playCymbal(ac, now, 0.22 * v);
+        break;
+      case 'techno':
+        playHihat(ac, now, 0.12 * v);
+        if (beat === 1 || beat === 3) playSnare(ac, now, 0.24 * v);
+        if (beatIdx % 2 === 0) playLiveBass(ac, now, chord, 0.42 * v);
+        if (beatIdx % 4 === 0) playSynth(ac, now, chord, 0.14 * v, true);
+        if (isChorus && beatIdx % 8 === 4) playLiveShimmer(ac, now, chord, 0.06 * v);
+        break;
+      case 'tropical':
+        if (beatIdx % 2 === 1) playShake(ac, now, 0.14 * v);
+        if (beat === 1 || beat === 3) playDanceClap(ac, now, 0.22 * v);
+        playLiveBass(ac, now, chord, 0.32 * v);
+        if (beatIdx % 2 === 0) playMallet(ac, now, chord, 0.1 * v);
+        if (beatIdx % 8 === 0) playSongPad(ac, now, chord, 0.12 * v);
+        if (isChorus && beatIdx % 4 === 0) playFlute(ac, now, chord, 0.08 * v);
+        break;
+      default:
+        if (beatIdx % 2 === 1) playHihat(ac, now, 0.12 * v);
+        if (beat === 1 || beat === 3) playDanceClap(ac, now, 0.22 * v);
+        playLiveBass(ac, now, chord, 0.34 * v);
+        if (beatIdx % 8 === 0) playSongPad(ac, now, chord, 0.11 * v);
+    }
+  }
+
   function playCrash() { playCymbal(getCtx(), getCtx().currentTime, 0.45); }
 
-  function playCheer() {
+  function playCheer(vol = 0.08) {
     const ac = getCtx();
     const now = ac.currentTime;
     [440, 554, 659].forEach((freq, i) => {
       const osc = ac.createOscillator();
       osc.type = 'sine';
       osc.frequency.value = freq;
-      const g = masterGain(ac, now + i * 0.05, 0.08, 0.3);
+      const g = masterGain(ac, now + i * 0.05, vol, 0.3);
       osc.connect(g);
       osc.start(now + i * 0.05);
       osc.stop(now + 0.35);
     });
+  }
+
+  function playCheerLoud() {
+    const ac = getCtx();
+    const now = ac.currentTime;
+    const len = Math.floor(ac.sampleRate * 0.9);
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 0.7;
+    }
+    const noise = ac.createBufferSource();
+    noise.buffer = buf;
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 1400;
+    bp.Q.value = 0.7;
+    const ng = ac.createGain();
+    ng.gain.setValueAtTime(0, now);
+    ng.gain.linearRampToValueAtTime(0.28, now + 0.04);
+    ng.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+    connectToMix(ng, 0, 'music');
+    noise.connect(bp);
+    bp.connect(ng);
+    noise.start(now);
+
+    [523.25, 659.25, 783.99, 987.77].forEach((freq, i) => {
+      const osc = ac.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      const g = ac.createGain();
+      const t = now + i * 0.04;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.16, t + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
+      connectToMix(g, (i - 1.5) * 0.15, 'music');
+      osc.connect(g);
+      osc.start(t);
+      osc.stop(t + 0.58);
+    });
+
+    const whoop = ac.createOscillator();
+    whoop.type = 'sawtooth';
+    whoop.frequency.setValueAtTime(280, now + 0.1);
+    whoop.frequency.exponentialRampToValueAtTime(880, now + 0.35);
+    const wg = ac.createGain();
+    wg.gain.setValueAtTime(0, now + 0.1);
+    wg.gain.linearRampToValueAtTime(0.12, now + 0.18);
+    wg.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    connectToMix(wg, 0, 'music');
+    whoop.connect(wg);
+    whoop.start(now + 0.1);
+    whoop.stop(now + 0.52);
   }
 
   function playCoin() {
@@ -991,9 +1134,9 @@ const AudioEngine = (() => {
 
   return {
     resume, getCtx, initMix, getMix,
-    playCrash, playCheer, playCoin, playMiss, playTick,
+    playCrash, playCheer, playCheerLoud, playCoin, playMiss, playTick,
     playInstrument, playPartEvent, playSongPad, startSustain, stopSustain,
-    playLiveBass, playLiveShimmer, playLiveStrum,
+    playLiveBass, playLiveShimmer, playLiveStrum, playDanceBeat, playFourOnFloorKick,
     playKick, playSnare, playHihat, playCymbal, playShake,
     playChord, playGuitarChord, playBassNote, playKeysChord, playHornNote, playVocal,
     playUkulele, playElectricGuitar, playPiano,
