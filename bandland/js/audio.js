@@ -711,7 +711,7 @@ const AudioEngine = (() => {
       : [NOTE_FREQ[note.note] || 440];
     const master = ac.createGain();
     master.gain.setValueAtTime(0, now);
-    master.gain.linearRampToValueAtTime(0.12, now + 0.04);
+    master.gain.linearRampToValueAtTime(0.08, now + 0.04);
     connectToMix(master, 0, 'music');
     const nodes = [];
     freqs.forEach((freq, i) => {
