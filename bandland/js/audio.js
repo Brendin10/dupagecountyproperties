@@ -928,71 +928,16 @@ const AudioEngine = (() => {
 
   function playCrash() { playCymbal(getCtx(), getCtx().currentTime, 0.45); }
 
-  function playCheer(vol = 0.08) {
-    const ac = getCtx();
-    const now = ac.currentTime;
-    [440, 554, 659].forEach((freq, i) => {
-      const osc = ac.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      const g = masterGain(ac, now + i * 0.05, vol, 0.3);
-      osc.connect(g);
-      osc.start(now + i * 0.05);
-      osc.stop(now + 0.35);
-    });
+  function playCheer() {
+    const tier = crowdAmbience?.tier ?? 3;
+    playCrowdSample(tier, 0.9);
   }
 
   function playCheerLoud() {
-    const ac = getCtx();
-    const now = ac.currentTime;
-    const len = Math.floor(ac.sampleRate * 0.9);
-    const buf = ac.createBuffer(1, len, ac.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) {
-      d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 0.7;
-    }
-    const noise = ac.createBufferSource();
-    noise.buffer = buf;
-    const bp = ac.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = 1400;
-    bp.Q.value = 0.7;
-    const ng = ac.createGain();
-    ng.gain.setValueAtTime(0, now);
-    ng.gain.linearRampToValueAtTime(0.28, now + 0.04);
-    ng.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
-    connectToMix(ng, 0, 'music');
-    noise.connect(bp);
-    bp.connect(ng);
-    noise.start(now);
-
-    [523.25, 659.25, 783.99, 987.77].forEach((freq, i) => {
-      const osc = ac.createOscillator();
-      osc.type = 'triangle';
-      osc.frequency.value = freq;
-      const g = ac.createGain();
-      const t = now + i * 0.04;
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.16, t + 0.03);
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-      connectToMix(g, (i - 1.5) * 0.15, 'music');
-      osc.connect(g);
-      osc.start(t);
-      osc.stop(t + 0.58);
-    });
-
-    const whoop = ac.createOscillator();
-    whoop.type = 'sawtooth';
-    whoop.frequency.setValueAtTime(280, now + 0.1);
-    whoop.frequency.exponentialRampToValueAtTime(880, now + 0.35);
-    const wg = ac.createGain();
-    wg.gain.setValueAtTime(0, now + 0.1);
-    wg.gain.linearRampToValueAtTime(0.12, now + 0.18);
-    wg.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-    connectToMix(wg, 0, 'music');
-    whoop.connect(wg);
-    whoop.start(now + 0.1);
-    whoop.stop(now + 0.52);
+    const tier = crowdAmbience?.tier ?? 8;
+    playCrowdSample(tier, 1.15, { loud: true });
+    setTimeout(() => playCrowdSample(tier, 1.0, { loud: true }), 140);
+    setTimeout(() => playCrowdSample(tier, 0.85, { loud: true }), 300);
   }
 
   function playCoin() {
@@ -1119,7 +1064,96 @@ const AudioEngine = (() => {
     });
   }
 
+  const CHEER_URL = 'audio/crowd-cheer.mp3';
+  let cheerBuffer = null;
+  let cheerLoadPromise = null;
   let crowdAmbience = null;
+
+  function loadCheerSample() {
+    if (cheerBuffer) return Promise.resolve(cheerBuffer);
+    if (cheerLoadPromise) return cheerLoadPromise;
+    initMix();
+    const ac = getCtx();
+    cheerLoadPromise = fetch(CHEER_URL)
+      .then((r) => {
+        if (!r.ok) throw new Error(`crowd cheer ${r.status}`);
+        return r.arrayBuffer();
+      })
+      .then((buf) => new Promise((resolve, reject) => {
+        ac.decodeAudioData(buf, resolve, reject);
+      }))
+      .then((decoded) => {
+        cheerBuffer = decoded;
+        return decoded;
+      })
+      .catch((err) => {
+        console.warn('Crowd cheer sample failed to load', err);
+        cheerLoadPromise = null;
+        throw err;
+      });
+    return cheerLoadPromise;
+  }
+
+  function tierNorm(tier) {
+    return Math.min(Math.max(tier ?? 0, 0), 24) / 24;
+  }
+
+  function playCrowdSample(tier = 0, volMult = 1, opts = {}) {
+    initMix();
+    const ac = getCtx();
+
+    const play = () => {
+      if (!cheerBuffer) return;
+      const now = ac.currentTime;
+      const tn = tierNorm(tier);
+      const dur = cheerBuffer.duration;
+      const loud = !!opts.loud;
+      const clipLen = loud
+        ? Math.min(3.5 + tn * 4, dur * 0.8)
+        : Math.min(0.5 + tn * 1.8, dur * 0.3);
+      const maxStart = Math.max(0, dur - clipLen - 0.05);
+      const start = opts.start ?? Math.random() * maxStart;
+      const baseVol = loud ? 0.42 + tn * 0.38 : 0.08 + tn * 0.26;
+      const vol = baseVol * volMult;
+      const pan = (Math.random() - 0.5) * (0.25 + tn * 0.75);
+
+      const src = ac.createBufferSource();
+      src.buffer = cheerBuffer;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(vol, now + 0.025);
+      g.gain.setValueAtTime(vol * 0.92, now + clipLen * 0.65);
+      g.gain.exponentialRampToValueAtTime(0.001, now + clipLen + 0.1);
+      connectToMix(g, pan, 'music');
+      src.connect(g);
+      src.start(now, start, Math.min(clipLen, dur - start));
+    };
+
+    if (cheerBuffer) play();
+    else loadCheerSample().then(play).catch(() => {});
+  }
+
+  function scheduleCrowdCheer() {
+    if (!crowdAmbience || crowdAmbience.booing) return;
+    const { tier, cheerMult } = crowdAmbience;
+    const tn = tierNorm(tier);
+    const mult = cheerMult || 1;
+
+    playCrowdSample(tier, mult);
+    if (tn > 0.2 && Math.random() < 0.35 + tn * 0.45) {
+      setTimeout(() => {
+        if (crowdAmbience && !crowdAmbience.booing) playCrowdSample(tier, mult * 0.75);
+      }, 90 + Math.random() * 180);
+    }
+    if (tn > 0.55 && Math.random() < tn * 0.55) {
+      setTimeout(() => {
+        if (crowdAmbience && !crowdAmbience.booing) playCrowdSample(tier, mult * 0.6);
+      }, 220 + Math.random() * 200);
+    }
+
+    const nextDelay = Math.max(900, 4200 - tier * 120) + Math.random() * 1800;
+    crowdAmbience.cheerTimeout = setTimeout(scheduleCrowdCheer, nextDelay);
+  }
 
   function playHitBurst(rating = 'good') {
     const ac = getCtx();
@@ -1164,29 +1198,7 @@ const AudioEngine = (() => {
   }
 
   function playCrowdChirp(tier, mult = 1) {
-    const ac = getCtx();
-    const now = ac.currentTime;
-    const vol = (0.05 + tier * 0.014) * mult;
-    const base = 320 + tier * 12 + Math.random() * 80;
-    [base, base * 1.25].forEach((freq, i) => {
-      const osc = ac.createOscillator();
-      osc.type = 'triangle';
-      osc.frequency.value = freq;
-      const bp = ac.createBiquadFilter();
-      bp.type = 'bandpass';
-      bp.frequency.value = 900 + tier * 20;
-      bp.Q.value = 2;
-      const g = ac.createGain();
-      const t = now + i * 0.04;
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(vol, t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-      connectToMix(g, (Math.random() - 0.5) * 0.6, 'music');
-      osc.connect(bp);
-      bp.connect(g);
-      osc.start(t);
-      osc.stop(t + 0.24);
-    });
+    playCrowdSample(tier, mult);
   }
 
   function playBoo() {
@@ -1214,70 +1226,41 @@ const AudioEngine = (() => {
   function startCrowdAmbience(tier = 0) {
     stopCrowdAmbience();
     initMix();
-    const ac = getCtx();
-    const len = ac.sampleRate * 2;
-    const buf = ac.createBuffer(1, len, ac.sampleRate);
-    const d = buf.getChannelData(0);
-    let last = 0;
-    for (let i = 0; i < len; i++) {
-      const white = Math.random() * 2 - 1;
-      last = (last + 0.02 * white) / 1.02;
-      d[i] = last * 3.5;
-    }
-    const noise = ac.createBufferSource();
-    noise.buffer = buf;
-    noise.loop = true;
-    const bp = ac.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = 350 + tier * 35;
-    bp.Q.value = 0.55;
-    const murmurGain = ac.createGain();
-    const baseVol = 0.035 + tier * 0.016;
-    murmurGain.gain.value = baseVol;
-    connectToMix(murmurGain, 0, 'music');
-    noise.connect(bp);
-    bp.connect(murmurGain);
-    noise.start();
-
-    const cheerInterval = setInterval(() => {
-      if (crowdAmbience?.booing) return;
-      const chance = 0.12 + tier * 0.018;
-      if (Math.random() < chance) playCrowdChirp(tier, crowdAmbience?.cheerMult || 1);
-    }, Math.max(350, 900 - tier * 22));
+    loadCheerSample().then(() => {
+      playCrowdSample(tier, 0.85);
+      if (tier > 2) setTimeout(() => playCrowdSample(tier, 0.7), 400);
+    }).catch(() => {});
 
     const booInterval = setInterval(() => {
       if (crowdAmbience?.booing) playBoo();
-    }, 520);
+    }, 650);
 
     crowdAmbience = {
-      noise, murmurGain, cheerInterval, booInterval, tier, booing: false, cheerMult: 1,
+      tier, booing: false, cheerMult: 1, booInterval, cheerTimeout: null,
     };
+    crowdAmbience.cheerTimeout = setTimeout(scheduleCrowdCheer, 1200);
   }
 
   function stopCrowdAmbience() {
     if (!crowdAmbience) return;
-    clearInterval(crowdAmbience.cheerInterval);
     clearInterval(crowdAmbience.booInterval);
-    try { crowdAmbience.noise.stop(); } catch (_) {}
+    if (crowdAmbience.cheerTimeout) clearTimeout(crowdAmbience.cheerTimeout);
     crowdAmbience = null;
   }
 
   function setCrowdBooing(active) {
     if (!crowdAmbience) return;
-    const ac = getCtx();
-    const now = ac.currentTime;
     crowdAmbience.booing = active;
-    const target = active ? crowdAmbience.tier * 0.004 + 0.01 : 0.035 + crowdAmbience.tier * 0.016;
-    crowdAmbience.murmurGain.gain.cancelScheduledValues(now);
-    crowdAmbience.murmurGain.gain.linearRampToValueAtTime(target, now + 0.25);
   }
 
   function boostCrowdCheer() {
     if (!crowdAmbience) return;
+    const { tier } = crowdAmbience;
     crowdAmbience.cheerMult = 2;
-    playCrowdChirp(crowdAmbience.tier, 2);
-    playCrowdChirp(crowdAmbience.tier, 1.8);
-    setTimeout(() => { if (crowdAmbience) crowdAmbience.cheerMult = 1; }, 2200);
+    playCrowdSample(tier, 2, { loud: true });
+    setTimeout(() => playCrowdSample(tier, 1.8, { loud: true }), 100);
+    setTimeout(() => playCrowdSample(tier, 1.6, { loud: true }), 240);
+    setTimeout(() => { if (crowdAmbience) crowdAmbience.cheerMult = 1; }, 2500);
   }
 
   function playMiss() {
@@ -1297,7 +1280,7 @@ const AudioEngine = (() => {
     resume, getCtx, initMix, getMix,
     playCrash, playCheer, playCheerLoud, playCoin, playMiss, playTick, playHitBurst,
     playInstrument, playPartEvent, playSongPad, startSustain, stopSustain,
-    startCrowdAmbience, stopCrowdAmbience, setCrowdBooing, boostCrowdCheer, playBoo, playCrowdChirp,
+    startCrowdAmbience, stopCrowdAmbience, setCrowdBooing, boostCrowdCheer, playBoo, playCrowdSample, loadCheerSample,
     playLiveBass, playLiveShimmer, playLiveStrum, playDanceBeat, playFourOnFloorKick,
     playKick, playSnare, playHihat, playCymbal, playShake,
     playChord, playGuitarChord, playBassNote, playKeysChord, playHornNote, playVocal,
