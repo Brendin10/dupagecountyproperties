@@ -8,13 +8,13 @@ function charLayer(name, z, inner, extra = '') {
   return `<div class="char-layer layer-${name} ${extra}" style="z-index:${z}">${charSvg(inner)}</div>`;
 }
 
-function layeredCharacter(id, size, layers, instrumentHtml = '') {
+function layeredCharacter(id, size, layers, instrumentHtml = '', wearHtml = '') {
   const h = size * 1.35;
   const instLayer = instrumentHtml
     ? `<div class="char-layer layer-instrument" style="z-index:20">${charSvg(instrumentHtml)}</div>`
     : '';
   return `<div class="character-layered ${id}-layered" style="width:${size}px;height:${h}px" aria-label="${id}">
-    ${layers.join('')}${instLayer}
+    ${layers.join('')}${wearHtml}${instLayer}
   </div>`;
 }
 
@@ -173,8 +173,9 @@ function renderCharacter(id, size, opts = {}) {
   const char = CHARACTERS[id];
   if (!char) return '';
   const instInner = opts.instrument ? renderHeldInstrumentInner(opts.instrument, opts.pose || 'idle') : '';
-  if (id === 'benny') return layeredCharacter('benny', size, BENNY_LAYERS(size), instInner);
-  return layeredCharacter('lizzy', size, LIZZY_LAYERS(), instInner);
+  const wearHtml = typeof renderWearableLayers === 'function' ? renderWearableLayers(opts.equippedWear, id) : '';
+  if (id === 'benny') return layeredCharacter('benny', size, BENNY_LAYERS(size), instInner, wearHtml);
+  return layeredCharacter('lizzy', size, LIZZY_LAYERS(), instInner, wearHtml);
 }
 
 function renderCrowdMember(index) {
