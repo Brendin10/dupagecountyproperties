@@ -1065,8 +1065,11 @@ const AudioEngine = (() => {
   }
 
   const CHEER_URL = 'audio/crowd-cheer.mp3';
+  const BOO_URL = 'audio/crowd-boo.mp3';
   let cheerBuffer = null;
   let cheerLoadPromise = null;
+  let booBuffer = null;
+  let booLoadPromise = null;
   let crowdAmbience = null;
 
   function loadCheerSample() {
@@ -1092,6 +1095,31 @@ const AudioEngine = (() => {
         throw err;
       });
     return cheerLoadPromise;
+  }
+
+  function loadBooSample() {
+    if (booBuffer) return Promise.resolve(booBuffer);
+    if (booLoadPromise) return booLoadPromise;
+    initMix();
+    const ac = getCtx();
+    booLoadPromise = fetch(BOO_URL)
+      .then((r) => {
+        if (!r.ok) throw new Error(`crowd boo ${r.status}`);
+        return r.arrayBuffer();
+      })
+      .then((buf) => new Promise((resolve, reject) => {
+        ac.decodeAudioData(buf, resolve, reject);
+      }))
+      .then((decoded) => {
+        booBuffer = decoded;
+        return decoded;
+      })
+      .catch((err) => {
+        console.warn('Crowd boo sample failed to load', err);
+        booLoadPromise = null;
+        throw err;
+      });
+    return booLoadPromise;
   }
 
   function tierNorm(tier) {
@@ -1201,26 +1229,36 @@ const AudioEngine = (() => {
     playCrowdSample(tier, mult);
   }
 
-  function playBoo() {
+  function playBoo(volMult = 1) {
+    initMix();
     const ac = getCtx();
-    const now = ac.currentTime;
-    const osc = ac.createOscillator();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(180 + Math.random() * 40, now);
-    osc.frequency.linearRampToValueAtTime(90, now + 0.35);
-    const bp = ac.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = 500;
-    bp.Q.value = 1.5;
-    const g = ac.createGain();
-    g.gain.setValueAtTime(0, now);
-    g.gain.linearRampToValueAtTime(0.14, now + 0.03);
-    g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-    connectToMix(g, (Math.random() - 0.5) * 0.5, 'music');
-    osc.connect(bp);
-    bp.connect(g);
-    osc.start(now);
-    osc.stop(now + 0.42);
+    const tier = crowdAmbience?.tier ?? 3;
+
+    const play = () => {
+      if (!booBuffer) return;
+      const now = ac.currentTime;
+      const tn = tierNorm(tier);
+      const dur = booBuffer.duration;
+      const clipLen = Math.min(1.4 + tn * 1.1, dur);
+      const maxStart = Math.max(0, dur - clipLen - 0.02);
+      const start = Math.random() * maxStart;
+      const vol = (0.32 + tn * 0.38) * volMult;
+      const pan = (Math.random() - 0.5) * (0.4 + tn * 0.5);
+
+      const src = ac.createBufferSource();
+      src.buffer = booBuffer;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(vol, now + 0.02);
+      g.gain.setValueAtTime(vol * 0.9, now + clipLen * 0.7);
+      g.gain.exponentialRampToValueAtTime(0.001, now + clipLen + 0.08);
+      connectToMix(g, pan, 'music');
+      src.connect(g);
+      src.start(now, start, Math.min(clipLen, dur - start));
+    };
+
+    if (booBuffer) play();
+    else loadBooSample().then(play).catch(() => {});
   }
 
   function startCrowdAmbience(tier = 0) {
@@ -1230,10 +1268,11 @@ const AudioEngine = (() => {
       playCrowdSample(tier, 0.85);
       if (tier > 2) setTimeout(() => playCrowdSample(tier, 0.7), 400);
     }).catch(() => {});
+    loadBooSample().catch(() => {});
 
     const booInterval = setInterval(() => {
-      if (crowdAmbience?.booing) playBoo();
-    }, 650);
+      if (crowdAmbience?.booing) playBoo(0.85 + tierNorm(crowdAmbience.tier) * 0.25);
+    }, 900);
 
     crowdAmbience = {
       tier, booing: false, cheerMult: 1, booInterval, cheerTimeout: null,
@@ -1251,6 +1290,13 @@ const AudioEngine = (() => {
   function setCrowdBooing(active) {
     if (!crowdAmbience) return;
     crowdAmbience.booing = active;
+    if (active) {
+      loadBooSample().then(() => {
+        playBoo(1.1);
+        setTimeout(() => playBoo(1), 200);
+        setTimeout(() => playBoo(0.9), 450);
+      }).catch(() => {});
+    }
   }
 
   function boostCrowdCheer() {
@@ -1280,7 +1326,7 @@ const AudioEngine = (() => {
     resume, getCtx, initMix, getMix,
     playCrash, playCheer, playCheerLoud, playCoin, playMiss, playTick, playHitBurst,
     playInstrument, playPartEvent, playSongPad, startSustain, stopSustain,
-    startCrowdAmbience, stopCrowdAmbience, setCrowdBooing, boostCrowdCheer, playBoo, playCrowdSample, loadCheerSample,
+    startCrowdAmbience, stopCrowdAmbience, setCrowdBooing, boostCrowdCheer, playBoo, playCrowdSample, loadCheerSample, loadBooSample,
     playLiveBass, playLiveShimmer, playLiveStrum, playDanceBeat, playFourOnFloorKick,
     playKick, playSnare, playHihat, playCymbal, playShake,
     playChord, playGuitarChord, playBassNote, playKeysChord, playHornNote, playVocal,
