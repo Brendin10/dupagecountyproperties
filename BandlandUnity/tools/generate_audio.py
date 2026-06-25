@@ -51,8 +51,21 @@ def beat_tick():
     write_wav(OUT / "beat_tick.wav", samples)
 
 
+def crowd_murmur():
+    """Loopable crowd ambience — volume scales with performance in-game."""
+    n = int(SR * 3.0)
+    samples = []
+    for i in range(n):
+        t = i / SR
+        noise = (hash(i * 3) % 1000 / 500 - 1) * 0.08
+        murmur = math.sin(2 * math.pi * 180 * t) * 0.03 + math.sin(2 * math.pi * 240 * t) * 0.02
+        samples.append(noise + murmur)
+    write_wav(OUT / "crowd_murmur.wav", samples)
+
+
 if __name__ == "__main__":
     cymbal_crash()
     crowd_cheer()
     beat_tick()
+    crowd_murmur()
     print("Audio generated in", OUT)

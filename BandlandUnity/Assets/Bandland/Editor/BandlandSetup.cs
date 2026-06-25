@@ -233,19 +233,36 @@ namespace Bandland.Editor
             var ratingT = CreateTMP(gameCanvas.transform, "Rating", "", 28, new Vector2(0, 160));
             ratingT.alignment = TextAlignmentOptions.Center;
             var timerT = CreateTMP(gameCanvas.transform, "Timer", "45", 36, new Vector2(350, 180));
-            var crowdSl = CreateSlider(gameCanvas.transform, "CrowdSlider", new Vector2(-200, -240), "CROWD");
-            var cheerSl = CreateSlider(gameCanvas.transform, "CheerSlider", new Vector2(200, -240), "CHEER");
-            var beatRing = CreateImage(gameCanvas.transform, "BeatRing", new Vector2(280, -80), new Vector2(90, 90));
-            beatRing.color = new Color(1f, 0.5f, 0.3f, 0.5f);
-            var playBtn = CreateButton(gameCanvas.transform, "PlayBtn", "🥁 TAP!", new Vector2(280, -200));
-            playBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(140, 60);
+            var crowdSl = CreateSlider(gameCanvas.transform, "CrowdSlider", new Vector2(-200, -300), "CROWD");
+            var cheerSl = CreateSlider(gameCanvas.transform, "CheerSlider", new Vector2(200, -300), "CHEER");
+
+            // Beat lane
+            var lanePanel = CreateBeatLane(gameCanvas.transform);
+            var beatLane = lanePanel.GetComponent<BeatLaneController>();
+            var notePrefab = lanePanel.transform.Find("NotePrefab").GetComponent<Image>();
+
+            var playBtn = CreateButton(gameCanvas.transform, "PlayBtn", "TAP ON BEAT!", new Vector2(0, -120));
+            playBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(220, 58);
+
+            // Crowd ambience loop
+            var crowdMurmurSrc = audioGo.AddComponent<AudioSource>();
+            crowdMurmurSrc.clip = LoadAudio("crowd_murmur");
+            crowdMurmurSrc.loop = true;
+            crowdMurmurSrc.volume = 0.08f;
+            crowdMurmurSrc.playOnAwake = false;
+            var crowdAudio = audioGo.AddComponent<CrowdAudioController>();
+            var crowdAudioSo = new SerializedObject(crowdAudio);
+            crowdAudioSo.FindProperty("crowdSource").objectReferenceValue = crowdMurmurSrc;
+            crowdAudioSo.ApplyModifiedProperties();
 
             // Gig controller
             var gig = new GameObject("GigController").AddComponent<GigController>();
             var gigSo = new SerializedObject(gig);
             gigSo.FindProperty("cutscene").objectReferenceValue = cutscene;
             gigSo.FindProperty("rhythm").objectReferenceValue = rhythm;
+            gigSo.FindProperty("beatLane").objectReferenceValue = beatLane;
             gigSo.FindProperty("crowd").objectReferenceValue = crowd;
+            gigSo.FindProperty("crowdAudio").objectReferenceValue = crowdAudio;
             gigSo.FindProperty("ambience").objectReferenceValue = ambience;
             gigSo.FindProperty("performer").objectReferenceValue = performer.transform;
             gigSo.FindProperty("performerRenderer").objectReferenceValue = pSr;
@@ -260,9 +277,15 @@ namespace Bandland.Editor
             gigSo.FindProperty("timerText").objectReferenceValue = timerT;
             gigSo.FindProperty("crowdSlider").objectReferenceValue = crowdSl;
             gigSo.FindProperty("cheerSlider").objectReferenceValue = cheerSl;
-            gigSo.FindProperty("beatRing").objectReferenceValue = beatRing;
             gigSo.FindProperty("gameplayPanel").objectReferenceValue = gameplayPanel;
             gigSo.ApplyModifiedProperties();
+
+            // Wire beat lane internals
+            var laneSo = new SerializedObject(beatLane);
+            laneSo.FindProperty("rhythm").objectReferenceValue = rhythm;
+            laneSo.FindProperty("notePrefab").objectReferenceValue = notePrefab;
+            laneSo.ApplyModifiedProperties();
+            notePrefab.gameObject.SetActive(false);
 
             EditorSceneManager.SaveScene(scene, Scenes + "/Gig.unity");
         }
@@ -275,6 +298,58 @@ namespace Bandland.Editor
                 new EditorBuildSettingsScene(Scenes + "/Hub.unity", true),
                 new EditorBuildSettingsScene(Scenes + "/Gig.unity", true),
             };
+        }
+
+        static GameObject CreateBeatLane(Transform parent)
+        {
+            var root = new GameObject("BeatLane");
+            root.transform.SetParent(parent, false);
+            var rootRt = root.AddComponent<RectTransform>();
+            rootRt.anchorMin = new Vector2(0.05f, 0.02f);
+            rootRt.anchorMax = new Vector2(0.95f, 0.18f);
+            rootRt.offsetMin = rootRt.offsetMax = Vector2.zero;
+
+            var laneBg = new GameObject("LaneBG");
+            laneBg.transform.SetParent(root.transform, false);
+            var bgRt = laneBg.AddComponent<RectTransform>();
+            bgRt.anchorMin = Vector2.zero;
+            bgRt.anchorMax = Vector2.one;
+            bgRt.offsetMin = bgRt.offsetMax = Vector2.zero;
+            var bgImg = laneBg.AddComponent<Image>();
+            bgImg.color = new Color(0.08f, 0.05f, 0.16f, 0.92f);
+
+            var notesGo = new GameObject("Notes");
+            notesGo.transform.SetParent(root.transform, false);
+            var notesRt = notesGo.AddComponent<RectTransform>();
+            notesRt.anchorMin = Vector2.zero;
+            notesRt.anchorMax = Vector2.one;
+            notesRt.offsetMin = notesRt.offsetMax = Vector2.zero;
+
+            var hitGo = new GameObject("HitLine");
+            hitGo.transform.SetParent(root.transform, false);
+            var hitRt = hitGo.AddComponent<RectTransform>();
+            hitRt.sizeDelta = new Vector2(8f, 120f);
+            hitRt.anchoredPosition = Vector2.zero;
+            var hitImg = hitGo.AddComponent<Image>();
+            hitImg.color = new Color(1f, 0.85f, 0.3f, 0.85f);
+
+            var noteGo = new GameObject("NotePrefab");
+            noteGo.transform.SetParent(root.transform, false);
+            var noteRt = noteGo.AddComponent<RectTransform>();
+            noteRt.sizeDelta = new Vector2(48f, 48f);
+            var noteImg = noteGo.AddComponent<Image>();
+            noteImg.color = new Color(1f, 0.45f, 0.65f, 1f);
+
+            var lane = root.AddComponent<BeatLaneController>();
+            var so = new SerializedObject(lane);
+            so.FindProperty("laneRect").objectReferenceValue = rootRt;
+            so.FindProperty("notesParent").objectReferenceValue = notesRt;
+            so.FindProperty("hitLine").objectReferenceValue = hitRt;
+            so.FindProperty("notePrefab").objectReferenceValue = noteImg;
+            so.ApplyModifiedProperties();
+
+            CreateTMP(root.transform, "LaneLabel", "BEAT LANE — tap when notes hit the line", 16, new Vector2(0, 52)).alignment = TextAlignmentOptions.Center;
+            return root;
         }
 
         static GameObject CreateCanvas(string name)

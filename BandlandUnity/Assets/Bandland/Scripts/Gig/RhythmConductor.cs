@@ -66,7 +66,17 @@ namespace Bandland.Gig
         public BeatRating TryHit()
         {
             if (!_running) return BeatRating.Miss;
+            return ApplyRating(RateCurrentBeat());
+        }
 
+        public void RegisterMiss()
+        {
+            if (!_running) return;
+            ApplyRating(BeatRating.Miss);
+        }
+
+        BeatRating RateCurrentBeat()
+        {
             float elapsed = Time.time - _songStart;
             float beatPhase = elapsed % _secondsPerBeat;
             float dist = Mathf.Min(beatPhase, _secondsPerBeat - beatPhase);
@@ -75,15 +85,15 @@ namespace Bandland.Gig
             float perfect = config != null ? config.perfectWindow : 0.12f;
             float good = config != null ? config.goodWindow : 0.22f;
 
-            BeatRating rating;
-            if (dist <= perfect) rating = BeatRating.Perfect;
-            else if (dist <= good) rating = BeatRating.Good;
-            else rating = BeatRating.Miss;
+            if (dist <= perfect) return BeatRating.Perfect;
+            if (dist <= good) return BeatRating.Good;
+            return BeatRating.Miss;
+        }
 
+        BeatRating ApplyRating(BeatRating rating)
+        {
             if (rating == BeatRating.Miss)
-            {
                 _combo = 0;
-            }
             else
             {
                 _combo++;

@@ -11,7 +11,9 @@ namespace Bandland
         [Header("References")]
         [SerializeField] GigCutscene cutscene;
         [SerializeField] RhythmConductor rhythm;
+        [SerializeField] BeatLaneController beatLane;
         [SerializeField] CrowdController crowd;
+        [SerializeField] CrowdAudioController crowdAudio;
         [SerializeField] NightlifeAmbience ambience;
         [SerializeField] Transform performer;
         [SerializeField] SpriteRenderer performerRenderer;
@@ -28,11 +30,11 @@ namespace Bandland
         [SerializeField] TextMeshProUGUI timerText;
         [SerializeField] Slider crowdSlider;
         [SerializeField] Slider cheerSlider;
-        [SerializeField] Image beatRing;
         [SerializeField] GameObject gameplayPanel;
 
         float _sessionCash;
-        float _sessionStars;
+        float _hitStars;
+        float _displayStars;
         float _crowd = 3f;
         float _cheer;
         float _timeLeft;
@@ -52,6 +54,8 @@ namespace Bandland
                 gs = GameState.Instance;
             }
 
+            _displayStars = gs.StarMeter;
+
             var venue = gs.GetCurrentVenue();
             _crowdCap = venue.crowdCap;
             _tipMultiplier = venue.tipMultiplier;
@@ -59,9 +63,14 @@ namespace Bandland
             _appeal = 3 + Mathf.FloorToInt(gs.StarMeter * 0.1f);
 
             rhythm.Configure(venue.bpm, gs.Config.cheerComboThreshold);
+            beatLane?.Configure(rhythm);
+
             rhythm.OnHitRated += OnHitRated;
             rhythm.OnComboChanged += OnComboChanged;
             rhythm.OnCheerTriggered += OnCheerTriggered;
+
+            if (beatLane != null)
+                beatLane.OnLaneMiss += OnBeatPassedMiss;
 
             if (playButton != null)
             {
@@ -90,6 +99,8 @@ namespace Bandland
             if (playButton != null) playButton.interactable = true;
             crowd.SetCrowdSize(Mathf.RoundToInt(_crowd));
             rhythm.StartRhythm();
+            beatLane?.Begin();
+            crowdAudio?.Begin();
             _timeLeft = _gigDuration;
             _gigActive = true;
         }
@@ -101,13 +112,6 @@ namespace Bandland
             _timeLeft -= Time.deltaTime;
             if (timerText != null) timerText.text = Mathf.CeilToInt(_timeLeft).ToString();
 
-            if (beatRing != null && rhythm.IsRunning)
-            {
-                float pulse = rhythm.GetBeatPulse();
-                beatRing.transform.localScale = Vector3.one * (1f + pulse * 0.15f);
-                beatRing.color = Color.Lerp(new Color(1f, 0.4f, 0.6f, 0.4f), new Color(1f, 0.85f, 0.3f, 0.9f), pulse);
-            }
-
             if (_timeLeft <= 0f) EndGig();
 
             RefreshHud();
@@ -116,8 +120,13 @@ namespace Bandland
         void OnPlayTapped()
         {
             if (!_gigActive) return;
-            var rating = rhythm.TryHit();
 
+            var rating = beatLane != null ? beatLane.TryHit() : rhythm.TryHit();
+            ProcessHit(rating);
+        }
+
+        void ProcessHit(BeatRating rating)
+        {
             if (rating != BeatRating.Miss)
             {
                 if (sfxSource != null && cymbalClip != null)
@@ -129,24 +138,55 @@ namespace Bandland
 
                 float tip = (1f + _crowd * 0.12f) * _tipMultiplier * (rating == BeatRating.Perfect ? 1.5f : 1f);
                 _sessionCash += tip;
-                _sessionStars += 0.15f + _crowd * 0.02f;
+                _hitStars += 0.15f + _crowd * 0.02f;
+                _displayStars += 0.15f + _crowd * 0.02f;
+
+                crowdAudio?.OnHit(rating);
 
                 if (performer != null)
                     StartCoroutine(PerformerBounce());
 
                 crowd.SetCrowdSize(Mathf.RoundToInt(_crowd));
             }
+            else
+            {
+                ApplyStarLoss(GameState.Instance.Config.starLossOnMiss, "MISS");
+            }
+
+            ShowRating(rating);
+        }
+
+        void OnBeatPassedMiss()
+        {
+            ApplyStarLoss(GameState.Instance.Config.starLossOnPassMiss, "TOO LATE");
+            crowdAudio?.OnMiss();
+            ShowRating(BeatRating.Miss);
+        }
+
+        void ApplyStarLoss(float amount, string label)
+        {
+            _displayStars = Mathf.Max(0f, _displayStars - amount);
+            var gs = GameState.Instance;
+            if (gs != null)
+                gs.StarMeter = Mathf.Max(0f, gs.StarMeter - amount);
 
             if (ratingText != null)
             {
-                ratingText.text = rating.ToString().ToUpper();
-                ratingText.color = rating switch
-                {
-                    BeatRating.Perfect => new Color(1f, 0.85f, 0.3f),
-                    BeatRating.Good => new Color(0.4f, 0.9f, 0.6f),
-                    _ => new Color(1f, 0.4f, 0.4f),
-                };
+                ratingText.text = $"{label}  -{amount:0.#} ★";
+                ratingText.color = new Color(1f, 0.4f, 0.4f);
             }
+        }
+
+        void ShowRating(BeatRating rating)
+        {
+            if (ratingText == null || rating == BeatRating.Miss) return;
+            ratingText.text = rating.ToString().ToUpper();
+            ratingText.color = rating switch
+            {
+                BeatRating.Perfect => new Color(1f, 0.85f, 0.3f),
+                BeatRating.Good => new Color(0.4f, 0.9f, 0.6f),
+                _ => new Color(1f, 0.4f, 0.4f),
+            };
         }
 
         IEnumerator PerformerBounce()
@@ -169,6 +209,7 @@ namespace Bandland
         {
             if (comboText != null)
                 comboText.text = combo > 0 ? $"COMBO x{combo}" : "";
+            crowdAudio?.SetCombo(combo);
         }
 
         void OnCheerTriggered()
@@ -187,7 +228,7 @@ namespace Bandland
         void RefreshHud()
         {
             if (cashText != null) cashText.text = $"${_sessionCash:0}";
-            if (starText != null) starText.text = $"⭐ {_sessionStars:0.0}";
+            if (starText != null) starText.text = $"⭐ {_displayStars:0.0}";
             if (crowdSlider != null) crowdSlider.value = _crowd / _crowdCap;
             if (cheerSlider != null) cheerSlider.value = _cheer / 100f;
         }
@@ -196,13 +237,15 @@ namespace Bandland
         {
             _gigActive = false;
             rhythm.StopRhythm();
+            beatLane?.Stop();
+            crowdAudio?.Stop();
             if (playButton != null) playButton.interactable = false;
 
             var gs = GameState.Instance;
             if (gs != null)
             {
                 gs.BandCash += _sessionCash;
-                gs.StarMeter += _sessionStars;
+                gs.StarMeter = Mathf.Max(0f, gs.StarMeter + _hitStars);
             }
 
             SceneNavigator.LoadHub();
@@ -216,6 +259,8 @@ namespace Bandland
                 rhythm.OnComboChanged -= OnComboChanged;
                 rhythm.OnCheerTriggered -= OnCheerTriggered;
             }
+            if (beatLane != null)
+                beatLane.OnLaneMiss -= OnBeatPassedMiss;
         }
     }
 }

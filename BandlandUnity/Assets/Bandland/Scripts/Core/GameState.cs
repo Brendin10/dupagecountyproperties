@@ -33,6 +33,8 @@ namespace Bandland
         public float gigDurationSeconds = 45f;
         public float perfectWindow = 0.12f;
         public float goodWindow = 0.22f;
+        public float starLossOnMiss = 0.75f;
+        public float starLossOnPassMiss = 1.0f;
     }
 
     public class GameState : MonoBehaviour
