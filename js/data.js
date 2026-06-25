@@ -8,7 +8,7 @@ const VENUES = [
     crowdCap: 12,
     description: 'Your very first stage. Passersby might toss a coin if you\'re lucky.',
     bg: 'venue-street',
-    bpm: 100,
+    bpm: 88,
   },
   {
     id: 'local-tavern',
@@ -19,7 +19,7 @@ const VENUES = [
     crowdCap: 24,
     description: 'Sticky floors, warm lights, and a crowd that actually came to listen.',
     bg: 'venue-tavern',
-    bpm: 110,
+    bpm: 96,
   },
   {
     id: 'town-square',
@@ -30,7 +30,7 @@ const VENUES = [
     crowdCap: 40,
     description: 'The whole town gathers when the music hits just right.',
     bg: 'venue-square',
-    bpm: 115,
+    bpm: 100,
   },
   {
     id: 'talent-show',
@@ -41,7 +41,7 @@ const VENUES = [
     crowdCap: 60,
     description: 'Judges are watching. The crowd is roaring. Show them what you\'ve got.',
     bg: 'venue-talent',
-    bpm: 120,
+    bpm: 104,
   },
   {
     id: 'concert-venue',
@@ -52,7 +52,7 @@ const VENUES = [
     crowdCap: 90,
     description: 'Real stage lights. Real sound. You\'re not busking anymore.',
     bg: 'venue-concert',
-    bpm: 128,
+    bpm: 112,
   },
 ];
 
@@ -78,6 +78,13 @@ const SHOP_ITEMS = {
     { id: 'chain-necklace', name: 'Chain Necklace', emoji: '📿', cost: 60, crowdBonus: 4 },
     { id: 'top-hat', name: 'Top Hat', emoji: '🎩', cost: 120, crowdBonus: 8 },
   ],
+  songs: SONG_LIST.map((s) => ({
+    id: s.id,
+    name: s.name,
+    emoji: s.emoji,
+    cost: s.cost,
+    crowdBonus: s.cost > 0 ? Math.floor(s.cost / 40) + 4 : 2,
+  })),
 };
 
 const BAND_SLOT_COSTS = [0, 80, 200, 400];

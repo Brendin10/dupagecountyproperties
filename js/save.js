@@ -13,6 +13,7 @@ const SaveManager = {
       bandSlots: state.bandSlots,
       currentVenue: state.currentVenue,
       equippedInstrument: state.equippedInstrument,
+      equippedSong: state.equippedSong,
       savedAt: Date.now(),
     };
     try {
@@ -39,10 +40,12 @@ const SaveManager = {
     state.starMeter = data.starMeter ?? 0;
     state.hasLid = data.hasLid ?? false;
     state.inventories = data.inventories ?? state.inventories;
+    if (!state.inventories.songs) state.inventories.songs = ['street-jam'];
     state.bandMembers = data.bandMembers ?? [];
     state.bandSlots = data.bandSlots ?? 1;
     state.currentVenue = data.currentVenue ?? 'street-corner';
     state.equippedInstrument = data.equippedInstrument ?? 'trash-lid';
+    state.equippedSong = data.equippedSong ?? 'street-jam';
     return true;
   },
 

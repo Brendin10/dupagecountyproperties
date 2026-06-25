@@ -5,13 +5,15 @@ const Metronome = (() => {
   let rafId = null;
   let onBeat = null;
   let lastBeat = -1;
+  let silent = false;
 
-  function start(bpmVal, beatCallback) {
+  function start(bpmVal, beatCallback, options = {}) {
     bpm = bpmVal;
     onBeat = beatCallback;
     startTime = performance.now();
     running = true;
     lastBeat = -1;
+    silent = !!options.silent;
     loop();
   }
 
@@ -23,7 +25,7 @@ const Metronome = (() => {
     if (beatIdx !== lastBeat) {
       lastBeat = beatIdx;
       onBeat?.(beatIdx);
-      AudioEngine.playTick?.(0.08);
+      if (!silent) AudioEngine.playTick?.(0.08);
     }
     rafId = requestAnimationFrame(loop);
   }
