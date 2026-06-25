@@ -20,6 +20,7 @@ const Game = (() => {
     pendingRecruit: null,
     equippedInstrument: 'trash-lid',
     equippedSong: 'street-jam',
+    equippedWear: { clothes: null, makeup: null, accessories: null },
   };
 
   let parallaxCleanup = null;
@@ -104,6 +105,7 @@ const Game = (() => {
     state.pendingRecruit = null;
     state.equippedInstrument = 'trash-lid';
     state.equippedSong = 'street-jam';
+    state.equippedWear = { clothes: null, makeup: null, accessories: null };
   }
 
   const root = () => document.getElementById('screen-root');
@@ -147,6 +149,10 @@ const Game = (() => {
     state.inventories[cat].push(itemId);
     if (cat === 'instruments') state.equippedInstrument = itemId;
     if (cat === 'songs') state.equippedSong = itemId;
+    if (['clothes', 'makeup', 'accessories'].includes(cat)) {
+      state.equippedWear = state.equippedWear || { clothes: null, makeup: null, accessories: null };
+      state.equippedWear[cat] = itemId;
+    }
     updateHud();
     persist();
     return true;
@@ -284,10 +290,12 @@ const Game = (() => {
           <div class="inv-items">
             ${items.length
               ? items.map((i) => {
+                  const wearCats = ['clothes', 'makeup', 'accessories'];
                   const equipped = (cat === 'instruments' && state.equippedInstrument === i.id)
-                    || (cat === 'songs' && state.equippedSong === i.id);
-                  const equipAttr = (cat === 'instruments' || cat === 'songs') ? i.id : '';
-                  return `<button type="button" class="inv-chip ${equipped ? 'equipped' : ''}" data-equip-cat="${cat}" data-equip="${equipAttr}" title="${i.name}${equipped ? ' (equipped)' : ''}">${i.emoji}</button>`;
+                    || (cat === 'songs' && state.equippedSong === i.id)
+                    || (wearCats.includes(cat) && state.equippedWear?.[cat] === i.id);
+                  const equipAttr = (cat === 'instruments' || cat === 'songs' || wearCats.includes(cat)) ? i.id : '';
+                  return `<button type="button" class="inv-chip ${equipped ? 'equipped' : ''}" data-equip-cat="${cat}" data-equip="${equipAttr}" title="${i.name}${equipped ? ' (on)' : ' — click to preview'}">${i.emoji}</button>`;
                 }).join('')
               : '<span class="inv-empty">Empty</span>'}
           </div>
@@ -314,7 +322,7 @@ const Game = (() => {
       <section class="screen hub-screen">
         <div class="hub-layout">
           <aside class="hub-sidebar">
-            <div class="hub-character">${renderCharacter(state.character, 120, { instrument: getActiveInstrument() })}</div>
+            <div class="hub-character">${renderCharacter(state.character, 120, { instrument: getActiveInstrument(), equippedWear: state.equippedWear })}</div>
             <p class="hub-name">${char.name}</p>
             <p class="hub-appeal">Crowd Appeal: <strong>+${appeal}</strong></p>
             ${inventorySections}
@@ -436,7 +444,7 @@ const Game = (() => {
     return `
       <div class="stage-lineup">
         <div class="lineup-side left">${leftHtml}</div>
-        <div class="lineup-slot lead" id="performer">${renderCharacter(state.character, 130, { instrument: inst })}</div>
+        <div class="lineup-slot lead" id="performer">${renderCharacter(state.character, 130, { instrument: inst, equippedWear: state.equippedWear })}</div>
         <div class="lineup-side right">${rightHtml}</div>
       </div>`;
   }
@@ -628,7 +636,7 @@ const Game = (() => {
       render();
     });
 
-    $$('[data-equip]').forEach((btn) => {
+    $$('[data-equip-cat]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.equip;
         const cat = btn.dataset.equipCat;
@@ -637,9 +645,17 @@ const Game = (() => {
           state.equippedInstrument = id;
           persist();
           render();
+          return;
         }
         if (cat === 'songs' && state.inventories.songs?.includes(id)) {
           state.equippedSong = id;
+          persist();
+          render();
+          return;
+        }
+        if (['clothes', 'makeup', 'accessories'].includes(cat) && state.inventories[cat]?.includes(id)) {
+          state.equippedWear = state.equippedWear || { clothes: null, makeup: null, accessories: null };
+          state.equippedWear[cat] = state.equippedWear[cat] === id ? null : id;
           persist();
           render();
         }
@@ -655,10 +671,16 @@ const Game = (() => {
 
     const song = getActiveSong();
     const bpm = p.bpm;
+    const venue = VENUES.find((v) => v.id === state.currentVenue);
 
+    AudioEngine.initMix();
     BandAudio.setBand(state.bandMembers, song);
     BandAudio.setOnMemberPlay((member) => triggerBandmateAnimation(member));
     BandAudio.start(bpm);
+
+    if (typeof Ambience !== 'undefined') {
+      Ambience.start(state.bandMembers, venue, p.crowd);
+    }
 
     Metronome.start(bpm, (beatIdx) => {
       BandAudio.onBeat(beatIdx);
@@ -675,6 +697,7 @@ const Game = (() => {
   function stopPerformanceLoop() {
     Metronome.stop();
     BandAudio.stop();
+    if (typeof Ambience !== 'undefined') Ambience.stop();
     if (state.perfUiRaf) cancelAnimationFrame(state.perfUiRaf);
     if (state.perfInterval) clearInterval(state.perfInterval);
     state.perfInterval = null;
@@ -705,6 +728,7 @@ const Game = (() => {
     const cheerLabel = document.getElementById('cheer-label');
     if (crowdLabel) crowdLabel.textContent = `${Math.floor(p.crowd)}/${p.crowdCap}`;
     if (cheerLabel) cheerLabel.textContent = `${Math.floor(p.cheer)}/${p.cheerGoal}`;
+    if (typeof Ambience !== 'undefined') Ambience.update(p.crowd, state.bandMembers.length);
     const cashEl = document.getElementById('gig-cash');
     if (cashEl) cashEl.textContent = `+${Math.floor(p.sessionCash)} BandCash this gig`;
     const comboEl = document.getElementById('combo-display');

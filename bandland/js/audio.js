@@ -1,5 +1,12 @@
 const AudioEngine = (() => {
   let ctx = null;
+  let mixReady = false;
+  let mixBus = null;
+  let dryGain = null;
+  let wetGain = null;
+  let convolver = null;
+  let reverbSend = null;
+  let ambienceBus = null;
 
   const NOTE_FREQ = {
     E2: 82.41, A1: 55.0, B1: 61.74, C2: 65.41, 'C#2': 69.3, D2: 73.42,
@@ -29,11 +36,57 @@ const AudioEngine = (() => {
 
   function resume() { return getCtx(); }
 
+  function createImpulse(ac, duration, decay) {
+    const len = Math.floor(ac.sampleRate * duration);
+    const buf = ac.createBuffer(2, len, ac.sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const d = buf.getChannelData(c);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** decay;
+    }
+    return buf;
+  }
+
+  function initMix() {
+    if (mixReady) return mixBus;
+    const ac = getCtx();
+    mixBus = ac.createGain();
+    mixBus.gain.value = 1;
+    dryGain = ac.createGain();
+    dryGain.gain.value = 0.7;
+    wetGain = ac.createGain();
+    wetGain.gain.value = 0.48;
+    reverbSend = ac.createGain();
+    reverbSend.gain.value = 0.52;
+    convolver = ac.createConvolver();
+    convolver.buffer = createImpulse(ac, 3, 2.1);
+    ambienceBus = ac.createGain();
+    ambienceBus.gain.value = 0.9;
+    mixBus.connect(dryGain);
+    mixBus.connect(reverbSend);
+    reverbSend.connect(convolver);
+    convolver.connect(wetGain);
+    dryGain.connect(ac.destination);
+    wetGain.connect(ac.destination);
+    ambienceBus.connect(reverbSend);
+    ambienceBus.connect(dryGain);
+    mixReady = true;
+    return mixBus;
+  }
+
+  function getMix() {
+    return initMix();
+  }
+
+  function connectAmbience(node) {
+    initMix();
+    node.connect(ambienceBus);
+  }
+
   function masterGain(ac, now, peak, dur) {
     const g = ac.createGain();
     g.gain.setValueAtTime(peak, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + dur);
-    g.connect(ac.destination);
+    g.connect(getMix());
     return g;
   }
 
@@ -178,7 +231,7 @@ const AudioEngine = (() => {
       g.gain.setValueAtTime(0, now + delay);
       g.gain.linearRampToValueAtTime(vol, now + delay + 0.01);
       g.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.45);
-      g.connect(ac.destination);
+      g.connect(getMix());
       src.connect(lp);
       lp.connect(g);
       src.start(now + delay);
@@ -207,7 +260,7 @@ const AudioEngine = (() => {
         g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
         osc.connect(lp);
         lp.connect(g);
-        g.connect(ac.destination);
+        g.connect(getMix());
         osc.start(t);
         osc.stop(t + 0.42);
       });
@@ -228,7 +281,7 @@ const AudioEngine = (() => {
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(0.06, t + 0.02);
       g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-      g.connect(ac.destination);
+      g.connect(getMix());
       osc.connect(g);
       osc2.connect(g);
       osc.start(t);
@@ -269,7 +322,7 @@ const AudioEngine = (() => {
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(0.07, t + 0.04);
       g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-      g.connect(ac.destination);
+      g.connect(getMix());
       osc.connect(bp);
       bp.connect(g);
       osc.start(t);
@@ -363,6 +416,51 @@ const AudioEngine = (() => {
     osc.stop(now + 0.05);
   }
 
+  function playSongPad(ac, now, chordName, vol = 0.06) {
+    const freqs = CHORD_FREQS[chordName] || CHORD_FREQS.C;
+    freqs.forEach((freq, i) => {
+      const osc = ac.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq / 2;
+      const osc2 = ac.createOscillator();
+      osc2.type = 'triangle';
+      osc2.frequency.value = freq;
+      const g = ac.createGain();
+      const t = now + i * 0.02;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(vol, t + 0.15);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 1.8);
+      g.connect(getMix());
+      osc.connect(g);
+      osc2.connect(g);
+      osc.start(t);
+      osc2.start(t);
+      osc.stop(t + 1.9);
+      osc2.stop(t + 1.9);
+    });
+  }
+
+  function playCrowdBurst(vol = 0.1) {
+    const ac = getCtx();
+    const now = ac.currentTime;
+    const len = Math.floor(ac.sampleRate * 0.35);
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) * 0.5;
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 900;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(vol, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    src.connect(bp);
+    bp.connect(g);
+    connectAmbience(g);
+    src.start(now);
+  }
+
   function playMiss() {
     const ac = getCtx();
     const now = ac.currentTime;
@@ -377,8 +475,9 @@ const AudioEngine = (() => {
   }
 
   return {
-    resume, getCtx, playCrash, playCheer, playCoin, playMiss, playTick,
-    playInstrument, playPartEvent,
+    resume, getCtx, initMix, getMix, connectAmbience,
+    playCrash, playCheer, playCoin, playMiss, playTick,
+    playInstrument, playPartEvent, playSongPad, playCrowdBurst,
     playKick, playSnare, playHihat, playCymbal, playShake,
     playChord, playGuitarChord, playBassNote, playKeysChord, playHornNote, playVocal,
   };

@@ -309,7 +309,7 @@ const VENUE_BACKDROPS = {
     <rect y="370" width="800" height="30" fill="#1a0a2e" opacity="0.35"/>`,
   ]),
 
-  'concert-venue': () => backdropLayers('concert-venue', [
+  'small-concert-venue': () => backdropLayers('small-concert-venue', [
     /* FAR — arena & fog */
     `<defs>
       <linearGradient id="cv-back" x1="0" y1="0" x2="0" y2="1">
@@ -370,9 +370,102 @@ const VENUE_BACKDROPS = {
   ]),
 };
 
+VENUE_BACKDROPS['concert-venue'] = VENUE_BACKDROPS['small-concert-venue'];
+
+function tierPalette(tier) {
+  const themes = [
+    { sky1: '#4a90d9', sky2: '#f0d090', ground: '#8b7355', accent: '#ffe9a0' },
+    { sky1: '#1a0e08', sky2: '#4a3020', ground: '#3a2818', accent: '#ffb347' },
+    { sky1: '#5aade8', sky2: '#d8e8c8', ground: '#8aab7a', accent: '#fff8d0' },
+    { sky1: '#1a0a2e', sky2: '#3a1858', ground: '#2a1040', accent: '#d4a050' },
+    { sky1: '#0a0618', sky2: '#1a1030', ground: '#1a1035', accent: '#ff6b9d' },
+    { sky1: '#0a0820', sky2: '#2a1050', ground: '#1a0830', accent: '#ff6b9d' },
+    { sky1: '#1a3050', sky2: '#4a80a8', ground: '#3a6048', accent: '#6bcbff' },
+    { sky1: '#2a4828', sky2: '#8aba70', ground: '#5a8a48', accent: '#ffd166' },
+  ];
+  return themes[tier % themes.length];
+}
+
+function generateTierBackdrop(venue) {
+  const t = venue.tier ?? 5;
+  const p = tierPalette(t);
+  const scale = 1 + t * 0.02;
+  const lights = Math.min(12, 3 + Math.floor(t / 2));
+  const crowdRows = Math.min(28, 4 + Math.floor(t * 0.8));
+  const buildings = Math.min(10, 3 + Math.floor(t / 3));
+  const isEpic = t >= 22;
+  const uid = venue.id.replace(/[^a-z]/g, '');
+
+  const far = `
+    <defs>
+      <linearGradient id="sky-${uid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${p.sky1}"/><stop offset="100%" stop-color="${p.sky2}"/>
+      </linearGradient>
+    </defs>
+    <rect width="800" height="400" fill="url(#sky-${uid})"/>
+    ${isEpic ? `<ellipse cx="400" cy="120" rx="280" ry="100" fill="#6a40a0" opacity="0.15"/>` : ''}
+    ${Array.from({ length: buildings }, (_, i) => {
+      const x = 30 + i * (740 / buildings);
+      const h = 80 + (i % 4) * 35 + t * 2;
+      const w = 50 + (i % 3) * 20;
+      return `<rect x="${x}" y="${260 - h}" width="${w}" height="${h}" fill="${p.ground}" opacity="${0.35 + (i % 3) * 0.1}" stroke="#1a1020" stroke-width="2"/>`;
+    }).join('')}
+    <path d="M0,${200 - t} Q400,${140 - t * 2} 800,${200 - t} L800,280 L0,280 Z" fill="${p.ground}" opacity="0.45"/>`;
+
+  const mid = `
+    <rect y="220" width="800" height="100" fill="${p.ground}" opacity="0.35"/>
+    ${Array.from({ length: lights }, (_, i) => {
+      const x = 60 + i * (680 / lights);
+      const col = ['#ff6b9d', '#6bcbff', '#ffd166'][i % 3];
+      return `
+        <line x1="${x}" y1="20" x2="${x}" y2="50" stroke="#444" stroke-width="2"/>
+        <circle cx="${x}" cy="58" r="${10 + (t % 4)}" fill="${col}" opacity="0.9"/>
+        <polygon points="${x},70 ${x - 20},${200 + t} ${x + 20},${200 + t}" fill="${col}" opacity="0.07"/>`;
+    }).join('')}
+    ${t >= 10 ? `<text x="400" y="${110 + t % 20}" text-anchor="middle" fill="${p.accent}" font-family="Fredoka,sans-serif" font-size="${24 + Math.min(t, 20)}" font-weight="700" opacity="0.85">${venue.emoji}</text>` : ''}
+    <rect x="120" y="${160 - t * 0.5}" width="560" height="${80 + t}" rx="8" fill="${p.ground}" opacity="0.5" stroke="${p.accent}" stroke-width="3"/>`;
+
+  const near = `
+    <rect y="280" width="800" height="120" fill="${p.ground}"/>
+    ${Array.from({ length: crowdRows }, (_, i) => {
+      const x = 25 + i * (750 / crowdRows);
+      const h = 16 + (i % 5) * 4;
+      return `<ellipse cx="${x}" cy="${310 - h}" rx="12" ry="${h / 2}" fill="#1a1030" opacity="0.85"/>
+        <ellipse cx="${x}" cy="${310 - h - 10}" rx="9" ry="10" fill="#2a1848" opacity="0.9"/>`;
+    }).join('')}
+    <rect y="275" width="800" height="8" fill="${p.accent}" opacity="0.45"/>
+    <ellipse cx="400" cy="320" rx="${200 + t * 8}" ry="18" fill="rgba(0,0,0,0.18)"/>`;
+
+  const front = `
+    ${isEpic ? `
+      <rect x="50" y="300" width="700" height="60" rx="6" fill="#1a1035" stroke="${p.accent}" stroke-width="4" opacity="0.7"/>
+      <text x="400" y="338" text-anchor="middle" fill="${p.accent}" font-family="Fredoka,sans-serif" font-size="22" font-weight="700">${venue.name}</text>
+    ` : `
+      <rect x="80" y="330" width="50" height="35" rx="4" fill="#111" stroke="#333" stroke-width="2"/>
+      <rect x="670" y="330" width="50" height="35" rx="4" fill="#111" stroke="#333" stroke-width="2"/>
+    `}
+    <ellipse cx="200" cy="370" rx="90" ry="22" fill="${p.accent}" opacity="0.08"/>
+    <ellipse cx="600" cy="375" rx="110" ry="25" fill="${p.accent}" opacity="0.06"/>
+    <rect y="360" width="800" height="40" fill="#000" opacity="${0.12 + t * 0.008}"/>`;
+
+  return backdropLayers(venue.id, [far, mid, near, front]);
+}
+
 function renderVenueBackdrop(venueId) {
-  const fn = VENUE_BACKDROPS[venueId] || VENUE_BACKDROPS['street-corner'];
-  return fn();
+  const id = venueId === 'concert-venue' ? 'small-concert-venue' : venueId;
+  const fn = VENUE_BACKDROPS[id];
+  if (fn) return fn();
+  const venue = typeof VENUES !== 'undefined' ? VENUES.find((v) => v.id === id) : null;
+  if (venue && !venue.handcrafted) return generateTierBackdrop(venue);
+  return (VENUE_BACKDROPS['street-corner'] || generateTierBackdrop({ id: 'street-corner', tier: 0 }))();
+}
+
+if (typeof VENUES !== 'undefined') {
+  VENUES.forEach((v) => {
+    if (!v.handcrafted && !VENUE_BACKDROPS[v.id]) {
+      VENUE_BACKDROPS[v.id] = () => generateTierBackdrop(v);
+    }
+  });
 }
 
 function initVenueParallax(root = document) {

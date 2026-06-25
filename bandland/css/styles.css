@@ -638,15 +638,40 @@ body {
   font-style: italic;
 }
 
+.layer-wearable {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.char-wear-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
 .hub-main h2 {
   margin-bottom: 16px;
 }
 
 .venue-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
   margin-bottom: 24px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-width: thin;
+}
+
+.venue-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.venue-grid::-webkit-scrollbar-thumb {
+  background: rgba(155, 107, 255, 0.4);
+  border-radius: 4px;
 }
 
 .venue-card {

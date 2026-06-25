@@ -14,6 +14,7 @@ const SaveManager = {
       currentVenue: state.currentVenue,
       equippedInstrument: state.equippedInstrument,
       equippedSong: state.equippedSong,
+      equippedWear: state.equippedWear,
       savedAt: Date.now(),
     };
     try {
@@ -44,8 +45,10 @@ const SaveManager = {
     state.bandMembers = data.bandMembers ?? [];
     state.bandSlots = data.bandSlots ?? 1;
     state.currentVenue = data.currentVenue ?? 'street-corner';
+    if (state.currentVenue === 'concert-venue') state.currentVenue = 'small-concert-venue';
     state.equippedInstrument = data.equippedInstrument ?? 'trash-lid';
     state.equippedSong = data.equippedSong ?? 'street-jam';
+    state.equippedWear = data.equippedWear ?? { clothes: null, makeup: null, accessories: null };
     return true;
   },
 
