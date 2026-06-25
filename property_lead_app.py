@@ -1,6 +1,7 @@
 import re
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from urllib.parse import quote_plus
 
 import pandas as pd
 import pydeck as pdk
@@ -175,6 +176,7 @@ SCORING_OUTPUT_COLUMNS = (
     "Distress Evidence",
     "Suggested Next Action",
 )
+HIGH_SCORE_RESEARCH_THRESHOLD = 80
 
 DISTRESS_KEYWORDS = {
     "Pre-foreclosure": [
@@ -1229,6 +1231,290 @@ def lead_display_columns(leads: pd.DataFrame) -> List[str]:
     return [column for column in preferred_columns if column in leads.columns]
 
 
+def is_placeholder_owner(value: object) -> bool:
+    text = normalize_text(value).lower()
+    if not text:
+        return True
+    return any(placeholder in text for placeholder in ("research needed", "unknown", "verify"))
+
+
+def has_contact_value(value: object) -> bool:
+    return bool(normalize_text(value))
+
+
+def missing_research_fields(lead: pd.Series) -> List[str]:
+    missing = []
+    if is_placeholder_owner(lead.get("Owner Name") or lead.get("BILLNAME")):
+        missing.append("owner name")
+    if not has_contact_value(lead.get("Mailing Address") or lead.get("Consolidated Bill Address")):
+        missing.append("mailing address")
+    if not has_contact_value(lead.get("Phone") or lead.get("Cell Phone")):
+        missing.append("cell phone")
+    if not has_contact_value(lead.get("Email") or lead.get("Email Address")):
+        missing.append("email")
+    return missing
+
+
+def research_status_for_lead(lead: pd.Series) -> str:
+    stored_status = normalize_text(lead.get("Research Status"))
+    if stored_status:
+        return stored_status
+
+    missing = set(missing_research_fields(lead))
+    if not missing:
+        return "Contact ready"
+    if "owner name" not in missing and "mailing address" not in missing:
+        return "Owner verified"
+    if "owner name" not in missing:
+        return "Owner identified"
+    return "Needs research"
+
+
+def build_research_queue(leads: pd.DataFrame) -> pd.DataFrame:
+    if leads.empty or "Lead Score" not in leads.columns:
+        return pd.DataFrame()
+
+    queue = leads[
+        pd.to_numeric(leads["Lead Score"], errors="coerce").fillna(0)
+        > HIGH_SCORE_RESEARCH_THRESHOLD
+    ].copy()
+    if queue.empty:
+        return queue
+
+    queue["Research Status"] = queue.apply(research_status_for_lead, axis=1)
+    queue["Missing Research"] = queue.apply(
+        lambda row: ", ".join(missing_research_fields(row)) or "Complete",
+        axis=1,
+    )
+    return queue.sort_values(["Lead Score"], ascending=False).reset_index(drop=True)
+
+
+def research_queue_columns(queue: pd.DataFrame) -> List[str]:
+    preferred_columns = [
+        "Lead ID",
+        "Lead Score",
+        "Research Status",
+        "Missing Research",
+        "Property Address",
+        "City",
+        "County Match",
+        "Owner Name",
+        "Phone",
+        "Email",
+        "Distress Evidence",
+    ]
+    return [column for column in preferred_columns if column in queue.columns]
+
+
+def owner_name_for_display(lead: pd.Series) -> str:
+    return display_value(lead.get("Owner Name") or lead.get("BILLNAME"))
+
+
+def lead_search_terms(lead: pd.Series) -> Dict[str, str]:
+    address = display_value(lead.get("Property Address"))
+    city = display_value(lead.get("City"))
+    county = display_value(lead.get("County Match") or lead.get("County"))
+    owner = owner_name_for_display(lead)
+    state = display_value(lead.get("State"))
+    location = " ".join(part for part in [city, state, county] if part != "Not provided")
+
+    return {
+        "property_record": f'"{address}" "{location}" property owner assessor',
+        "tax_status": f'"{address}" "{county}" treasurer tax delinquent property',
+        "foreclosure_status": f'"{address}" "{county}" foreclosure sheriff sale court',
+        "code_or_vacancy": f'"{address}" "{city}" code violation vacant building',
+        "owner_contact": f'"{owner}" "{address}" owner contact phone email',
+    }
+
+
+def research_links_for_lead(lead: pd.Series) -> List[Tuple[str, str]]:
+    terms = lead_search_terms(lead)
+    return [
+        ("Property/assessor record search", f"https://www.google.com/search?q={quote_plus(terms['property_record'])}"),
+        ("Tax status search", f"https://www.google.com/search?q={quote_plus(terms['tax_status'])}"),
+        ("Foreclosure/sheriff sale search", f"https://www.google.com/search?q={quote_plus(terms['foreclosure_status'])}"),
+        ("Code/vacancy search", f"https://www.google.com/search?q={quote_plus(terms['code_or_vacancy'])}"),
+        ("Owner contact verification search", f"https://www.google.com/search?q={quote_plus(terms['owner_contact'])}"),
+    ]
+
+
+def update_lead_research(lead_id: str, updates: Dict[str, object]) -> None:
+    ensure_lead_pipeline()
+    pipeline = st.session_state["lead_pipeline"].copy()
+    if "Lead ID" not in pipeline.columns:
+        return
+
+    for column in updates:
+        if column not in pipeline.columns:
+            pipeline[column] = ""
+
+    lead_mask = pipeline["Lead ID"].astype(str) == str(lead_id)
+    for column, value in updates.items():
+        pipeline.loc[lead_mask, column] = value
+
+    st.session_state["lead_pipeline"] = pipeline
+
+
+def render_high_score_research_agent(leads: pd.DataFrame) -> None:
+    st.subheader(f"Research Agent: leads scoring over {HIGH_SCORE_RESEARCH_THRESHOLD}")
+    st.caption(
+        "This queue focuses research on the hottest leads. Use public records and compliant contact-data sources, "
+        "then save verified owner names, mailing addresses, cell phones, emails, source notes, and confidence."
+    )
+
+    research_queue = build_research_queue(leads)
+    if research_queue.empty:
+        st.info(f"No leads currently score above {HIGH_SCORE_RESEARCH_THRESHOLD}. Add more distress signals or new leads to build this queue.")
+        return
+
+    contact_ready_count = int((research_queue["Research Status"] == "Contact ready").sum())
+    owner_verified_count = int(research_queue["Research Status"].isin(["Owner verified", "Contact ready"]).sum())
+    missing_phone_count = int(research_queue["Missing Research"].str.contains("cell phone", case=False, na=False).sum())
+    missing_email_count = int(research_queue["Missing Research"].str.contains("email", case=False, na=False).sum())
+
+    metric_a, metric_b, metric_c, metric_d = st.columns(4)
+    metric_a.metric("Research targets", len(research_queue))
+    metric_b.metric("Owner verified", owner_verified_count)
+    metric_c.metric("Missing cell", missing_phone_count)
+    metric_d.metric("Missing email", missing_email_count)
+
+    queue_event = st.dataframe(
+        research_queue[research_queue_columns(research_queue)],
+        use_container_width=True,
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="high_score_research_table",
+    )
+    selection = getattr(queue_event, "selection", None)
+    selected_rows = getattr(selection, "rows", []) if selection is not None else []
+    selected_index = selected_rows[0] if selected_rows else 0
+    selected_lead = research_queue.iloc[selected_index]
+    lead_id = display_value(selected_lead.get("Lead ID"))
+
+    st.markdown(
+        f"""
+        <div class="detail-card research-card">
+            <div class="metric-title">Research target</div>
+            <h3>{lead_id} - {display_value(selected_lead.get('Property Address'))}</h3>
+            <p><strong>Score:</strong> {display_value(selected_lead.get('Lead Score'))}/100 &nbsp; 
+            <strong>Status:</strong> {research_status_for_lead(selected_lead)}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    property_col, owner_col = st.columns(2)
+    with property_col:
+        st.markdown("#### Property facts to verify")
+        render_detail_field("Address", selected_lead.get("Property Address"))
+        render_detail_field("City", selected_lead.get("City"))
+        render_detail_field("County", selected_lead.get("County Match") or selected_lead.get("County"))
+        render_detail_field("Distress evidence", selected_lead.get("Distress Evidence"))
+        render_detail_field("Suggested next action", selected_lead.get("Suggested Next Action"))
+    with owner_col:
+        st.markdown("#### Current owner and contact status")
+        render_detail_field("Owner", selected_lead.get("Owner Name") or selected_lead.get("BILLNAME"))
+        render_detail_field("Mailing address", selected_lead.get("Mailing Address") or selected_lead.get("Consolidated Bill Address"))
+        render_detail_field("Cell phone", selected_lead.get("Phone") or selected_lead.get("Cell Phone"))
+        render_detail_field("Email", selected_lead.get("Email") or selected_lead.get("Email Address"))
+        render_detail_field("Missing", ", ".join(missing_research_fields(selected_lead)) or "Nothing obvious")
+
+    with st.expander("Research shortcuts and checklist", expanded=True):
+        st.markdown(
+            """
+            **Recommended order**
+            1. Verify parcel/property record and current vesting owner.
+            2. Verify owner mailing address and whether the owner is absentee or out-of-state.
+            3. Check tax, foreclosure, sheriff sale, code, vacancy, and probate indicators.
+            4. Use a lawful contact-data or skip-trace source to verify cell phone and email.
+            5. Record where each contact detail came from and your confidence before outreach.
+            """
+        )
+        for label, url in research_links_for_lead(selected_lead):
+            st.markdown(f"- [{label}]({url})")
+
+    with st.form(f"research_update_{lead_id}"):
+        st.markdown("#### Save researched owner/contact information")
+        form_owner_col, form_contact_col, form_notes_col = st.columns([1, 1, 1])
+        with form_owner_col:
+            researched_owner = st.text_input(
+                "Current owner name",
+                value=normalize_text(selected_lead.get("Owner Name") or selected_lead.get("BILLNAME")),
+            )
+            researched_mailing = st.text_input(
+                "Owner mailing address",
+                value=normalize_text(selected_lead.get("Mailing Address") or selected_lead.get("Consolidated Bill Address")),
+            )
+            researched_status = st.selectbox(
+                "Research status",
+                ["Needs research", "Owner identified", "Owner verified", "Contact ready", "Do not contact"],
+                index=["Needs research", "Owner identified", "Owner verified", "Contact ready", "Do not contact"].index(
+                    research_status_for_lead(selected_lead)
+                    if research_status_for_lead(selected_lead)
+                    in ["Needs research", "Owner identified", "Owner verified", "Contact ready", "Do not contact"]
+                    else "Needs research"
+                ),
+            )
+        with form_contact_col:
+            researched_phone = st.text_input(
+                "Verified cell phone",
+                value=normalize_text(selected_lead.get("Phone") or selected_lead.get("Cell Phone")),
+            )
+            researched_email = st.text_input(
+                "Verified email address",
+                value=normalize_text(selected_lead.get("Email") or selected_lead.get("Email Address")),
+            )
+            confidence = st.selectbox(
+                "Contact confidence",
+                ["Unverified", "Low", "Medium", "High", "Confirmed by owner"],
+                index=["Unverified", "Low", "Medium", "High", "Confirmed by owner"].index(
+                    normalize_text(selected_lead.get("Contact Confidence")) or "Unverified"
+                )
+                if normalize_text(selected_lead.get("Contact Confidence")) in ["Unverified", "Low", "Medium", "High", "Confirmed by owner"]
+                else 0,
+            )
+        with form_notes_col:
+            contact_source = st.text_input(
+                "Contact/source notes",
+                value=normalize_text(selected_lead.get("Contact Source")),
+                placeholder="County record, skip trace provider, owner callback...",
+            )
+            research_notes = st.text_area(
+                "Research notes",
+                value=normalize_text(selected_lead.get("Research Notes")),
+                height=112,
+            )
+
+        saved = st.form_submit_button("Save research to lead")
+
+    if saved:
+        update_lead_research(
+            lead_id,
+            {
+                "Owner Name": researched_owner,
+                "Mailing Address": researched_mailing,
+                "Phone": researched_phone,
+                "Cell Phone": researched_phone,
+                "Email": researched_email,
+                "Email Address": researched_email,
+                "Research Status": researched_status,
+                "Contact Confidence": confidence,
+                "Contact Source": contact_source,
+                "Research Notes": research_notes,
+                "Last Researched": datetime.utcnow().date().isoformat(),
+            },
+        )
+        st.success("Research details saved to the lead pipeline.")
+        st.rerun()
+
+    dataframe_download(
+        research_queue,
+        "high_score_property_research_queue.csv",
+        "Download high-score research queue",
+    )
+
+
 def display_value(value: object) -> str:
     text = normalize_text(value)
     return text if text else "Not provided"
@@ -1478,6 +1764,8 @@ def render_lead_agent() -> None:
         selected_index = selected_rows[0] if selected_rows else 0
         selected_lead = filtered.iloc[selected_index]
         render_lead_detail(selected_lead)
+
+    render_high_score_research_agent(leads)
 
     with st.expander("Optional CSV import/export"):
         st.write(

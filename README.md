@@ -21,8 +21,11 @@ streamlit run dupagecountyproperties.py
 2. Add new leads with property details, owner details, distress signals, value/debt estimates, and notes.
 3. The agent scores and maps each lead using exact coordinates when supplied, geocoding when requested, or an approximate city/county point when needed.
 4. Review the map, then click a row in the lead table below it to inspect property details, owner details, and the recommended next action.
-5. Use the optional CSV import/export expander only when you want to bulk add or download leads.
+5. Use the **Research Agent** queue for leads scoring over 80 to verify property records, current owner, mailing address, cell phone, email, source notes, and contact confidence.
+6. Use the optional CSV import/export expander only when you want to bulk add or download leads.
 
 The agent scans structured fields and free-text notes for distress signals including vacancy, pre-foreclosure, tax delinquency, code issues, physical distress, probate/estate situations, absentee owners, out-of-state owners, and estimated equity.
+
+The app does not include a paid skip-trace or county-record API. The research queue provides public-record/search shortcuts and fields to store verified owner contact information from lawful sources.
 
 The score is a prioritization aid, not a source-of-truth. Verify ownership, liens, court status, sale dates, and property condition before contacting an owner or making an offer.
