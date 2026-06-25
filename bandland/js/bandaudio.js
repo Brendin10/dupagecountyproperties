@@ -8,6 +8,12 @@ const BandAudio = (() => {
   let onMemberPlay = null;
 
   const CHORD_PART_KEYS = ['ukulele', 'electric-guitar', 'Guitar', 'Keys'];
+  const GHOST_PARTS = [
+    { key: 'drum-kit', role: 'Drums', scale: 0.72 },
+    { key: 'Bass', role: 'Bass', scale: 0.65 },
+    { key: 'Keys', role: 'Keys', scale: 0.55 },
+    { key: 'Guitar', role: 'Guitar', scale: 0.5 },
+  ];
 
   function setBand(bandMembers, songObj) {
     members = bandMembers || [];
@@ -16,6 +22,10 @@ const BandAudio = (() => {
 
   function setOnMemberPlay(fn) {
     onMemberPlay = fn;
+  }
+
+  function hasRole(role) {
+    return members.some((m) => m.role === role);
   }
 
   function getChordAtBeat(beat) {
@@ -33,8 +43,46 @@ const BandAudio = (() => {
     return 'C';
   }
 
+  function sectionIntensity(secId) {
+    if (secId === 'chorus') return 1;
+    if (secId === 'verse') return 0.78;
+    if (secId === 'intro') return 0.55;
+    return 0.65;
+  }
+
+  function playLiveBacking(ac, now, beatIdx, sec, chord, intensity) {
+    const isChorus = sec?.id === 'chorus';
+    const isVerse = sec?.id === 'verse';
+
+    if (sec?.id !== lastSection) {
+      lastSection = sec?.id;
+      const padVol = isChorus ? 0.13 : isVerse ? 0.1 : 0.07;
+      AudioEngine.playSongPad(ac, now, chord, padVol * intensity);
+      if (isChorus) AudioEngine.playCymbal(ac, now, 0.24);
+    }
+
+    if (isChorus && beatIdx % 4 === 2) {
+      AudioEngine.playLiveShimmer(ac, now, chord, 0.055 * intensity);
+    }
+
+    if (beatIdx % 16 === 0 && (isChorus || isVerse)) {
+      AudioEngine.playLiveStrum(ac, now, chord, 0.09 * intensity);
+    }
+  }
+
+  function playGhostParts(ac, now, beatIdx, intensity) {
+    const soloBoost = members.length === 0 ? 1.3 : 1;
+    for (const ghost of GHOST_PARTS) {
+      if (hasRole(ghost.role)) continue;
+      const events = getPartEvents(song, ghost.key, beatIdx);
+      events.forEach((ev) => {
+        AudioEngine.playPartEvent(ev, ghost.key, ghost.scale * intensity * soloBoost);
+      });
+    }
+  }
+
   function onBeat(beatIdx) {
-    if (!running || !song || members.length === 0) return;
+    if (!running || !song) return;
     if (beatIdx === lastBeat) return;
     if (beatIdx >= (song.totalBeats || 9999)) return;
     lastBeat = beatIdx;
@@ -42,21 +90,12 @@ const BandAudio = (() => {
     const ac = AudioEngine.getCtx();
     const now = ac.currentTime;
     const sec = sectionAt(song.sections, beatIdx);
-    const bandVol = Math.min(0.95, 0.62 + members.length * 0.06);
+    const chord = getChordAtBeat(beatIdx);
+    const intensity = sectionIntensity(sec?.id);
+    const bandVol = Math.min(1, 0.7 + members.length * 0.07);
 
-    if (sec?.id !== lastSection) {
-      lastSection = sec?.id;
-      const padVol = sec?.id === 'chorus' ? 0.11 : sec?.id === 'verse' ? 0.08 : 0.06;
-      AudioEngine.playSongPad(ac, now, getChordAtBeat(beatIdx), padVol);
-    }
-
-    if (beatIdx % 4 === 0 && sec?.id === 'chorus') {
-      AudioEngine.playSongPad(ac, now, getChordAtBeat(beatIdx), 0.05 + members.length * 0.008);
-    }
-
-    if (beatIdx % 8 === 0 && sec?.id === 'verse') {
-      AudioEngine.playSongPad(ac, now, getChordAtBeat(beatIdx), 0.04);
-    }
+    playLiveBacking(ac, now, beatIdx, sec, chord, intensity);
+    playGhostParts(ac, now, beatIdx, intensity);
 
     members.forEach((m, i) => {
       const events = getPartEvents(song, m.role, beatIdx);

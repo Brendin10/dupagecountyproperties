@@ -671,16 +671,11 @@ const Game = (() => {
 
     const song = getActiveSong();
     const bpm = p.bpm;
-    const venue = VENUES.find((v) => v.id === state.currentVenue);
 
     AudioEngine.initMix();
     BandAudio.setBand(state.bandMembers, song);
     BandAudio.setOnMemberPlay((member) => triggerBandmateAnimation(member));
     BandAudio.start(bpm);
-
-    if (typeof Ambience !== 'undefined') {
-      Ambience.start(state.bandMembers, venue, p.crowd);
-    }
 
     Metronome.start(bpm, (beatIdx) => {
       BandAudio.onBeat(beatIdx);
@@ -697,7 +692,6 @@ const Game = (() => {
   function stopPerformanceLoop() {
     Metronome.stop();
     BandAudio.stop();
-    if (typeof Ambience !== 'undefined') Ambience.stop();
     if (state.perfUiRaf) cancelAnimationFrame(state.perfUiRaf);
     if (state.perfInterval) clearInterval(state.perfInterval);
     state.perfInterval = null;
@@ -728,7 +722,6 @@ const Game = (() => {
     const cheerLabel = document.getElementById('cheer-label');
     if (crowdLabel) crowdLabel.textContent = `${Math.floor(p.crowd)}/${p.crowdCap}`;
     if (cheerLabel) cheerLabel.textContent = `${Math.floor(p.cheer)}/${p.cheerGoal}`;
-    if (typeof Ambience !== 'undefined') Ambience.update(p.crowd, state.bandMembers.length);
     const cashEl = document.getElementById('gig-cash');
     if (cashEl) cashEl.textContent = `+${Math.floor(p.sessionCash)} BandCash this gig`;
     const comboEl = document.getElementById('combo-display');
