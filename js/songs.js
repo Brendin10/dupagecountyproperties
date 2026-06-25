@@ -1,4 +1,4 @@
-const BPM_BOOST = 15;
+const BPM_BOOST = 30;
 const GIG_DURATION_SEC = 60;
 
 function buildSections(totalBeats) {
