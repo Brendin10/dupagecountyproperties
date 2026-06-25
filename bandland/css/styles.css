@@ -837,6 +837,106 @@ body {
   opacity: 0.92;
 }
 
+/* Stage lineup — band flanking the lead */
+.stage-lineup {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 520px;
+  margin-bottom: 8px;
+  z-index: 2;
+}
+
+.lineup-side {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.lineup-side.left { flex-direction: row-reverse; }
+
+.lineup-slot {
+  flex-shrink: 0;
+  transition: transform 0.1s ease;
+}
+
+.lineup-slot.lead {
+  z-index: 3;
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.45));
+}
+
+.lineup-slot.side {
+  opacity: 0.95;
+  transform: translateY(calc(var(--slot, 0) * 4px));
+}
+
+.lineup-slot.side .bandmate-svg {
+  width: 88px;
+  height: auto;
+}
+
+/* Character play animations */
+.lineup-slot.anim-drums,
+#performer.anim-drums {
+  animation: drumHitBody 0.22s ease;
+}
+
+.lineup-slot.anim-strum,
+#performer.anim-strum {
+  animation: strumBody 0.28s ease;
+}
+
+.lineup-slot.anim-cymbal,
+#performer.anim-cymbal {
+  animation: cymbalBody 0.22s ease;
+}
+
+.lineup-slot.anim-shake,
+#performer.anim-shake {
+  animation: shakeBody 0.2s ease;
+}
+
+.lineup-slot.anim-keys,
+.lineup-slot.anim-sing,
+.lineup-slot.anim-horn,
+.lineup-slot.anim-hit {
+  animation: bobPlay 0.24s ease;
+}
+
+#performer.hit-flash {
+  animation: hitFlash 0.15s ease;
+}
+
+@keyframes drumHitBody {
+  0%, 100% { transform: translateY(0); }
+  35% { transform: translateY(6px) scale(0.98); }
+  60% { transform: translateY(-3px); }
+}
+
+@keyframes strumBody {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  40% { transform: translateY(-5px) rotate(-5deg); }
+  70% { transform: translateY(-2px) rotate(4deg); }
+}
+
+@keyframes cymbalBody {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  45% { transform: translateY(-10px) rotate(-8deg); }
+}
+
+@keyframes shakeBody {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-6deg); }
+  75% { transform: rotate(6deg); }
+}
+
+@keyframes bobPlay {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
 .bandmate-slot .bandmate-svg {
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4));
 }
@@ -1030,148 +1130,239 @@ body {
 .perform-screen.venue-talent { background: #1a0a2e; }
 .perform-screen.venue-concert { background: #0a0814; }
 
-/* Metronome & rhythm zone below character */
+/* Rhythm highway — Guitar Hero × Geometry Dash */
 .performer-stack {
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
-  max-width: 420px;
+  max-width: 480px;
+  z-index: 2;
 }
 
-.rhythm-zone {
+.rhythm-highway {
   width: 100%;
-  margin-top: 4px;
-  padding: 0 8px;
-}
-
-.metronome-bar {
+  margin: 12px 0 10px;
   position: relative;
-  height: 28px;
-  background: rgba(0, 0, 0, 0.35);
-  border-radius: 14px;
+}
+
+.highway-track {
+  position: relative;
+  height: 72px;
+  background: linear-gradient(180deg, rgba(10, 5, 30, 0.85) 0%, rgba(20, 10, 50, 0.9) 100%);
+  border-radius: 12px;
+  border: 2px solid rgba(155, 107, 255, 0.45);
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  margin-bottom: 8px;
+  box-shadow: inset 0 0 30px rgba(107, 203, 255, 0.08), 0 4px 20px rgba(0, 0, 0, 0.4);
 }
 
-.metro-track {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 100%;
-  padding: 0 10px;
-}
-
-.metro-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  transition: background 0.1s, transform 0.1s;
-}
-
-.metro-dot.active {
-  background: var(--gold);
-  transform: scale(1.35);
-  box-shadow: 0 0 8px var(--gold);
-}
-
-.metro-pulse {
+.highway-grid {
   position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  background: var(--gold);
-  border-radius: 2px;
-  box-shadow: 0 0 12px var(--gold);
-  opacity: 0.85;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 38px,
+    rgba(255, 255, 255, 0.04) 38px,
+    rgba(255, 255, 255, 0.04) 40px
+  );
   pointer-events: none;
 }
 
-.metro-label {
-  display: block;
-  text-align: center;
-  font-size: 0.7rem;
-  color: var(--muted);
-  letter-spacing: 0.12em;
-  margin-bottom: 6px;
-}
-
-.tune-rail {
-  position: relative;
-  height: 36px;
-  background: rgba(0, 0, 0, 0.35);
-  border-radius: 10px;
-  margin-bottom: 8px;
-  border: 1px solid rgba(107, 203, 119, 0.3);
-  overflow: hidden;
-}
-
-.tune-rail.hidden { display: none; }
-
-.tune-target-zone {
+.highway-glow {
   position: absolute;
-  left: 50%;
-  top: 4px;
-  bottom: 4px;
-  width: 28%;
-  transform: translateX(-50%);
-  background: rgba(107, 203, 119, 0.2);
-  border: 2px dashed rgba(107, 203, 119, 0.55);
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.55rem;
-  font-weight: 700;
-  color: var(--green);
-  letter-spacing: 0.05em;
+  top: -20px;
+  left: 10%;
+  right: 10%;
+  height: 40px;
+  background: radial-gradient(ellipse, rgba(155, 107, 255, 0.2) 0%, transparent 70%);
+  pointer-events: none;
 }
 
-.tune-chord-bubble {
+.hit-zone {
+  position: absolute;
+  left: 14%;
+  top: 8px;
+  bottom: 8px;
+  width: 52px;
+  transform: translateX(-50%);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.hit-zone-core {
+  position: absolute;
+  inset: 0;
+  border: 3px solid rgba(107, 203, 119, 0.5);
+  border-radius: 8px;
+  background: rgba(107, 203, 119, 0.08);
+  box-shadow: 0 0 12px rgba(107, 203, 119, 0.2);
+}
+
+.hit-zone.ready .hit-zone-core {
+  border-color: var(--green);
+  background: rgba(107, 203, 119, 0.2);
+  box-shadow: 0 0 20px rgba(107, 203, 119, 0.5);
+}
+
+.hit-zone-pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: 10px;
+  border: 2px solid transparent;
+  opacity: 0;
+  transition: opacity 0.08s;
+}
+
+.hit-zone-pulse.active {
+  opacity: 1;
+  border-color: var(--gold);
+  box-shadow: 0 0 16px var(--gold);
+  animation: zonePulse 0.3s ease infinite;
+}
+
+@keyframes zonePulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.06); opacity: 0.7; }
+}
+
+.hit-zone.flash-perfect .hit-zone-core {
+  background: rgba(255, 209, 102, 0.45);
+  border-color: var(--gold);
+  box-shadow: 0 0 24px var(--gold);
+}
+
+.hit-zone.flash-good .hit-zone-core {
+  background: rgba(107, 203, 119, 0.35);
+  border-color: var(--green);
+}
+
+.hit-zone.flash-miss .hit-zone-core {
+  background: rgba(255, 107, 107, 0.25);
+  border-color: #ff6b6b;
+}
+
+.note-lane {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.note-gem {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
-  min-width: 36px;
-  height: 28px;
-  padding: 0 8px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  background: var(--purple);
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 0.85rem;
-  transition: left 0.05s linear, background 0.15s, border-color 0.15s;
+  gap: 1px;
+  transition: left 0.05s linear;
+  pointer-events: none;
 }
 
-.tune-chord-bubble.in-tune {
-  background: var(--green);
-  border-color: #fff;
-  box-shadow: 0 0 14px rgba(107, 203, 119, 0.6);
+.gem-shape {
+  font-size: 1.4rem;
+  line-height: 1;
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+.note-gem.percussion .gem-shape {
+  color: #6bcbff;
+  text-shadow: 0 0 10px #6bcbff;
+}
+
+.note-gem.melodic .gem-shape {
+  color: #ff6b9d;
+  text-shadow: 0 0 10px #ff6b9d;
+}
+
+.gem-label {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.highway-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  padding: 0 4px;
+}
+
+.song-playing {
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-weight: 600;
 }
 
 .rhythm-hint {
   text-align: center;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   color: var(--muted);
-  margin: 4px 0 10px;
+  margin: 4px 0 8px;
 }
 
 .rhythm-hint .rating-perfect { color: var(--gold); font-weight: 700; }
 .rhythm-hint .rating-good { color: var(--green); font-weight: 700; }
 .rhythm-hint .rating-miss { color: #ff6b6b; font-weight: 700; }
 
-.performer.play-percussion {
-  animation: playPercussion 0.2s ease;
+.combo-display {
+  font-size: 0.85rem;
+  color: var(--gold);
+  font-weight: 700;
+  min-height: 1.2em;
 }
 
-.performer.play-melodic {
-  animation: playMelodic 0.28s ease;
+/* Held instrument animations */
+.held-instrument.inst-play-drums {
+  animation: drumStickHit 0.22s ease;
 }
+
+.held-instrument.inst-play-cymbal {
+  animation: cymbalHit 0.22s ease;
+}
+
+.held-instrument.inst-play-shake {
+  animation: tambourineShake 0.2s ease;
+}
+
+.held-instrument.inst-play-melodic {
+  animation: strumHit 0.28s ease;
+}
+
+.held-instrument.inst-play-percussion {
+  animation: cymbalHit 0.2s ease;
+}
+
+@keyframes drumStickHit {
+  0%, 100% { transform: translate(0, 0); }
+  40% { transform: translate(0, 8px); }
+}
+
+@keyframes tambourineShake {
+  0%, 100% { transform: rotate(0); }
+  30% { transform: rotate(-12deg); }
+  70% { transform: rotate(12deg); }
+}
+
+@keyframes cymbalHit {
+  0%, 100% { transform: rotate(-18deg); }
+  50% { transform: rotate(-5deg) translateY(-8px); }
+}
+
+@keyframes strumHit {
+  0%, 100% { transform: rotate(-25deg); }
+  50% { transform: rotate(-8deg) translateX(6px); }
+}
+
+/* Legacy — kept for compatibility */
+.performer.play-percussion { animation: playPercussion 0.2s ease; }
+.performer.play-melodic { animation: playMelodic 0.28s ease; }
 
 @keyframes playPercussion {
   0%, 100% { transform: translateY(0) rotate(0); }
@@ -1183,29 +1374,4 @@ body {
   0%, 100% { transform: translateY(0) rotate(0); }
   35% { transform: translateY(-4px) rotate(-6deg); }
   65% { transform: translateY(-2px) rotate(4deg); }
-}
-
-.held-instrument.inst-play-percussion {
-  animation: cymbalHit 0.2s ease;
-}
-
-.held-instrument.inst-play-melodic {
-  animation: strumHit 0.28s ease;
-}
-
-@keyframes cymbalHit {
-  0%, 100% { transform: rotate(-18deg); }
-  50% { transform: rotate(-8deg) translateY(-4px); }
-}
-
-@keyframes strumHit {
-  0%, 100% { transform: rotate(-25deg); }
-  50% { transform: rotate(-12deg) translateX(4px); }
-}
-
-.combo-display {
-  font-size: 0.9rem;
-  color: var(--gold);
-  text-align: center;
-  min-height: 1.2em;
 }

@@ -11,6 +11,7 @@ const Game = (() => {
       clothes: [],
       makeup: [],
       accessories: [],
+      songs: ['street-jam'],
     },
     bandMembers: [],
     bandSlots: 1,
@@ -18,6 +19,7 @@ const Game = (() => {
     performance: null,
     pendingRecruit: null,
     equippedInstrument: 'trash-lid',
+    equippedSong: 'street-jam',
   };
 
   function getActiveInstrument() {
@@ -26,6 +28,38 @@ const Game = (() => {
       || 'trash-lid';
     return INSTRUMENTS[id] || INSTRUMENTS['trash-lid'];
   }
+
+  function getActiveSong() {
+    const id = state.equippedSong || 'street-jam';
+    return getSong(id);
+  }
+
+  function getPerformanceBpm() {
+    return getActiveSong().bpm;
+  }
+
+  const INST_ANIM = {
+    'trash-lid': 'anim-cymbal',
+    tambourine: 'anim-shake',
+    'drum-kit': 'anim-drums',
+    ukulele: 'anim-strum',
+    'electric-guitar': 'anim-strum',
+  };
+
+  const ROLE_ANIM = {
+    Guitar: 'anim-strum',
+    Drums: 'anim-drums',
+    Bass: 'anim-strum',
+    Keys: 'anim-keys',
+    Vocals: 'anim-sing',
+    Horns: 'anim-horn',
+  };
+
+  const ALL_ANIM_CLASSES = [
+    'anim-cymbal', 'anim-shake', 'anim-drums', 'anim-strum',
+    'anim-keys', 'anim-sing', 'anim-horn', 'anim-hit',
+    'play-melodic', 'play-percussion', 'hit-flash',
+  ];
 
   function getBandmateId(member) {
     if (member.id) return member.id;
@@ -59,6 +93,7 @@ const Game = (() => {
       clothes: [],
       makeup: [],
       accessories: [],
+      songs: ['street-jam'],
     };
     state.bandMembers = [];
     state.bandSlots = 1;
@@ -66,6 +101,7 @@ const Game = (() => {
     state.performance = null;
     state.pendingRecruit = null;
     state.equippedInstrument = 'trash-lid';
+    state.equippedSong = 'street-jam';
   }
 
   const root = () => document.getElementById('screen-root');
@@ -102,11 +138,13 @@ const Game = (() => {
 
   function buyItem(cat, itemId) {
     const item = SHOP_ITEMS[cat].find((i) => i.id === itemId);
-    if (!item || state.inventories[cat].includes(itemId)) return false;
+    if (!item || state.inventories[cat]?.includes(itemId)) return false;
     if (state.bandCash < item.cost) return false;
+    if (!state.inventories[cat]) state.inventories[cat] = [];
     state.bandCash -= item.cost;
     state.inventories[cat].push(itemId);
     if (cat === 'instruments') state.equippedInstrument = itemId;
+    if (cat === 'songs') state.equippedSong = itemId;
     updateHud();
     persist();
     return true;
@@ -235,17 +273,19 @@ const Game = (() => {
       `;
     }).join('');
 
-    const inventorySections = ['instruments', 'clothes', 'makeup', 'accessories'].map((cat) => {
+    const inventorySections = ['instruments', 'songs', 'clothes', 'makeup', 'accessories'].map((cat) => {
       const items = ownedItems(cat);
-      const label = cat.charAt(0).toUpperCase() + cat.slice(1);
+      const label = cat === 'songs' ? 'Songs' : cat.charAt(0).toUpperCase() + cat.slice(1);
       return `
         <div class="inv-section">
           <h4>${label}</h4>
           <div class="inv-items">
             ${items.length
               ? items.map((i) => {
-                  const equipped = cat === 'instruments' && state.equippedInstrument === i.id;
-                  return `<button type="button" class="inv-chip ${equipped ? 'equipped' : ''}" data-equip="${cat === 'instruments' ? i.id : ''}" title="${i.name}${equipped ? ' (equipped)' : ''}">${i.emoji}</button>`;
+                  const equipped = (cat === 'instruments' && state.equippedInstrument === i.id)
+                    || (cat === 'songs' && state.equippedSong === i.id);
+                  const equipAttr = (cat === 'instruments' || cat === 'songs') ? i.id : '';
+                  return `<button type="button" class="inv-chip ${equipped ? 'equipped' : ''}" data-equip-cat="${cat}" data-equip="${equipAttr}" title="${i.name}${equipped ? ' (equipped)' : ''}">${i.emoji}</button>`;
                 }).join('')
               : '<span class="inv-empty">Empty</span>'}
           </div>
@@ -321,10 +361,10 @@ const Game = (() => {
   }
 
   function renderShop() {
-    const tabs = ['instruments', 'clothes', 'makeup', 'accessories', 'band'];
+    const tabs = ['instruments', 'songs', 'clothes', 'makeup', 'accessories', 'band'];
     const tabButtons = tabs.map((t) => `
       <button class="shop-tab ${state.shopTab === t ? 'active' : ''}" data-tab="${t}">
-        ${t === 'band' ? '👥 Band Slots' : t.charAt(0).toUpperCase() + t.slice(1)}
+        ${t === 'band' ? '👥 Band Slots' : t === 'songs' ? '🎵 Songs' : t.charAt(0).toUpperCase() + t.slice(1)}
       </button>
     `).join('');
 
@@ -380,8 +420,28 @@ const Game = (() => {
     `;
   }
 
+  function renderStageLineup(inst) {
+    const left = state.bandMembers.filter((_, i) => i % 2 === 0);
+    const right = state.bandMembers.filter((_, i) => i % 2 === 1);
+    const leftHtml = left.map((m, i) => `
+      <div class="lineup-slot side" id="bandmate-${getBandmateId(m)}" style="--slot:${i}">
+        ${renderBandmateCharacter(m, 88)}
+      </div>`).join('');
+    const rightHtml = right.map((m, i) => `
+      <div class="lineup-slot side" id="bandmate-${getBandmateId(m)}" style="--slot:${i}">
+        ${renderBandmateCharacter(m, 88)}
+      </div>`).join('');
+    return `
+      <div class="stage-lineup">
+        <div class="lineup-side left">${leftHtml}</div>
+        <div class="lineup-slot lead" id="performer">${renderCharacter(state.character, 130, { instrument: inst })}</div>
+        <div class="lineup-side right">${rightHtml}</div>
+      </div>`;
+  }
+
   function renderPerformance() {
     const venue = VENUES.find((v) => v.id === state.currentVenue);
+    const song = getActiveSong();
     const p = state.performance;
     const inst = getActiveInstrument();
     const isMelodic = inst.type === 'melodic';
@@ -390,10 +450,6 @@ const Game = (() => {
 
     const crowdHtml = Array.from({ length: Math.min(p.crowd, 20) }, (_, i) =>
       `<div class="crowd-person" style="--delay:${i * 0.05}s">${renderCrowdMember(i)}</div>`
-    ).join('');
-
-    const metroDots = Array.from({ length: 8 }, (_, i) =>
-      `<div class="metro-dot" data-beat="${i}"></div>`
     ).join('');
 
     return `
@@ -409,25 +465,9 @@ const Game = (() => {
           <div class="crowd-row" id="crowd-row">${crowdHtml}</div>
           <div class="stage-lights"></div>
           <div class="performer-wrap">
-            ${state.bandMembers.map((m, i) => `
-              <div class="bandmate-slot" style="--i:${i}; --side:${i % 2 === 0 ? -1 : 1}">
-                ${renderBandmateCharacter(m, 72)}
-              </div>`).join('')}
+            ${renderStageLineup(inst)}
             <div class="performer-stack">
-              <div class="performer" id="performer">${renderCharacter(state.character, 130, { instrument: inst })}</div>
-              <div class="rhythm-zone">
-                <span class="metro-label">♩ ${venue.bpm} BPM</span>
-                <div class="metronome-bar">
-                  <div class="metro-track">${metroDots}</div>
-                  <div class="metro-pulse" id="metro-pulse"></div>
-                </div>
-                <div class="tune-rail ${isMelodic ? '' : 'hidden'}" id="tune-rail">
-                  <div class="tune-target-zone">IN TUNE</div>
-                  <div class="tune-chord-bubble" id="tune-chord">C</div>
-                </div>
-                <p class="rhythm-hint" id="rhythm-hint">${isMelodic ? 'Tap when the chord hits the green zone!' : 'Tap on the beat!'}</p>
-                <p class="combo-display" id="combo-display"></p>
-              </div>
+              ${RhythmLane.renderHtml(song.name)}
               <button class="play-btn" id="btn-play-note">
                 <span class="instrument-emoji">${inst.emoji}</span>
                 <span>PLAY ${inst.name.toUpperCase()}!</span>
@@ -581,8 +621,15 @@ const Game = (() => {
     $$('[data-equip]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.equip;
-        if (id && state.inventories.instruments.includes(id)) {
+        const cat = btn.dataset.equipCat;
+        if (!id) return;
+        if (cat === 'instruments' && state.inventories.instruments.includes(id)) {
           state.equippedInstrument = id;
+          persist();
+          render();
+        }
+        if (cat === 'songs' && state.inventories.songs?.includes(id)) {
+          state.equippedSong = id;
           persist();
           render();
         }
@@ -596,15 +643,16 @@ const Game = (() => {
     const p = state.performance;
     if (!p) return;
 
-    BandAudio.setBand(state.bandMembers);
-    BandAudio.start(p.bpm);
+    const song = getActiveSong();
+    const bpm = p.bpm;
 
-    Metronome.start(p.bpm, (beatIdx) => {
-      BandAudio.onBeat();
-      document.querySelectorAll('.metro-dot').forEach((dot, i) => {
-        dot.classList.toggle('active', i === beatIdx % 8);
-      });
-    });
+    BandAudio.setBand(state.bandMembers, song);
+    BandAudio.setOnMemberPlay((member) => triggerBandmateAnimation(member));
+    BandAudio.start(bpm);
+
+    Metronome.start(bpm, (beatIdx) => {
+      BandAudio.onBeat(beatIdx);
+    }, { silent: true });
 
     const uiLoop = () => {
       if (!state.performance || state.screen !== 'perform') return;
@@ -627,26 +675,15 @@ const Game = (() => {
     const p = state.performance;
     if (!p) return;
     const inst = getActiveInstrument();
-    const venue = VENUES.find((v) => v.id === state.currentVenue);
+    const song = getActiveSong();
+    const partKey = getPlayerPartKey(inst);
+    const isMelodic = inst.type === 'melodic';
+    const elapsed = Metronome.getElapsed();
 
     const timer = document.getElementById('perf-timer');
     if (timer) timer.textContent = `⏱ ${p.timeLeft}s`;
 
-    const pulse = document.getElementById('metro-pulse');
-    if (pulse) {
-      const phase = Metronome.getPhase();
-      pulse.style.left = `${phase * 100}%`;
-    }
-
-    if (inst.type === 'melodic') {
-      const tune = getTuneState(inst, venue.bpm, Metronome.getElapsed());
-      const bubble = document.getElementById('tune-chord');
-      if (bubble) {
-        bubble.textContent = tune.chord;
-        bubble.style.left = `${10 + tune.phase * 80}%`;
-        bubble.classList.toggle('in-tune', tune.inTune);
-      }
-    }
+    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic);
 
     const crowdPct = Math.min(100, (p.crowd / p.crowdCap) * 100);
     const cheerPct = Math.min(100, (p.cheer / p.cheerGoal) * 100);
@@ -664,19 +701,36 @@ const Game = (() => {
     if (comboEl) comboEl.textContent = p.combo > 1 ? `COMBO ×${p.combo}` : '';
   }
 
+  function triggerBandmateAnimation(member) {
+    const el = document.getElementById(`bandmate-${getBandmateId(member)}`);
+    if (!el) return;
+    const anim = ROLE_ANIM[member.role] || 'anim-hit';
+    el.classList.remove(...ALL_ANIM_CLASSES);
+    void el.offsetWidth;
+    el.classList.add(anim);
+  }
+
   function triggerPlayAnimation(inst, rating) {
     const performer = document.getElementById('performer');
     if (!performer) return;
-    const poseClass = inst.type === 'melodic' ? 'play-melodic' : 'play-percussion';
-    performer.classList.remove('play-melodic', 'play-percussion', 'hit-flash');
+    const anim = INST_ANIM[inst.id] || 'anim-hit';
+    performer.classList.remove(...ALL_ANIM_CLASSES);
     void performer.offsetWidth;
-    if (rating !== 'miss') performer.classList.add(poseClass);
+    if (rating !== 'miss') {
+      performer.classList.add(anim);
+      performer.classList.add('hit-flash');
+    }
     const held = performer.querySelector('.held-instrument');
     if (held) {
-      held.classList.remove('inst-play-melodic', 'inst-play-percussion');
+      held.classList.remove('inst-play-melodic', 'inst-play-percussion', 'inst-play-drums', 'inst-play-cymbal', 'inst-play-shake');
       void held.offsetWidth;
       if (rating !== 'miss') {
-        held.classList.add(inst.type === 'melodic' ? 'inst-play-melodic' : 'inst-play-percussion');
+        const instAnim = {
+          'drum-kit': 'inst-play-drums',
+          'trash-lid': 'inst-play-cymbal',
+          tambourine: 'inst-play-shake',
+        }[inst.id] || (inst.type === 'melodic' ? 'inst-play-melodic' : 'inst-play-percussion');
+        held.classList.add(instAnim);
       }
     }
   }
@@ -691,6 +745,7 @@ const Game = (() => {
     const venue = VENUES.find((v) => v.id === state.currentVenue);
     const appeal = crowdAppeal();
     const crowdCap = venue.crowdCap + Math.floor(appeal * 0.5);
+    const bpm = getPerformanceBpm();
 
     state.performance = {
       timeLeft: 30,
@@ -703,7 +758,7 @@ const Game = (() => {
       peakCrowd: 0,
       appeal,
       tipMultiplier: venue.tipMultiplier,
-      bpm: venue.bpm,
+      bpm,
       combo: 0,
       newUnlock: null,
       recruitRolls: 0,
@@ -720,35 +775,34 @@ const Game = (() => {
     if (!p) return;
 
     const inst = getActiveInstrument();
-    const venue = VENUES.find((v) => v.id === state.currentVenue);
+    const song = getActiveSong();
+    const partKey = getPlayerPartKey(inst);
     const elapsed = Metronome.getElapsed();
-
-    let rating;
-    let chord = null;
-    if (inst.type === 'percussion') {
-      rating = Metronome.ratePercussionHit();
-    } else {
-      const tune = getTuneState(inst, venue.bpm, elapsed);
-      chord = tune.chord;
-      rating = rateMelodicHit(inst, venue.bpm, elapsed);
-    }
+    const isMelodic = inst.type === 'melodic';
+    const notes = getUpcomingNotes(song, partKey, elapsed, p.bpm, RhythmLane.LOOKAHEAD);
+    const { rating, note } = rateNoteHit(notes, elapsed, p.bpm, isMelodic);
 
     triggerPlayAnimation(inst, rating);
+    RhythmLane.flashHit(rating);
 
     if (rating === 'miss') {
       AudioEngine.playMiss();
       p.combo = 0;
-      const starLoss = inst.type === 'percussion' ? 0.5 : 0.65;
+      const starLoss = isMelodic ? 0.65 : 0.5;
       p.sessionStars = Math.max(0, p.sessionStars - starLoss);
       state.starMeter = Math.max(0, state.starMeter - starLoss);
-      setRhythmHint(rating === 'miss' && inst.type === 'melodic' ? 'miss — stay in tune!' : 'miss — stay on beat!', 'miss');
+      setRhythmHint(isMelodic ? 'miss — hit the gem in the zone!' : 'miss — hit the beat gem!', 'miss');
       spawnFloater(`-${starLoss.toFixed(1)} ★`, 'miss');
       updateHud();
       updatePerformanceUI();
       return;
     }
 
-    AudioEngine.playInstrument(inst, chord);
+    if (note) {
+      AudioEngine.playPartEvent(note, inst.id, 1);
+    } else {
+      AudioEngine.playInstrument(inst, note?.chord);
+    }
     p.combo += 1;
 
     const mult = rating === 'perfect' ? 1.5 : 1.0;
