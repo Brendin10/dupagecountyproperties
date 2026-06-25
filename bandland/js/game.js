@@ -17,7 +17,15 @@ const Game = (() => {
     currentVenue: 'street-corner',
     performance: null,
     pendingRecruit: null,
+    equippedInstrument: 'trash-lid',
   };
+
+  function getActiveInstrument() {
+    const id = state.equippedInstrument
+      || state.inventories.instruments[state.inventories.instruments.length - 1]
+      || 'trash-lid';
+    return INSTRUMENTS[id] || INSTRUMENTS['trash-lid'];
+  }
 
   const root = () => document.getElementById('screen-root');
   const hud = () => document.getElementById('hud');
@@ -57,6 +65,7 @@ const Game = (() => {
     if (state.bandCash < item.cost) return false;
     state.bandCash -= item.cost;
     state.inventories[cat].push(itemId);
+    if (cat === 'instruments') state.equippedInstrument = itemId;
     updateHud();
     return true;
   }
@@ -185,7 +194,10 @@ const Game = (() => {
           <h4>${label}</h4>
           <div class="inv-items">
             ${items.length
-              ? items.map((i) => `<span class="inv-chip" title="${i.name}">${i.emoji}</span>`).join('')
+              ? items.map((i) => {
+                  const equipped = cat === 'instruments' && state.equippedInstrument === i.id;
+                  return `<button type="button" class="inv-chip ${equipped ? 'equipped' : ''}" data-equip="${cat === 'instruments' ? i.id : ''}" title="${i.name}${equipped ? ' (equipped)' : ''}">${i.emoji}</button>`;
+                }).join('')
               : '<span class="inv-empty">Empty</span>'}
           </div>
         </div>
@@ -207,7 +219,7 @@ const Game = (() => {
       <section class="screen hub-screen">
         <div class="hub-layout">
           <aside class="hub-sidebar">
-            <div class="hub-character">${char.render(120)}</div>
+            <div class="hub-character">${renderCharacter(state.character, 120, { instrument: getActiveInstrument() })}</div>
             <p class="hub-name">${char.name}</p>
             <p class="hub-appeal">Crowd Appeal: <strong>+${appeal}</strong></p>
             ${inventorySections}
@@ -313,7 +325,8 @@ const Game = (() => {
   function renderPerformance() {
     const venue = VENUES.find((v) => v.id === state.currentVenue);
     const p = state.performance;
-    const char = CHARACTERS[state.character];
+    const inst = getActiveInstrument();
+    const isMelodic = inst.type === 'melodic';
     const cheerPct = Math.min(100, (p.cheer / p.cheerGoal) * 100);
     const crowdPct = Math.min(100, (p.crowd / p.crowdCap) * 100);
 
@@ -321,41 +334,59 @@ const Game = (() => {
       `<div class="crowd-person" style="--delay:${i * 0.05}s">${renderCrowdMember(i)}</div>`
     ).join('');
 
+    const metroDots = Array.from({ length: 8 }, (_, i) =>
+      `<div class="metro-dot" data-beat="${i}"></div>`
+    ).join('');
+
     return `
       <section class="screen perform-screen ${venue.bg}">
         <div class="perform-header">
           <h2>${venue.emoji} ${venue.name}</h2>
-          <div class="perform-timer">⏱ ${p.timeLeft}s</div>
+          <div class="perform-timer" id="perf-timer">⏱ ${p.timeLeft}s</div>
         </div>
 
         <div class="perform-stage">
-          <div class="crowd-row">${crowdHtml}</div>
+          <div class="crowd-row" id="crowd-row">${crowdHtml}</div>
           <div class="stage-lights"></div>
           <div class="performer-wrap">
             ${state.bandMembers.map((m, i) => `<span class="bandmate" style="--i:${i}">${m.emoji}</span>`).join('')}
-            <div class="performer ${p.hitFlash ? 'hit-flash' : ''}">${char.render(130)}</div>
-            <button class="play-btn" id="btn-play-note">
-              <span class="instrument-emoji">${ownedItems('instruments').at(-1)?.emoji ?? '🥁'}</span>
-              <span>TAP TO PLAY!</span>
-            </button>
+            <div class="performer-stack">
+              <div class="performer" id="performer">${renderCharacter(state.character, 130, { instrument: inst })}</div>
+              <div class="rhythm-zone">
+                <span class="metro-label">♩ ${venue.bpm} BPM</span>
+                <div class="metronome-bar">
+                  <div class="metro-track">${metroDots}</div>
+                  <div class="metro-pulse" id="metro-pulse"></div>
+                </div>
+                <div class="tune-rail ${isMelodic ? '' : 'hidden'}" id="tune-rail">
+                  <div class="tune-target-zone">IN TUNE</div>
+                  <div class="tune-chord-bubble" id="tune-chord">C</div>
+                </div>
+                <p class="rhythm-hint" id="rhythm-hint">${isMelodic ? 'Tap when the chord hits the green zone!' : 'Tap on the beat!'}</p>
+                <p class="combo-display" id="combo-display"></p>
+              </div>
+              <button class="play-btn" id="btn-play-note">
+                <span class="instrument-emoji">${inst.emoji}</span>
+                <span>PLAY ${inst.name.toUpperCase()}!</span>
+              </button>
+            </div>
           </div>
         </div>
 
         <div class="perform-meters">
           <div class="meter">
-            <label>Crowd <span>${Math.floor(p.crowd)}/${p.crowdCap}</span></label>
-            <div class="meter-bar"><div class="meter-fill crowd-fill" style="width:${crowdPct}%"></div></div>
+            <label>Crowd <span id="crowd-label">${Math.floor(p.crowd)}/${p.crowdCap}</span></label>
+            <div class="meter-bar"><div class="meter-fill crowd-fill" id="crowd-fill" style="width:${crowdPct}%"></div></div>
           </div>
           <div class="meter">
-            <label>Cheer <span>${Math.floor(p.cheer)}/${p.cheerGoal}</span></label>
-            <div class="meter-bar"><div class="meter-fill cheer-fill" style="width:${cheerPct}%"></div></div>
+            <label>Cheer <span id="cheer-label">${Math.floor(p.cheer)}/${p.cheerGoal}</span></label>
+            <div class="meter-bar"><div class="meter-fill cheer-fill" id="cheer-fill" style="width:${cheerPct}%"></div></div>
           </div>
         </div>
 
         <div class="perform-floaters" id="floaters"></div>
-
         <div class="perform-footer">
-          <span class="gig-cash">+${Math.floor(p.sessionCash)} BandCash this gig</span>
+          <span class="gig-cash" id="gig-cash">+${Math.floor(p.sessionCash)} BandCash this gig</span>
         </div>
       </section>
     `;
@@ -463,7 +494,107 @@ const Game = (() => {
       render();
     });
 
+    $$('[data-equip]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.equip;
+        if (id && state.inventories.instruments.includes(id)) {
+          state.equippedInstrument = id;
+          render();
+        }
+      });
+    });
+
     $('#btn-play-note')?.addEventListener('click', onPlayNote);
+  }
+
+  function startPerformanceLoop() {
+    const p = state.performance;
+    if (!p) return;
+
+    Metronome.start(p.bpm, (beatIdx) => {
+      document.querySelectorAll('.metro-dot').forEach((dot, i) => {
+        dot.classList.toggle('active', i === beatIdx % 8);
+      });
+    });
+
+    const uiLoop = () => {
+      if (!state.performance || state.screen !== 'perform') return;
+      updatePerformanceUI();
+      state.perfUiRaf = requestAnimationFrame(uiLoop);
+    };
+    state.perfUiRaf = requestAnimationFrame(uiLoop);
+  }
+
+  function stopPerformanceLoop() {
+    Metronome.stop();
+    if (state.perfUiRaf) cancelAnimationFrame(state.perfUiRaf);
+    if (state.perfInterval) clearInterval(state.perfInterval);
+    state.perfInterval = null;
+    state.perfUiRaf = null;
+  }
+
+  function updatePerformanceUI() {
+    const p = state.performance;
+    if (!p) return;
+    const inst = getActiveInstrument();
+    const venue = VENUES.find((v) => v.id === state.currentVenue);
+
+    const timer = document.getElementById('perf-timer');
+    if (timer) timer.textContent = `⏱ ${p.timeLeft}s`;
+
+    const pulse = document.getElementById('metro-pulse');
+    if (pulse) {
+      const phase = Metronome.getPhase();
+      pulse.style.left = `${phase * 100}%`;
+    }
+
+    if (inst.type === 'melodic') {
+      const tune = getTuneState(inst, venue.bpm, Metronome.getElapsed());
+      const bubble = document.getElementById('tune-chord');
+      if (bubble) {
+        bubble.textContent = tune.chord;
+        bubble.style.left = `${10 + tune.phase * 80}%`;
+        bubble.classList.toggle('in-tune', tune.inTune);
+      }
+    }
+
+    const crowdPct = Math.min(100, (p.crowd / p.crowdCap) * 100);
+    const cheerPct = Math.min(100, (p.cheer / p.cheerGoal) * 100);
+    const crowdFill = document.getElementById('crowd-fill');
+    const cheerFill = document.getElementById('cheer-fill');
+    if (crowdFill) crowdFill.style.width = `${crowdPct}%`;
+    if (cheerFill) cheerFill.style.width = `${cheerPct}%`;
+    const crowdLabel = document.getElementById('crowd-label');
+    const cheerLabel = document.getElementById('cheer-label');
+    if (crowdLabel) crowdLabel.textContent = `${Math.floor(p.crowd)}/${p.crowdCap}`;
+    if (cheerLabel) cheerLabel.textContent = `${Math.floor(p.cheer)}/${p.cheerGoal}`;
+    const cashEl = document.getElementById('gig-cash');
+    if (cashEl) cashEl.textContent = `+${Math.floor(p.sessionCash)} BandCash this gig`;
+    const comboEl = document.getElementById('combo-display');
+    if (comboEl) comboEl.textContent = p.combo > 1 ? `COMBO ×${p.combo}` : '';
+  }
+
+  function triggerPlayAnimation(inst, rating) {
+    const performer = document.getElementById('performer');
+    if (!performer) return;
+    const poseClass = inst.type === 'melodic' ? 'play-melodic' : 'play-percussion';
+    performer.classList.remove('play-melodic', 'play-percussion', 'hit-flash');
+    void performer.offsetWidth;
+    if (rating !== 'miss') performer.classList.add(poseClass);
+    const held = performer.querySelector('.held-instrument');
+    if (held) {
+      held.classList.remove('inst-play-melodic', 'inst-play-percussion');
+      void held.offsetWidth;
+      if (rating !== 'miss') {
+        held.classList.add(inst.type === 'melodic' ? 'inst-play-melodic' : 'inst-play-percussion');
+      }
+    }
+  }
+
+  function setRhythmHint(text, rating) {
+    const el = document.getElementById('rhythm-hint');
+    if (!el) return;
+    el.innerHTML = text.replace(rating, `<span class="rating-${rating}">${rating.toUpperCase()}</span>`);
   }
 
   function startPerformance() {
@@ -482,40 +613,68 @@ const Game = (() => {
       peakCrowd: 0,
       appeal,
       tipMultiplier: venue.tipMultiplier,
-      hitFlash: false,
+      bpm: venue.bpm,
+      combo: 0,
       newUnlock: null,
       recruitRolls: 0,
     };
 
-    if (state.perfInterval) clearInterval(state.perfInterval);
+    stopPerformanceLoop();
     state.perfInterval = setInterval(tickPerformance, 1000);
     setScreen('perform');
+    startPerformanceLoop();
   }
 
   function onPlayNote() {
     const p = state.performance;
     if (!p) return;
 
-    AudioEngine.playCrash();
-    p.hitFlash = true;
-    setTimeout(() => { if (state.performance) state.performance.hitFlash = false; render(); }, 120);
+    const inst = getActiveInstrument();
+    const venue = VENUES.find((v) => v.id === state.currentVenue);
+    const elapsed = Metronome.getElapsed();
 
-    const appeal = crowdAppeal();
-    const crowdGain = 0.3 + appeal * 0.04;
-    p.crowd = Math.min(p.crowdCap, p.crowd + crowdGain);
-
-    const cheerGain = 1.5 + p.crowd * 0.08;
-    p.cheer = Math.min(p.cheerGoal * 1.5, p.cheer + cheerGain);
-
-    if (p.cheer > p.cheerGoal * 0.5 && Math.random() < 0.15) {
-      AudioEngine.playCheer();
+    let rating;
+    let chord = null;
+    if (inst.type === 'percussion') {
+      rating = Metronome.ratePercussionHit();
+    } else {
+      const tune = getTuneState(inst, venue.bpm, elapsed);
+      chord = tune.chord;
+      rating = rateMelodicHit(inst, venue.bpm, elapsed);
     }
 
-    const tip = (1 + p.crowd * 0.15) * p.tipMultiplier * (0.8 + Math.random() * 0.4);
+    triggerPlayAnimation(inst, rating);
+
+    if (rating === 'miss') {
+      AudioEngine.playMiss();
+      p.combo = 0;
+      const starLoss = inst.type === 'percussion' ? 0.5 : 0.65;
+      p.sessionStars = Math.max(0, p.sessionStars - starLoss);
+      state.starMeter = Math.max(0, state.starMeter - starLoss);
+      setRhythmHint(rating === 'miss' && inst.type === 'melodic' ? 'miss — stay in tune!' : 'miss — stay on beat!', 'miss');
+      spawnFloater(`-${starLoss.toFixed(1)} ★`, 'miss');
+      updateHud();
+      updatePerformanceUI();
+      return;
+    }
+
+    AudioEngine.playInstrument(inst, chord);
+    p.combo += 1;
+
+    const mult = rating === 'perfect' ? 1.5 : 1.0;
+    const appeal = crowdAppeal();
+    const crowdGain = (rating === 'perfect' ? 0.7 : 0.35) * mult + appeal * 0.03;
+    p.crowd = Math.min(p.crowdCap, p.crowd + crowdGain);
+    p.cheer = Math.min(p.cheerGoal * 1.5, p.cheer + (rating === 'perfect' ? 4 : 2));
+
+    if (p.cheer > p.cheerGoal * 0.5 && Math.random() < 0.12) AudioEngine.playCheer();
+    if (p.combo >= 5 && p.combo % 5 === 0) AudioEngine.playCheer();
+
+    const tip = (1 + p.crowd * 0.12) * p.tipMultiplier * mult * (0.85 + Math.random() * 0.3);
     p.sessionCash += tip;
     state.bandCash += tip;
 
-    const starGain = 0.08 + p.crowd * 0.02 + (tip > 3 ? 0.1 : 0);
+    const starGain = (0.12 + p.crowd * 0.02) * mult;
     p.sessionStars += starGain;
     state.starMeter += starGain;
 
@@ -523,8 +682,10 @@ const Game = (() => {
       AudioEngine.playCoin();
       spawnFloater(`+$${Math.floor(tip)}`, 'cash');
     }
+    spawnFloater(rating.toUpperCase(), rating);
 
     p.peakCrowd = Math.max(p.peakCrowd, p.crowd);
+    setRhythmHint(`${rating}!`, rating);
 
     if (state.starMeter >= 20 && !state.pendingRecruit && p.recruitRolls < 2 && Math.random() < 0.08) {
       const recruit = RECRUIT_POOL[Math.floor(Math.random() * RECRUIT_POOL.length)];
@@ -535,7 +696,17 @@ const Game = (() => {
     }
 
     updateHud();
-    render();
+    updatePerformanceUI();
+
+    const crowdRow = document.getElementById('crowd-row');
+    if (crowdRow) {
+      const count = Math.min(Math.floor(p.crowd), 20);
+      if (crowdRow.children.length !== count) {
+        crowdRow.innerHTML = Array.from({ length: count }, (_, i) =>
+          `<div class="crowd-person" style="--delay:${i * 0.05}s">${renderCrowdMember(i)}</div>`
+        ).join('');
+      }
+    }
   }
 
   function spawnFloater(text, type) {
@@ -560,8 +731,7 @@ const Game = (() => {
     }
 
     if (p.timeLeft <= 0) {
-      clearInterval(state.perfInterval);
-      state.perfInterval = null;
+      stopPerformanceLoop();
 
       const prevMax = VENUES.filter((v) => venueUnlocked(v)).length;
       updateHud();
@@ -573,7 +743,7 @@ const Game = (() => {
 
       setScreen('results');
     } else {
-      render();
+      updatePerformanceUI();
     }
   }
 

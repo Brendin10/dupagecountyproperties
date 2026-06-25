@@ -123,8 +123,13 @@ const CHARACTERS = {
   },
 };
 
-function renderCharacter(id, size) {
-  return CHARACTERS[id]?.render(size) ?? '';
+function renderCharacter(id, size, opts = {}) {
+  let svg = CHARACTERS[id]?.render(size) ?? '';
+  if (opts.instrument) {
+    const held = renderHeldInstrument(opts.instrument, opts.pose || 'idle');
+    svg = svg.replace('</svg>', `${held}</svg>`);
+  }
+  return svg;
 }
 
 function renderCrowdMember(index) {

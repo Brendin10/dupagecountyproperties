@@ -8,6 +8,7 @@ const VENUES = [
     crowdCap: 12,
     description: 'Your very first stage. Passersby might toss a coin if you\'re lucky.',
     bg: 'venue-street',
+    bpm: 100,
   },
   {
     id: 'local-tavern',
@@ -18,6 +19,7 @@ const VENUES = [
     crowdCap: 24,
     description: 'Sticky floors, warm lights, and a crowd that actually came to listen.',
     bg: 'venue-tavern',
+    bpm: 110,
   },
   {
     id: 'town-square',
@@ -28,6 +30,7 @@ const VENUES = [
     crowdCap: 40,
     description: 'The whole town gathers when the music hits just right.',
     bg: 'venue-square',
+    bpm: 115,
   },
   {
     id: 'talent-show',
@@ -38,6 +41,7 @@ const VENUES = [
     crowdCap: 60,
     description: 'Judges are watching. The crowd is roaring. Show them what you\'ve got.',
     bg: 'venue-talent',
+    bpm: 120,
   },
   {
     id: 'concert-venue',
@@ -48,6 +52,7 @@ const VENUES = [
     crowdCap: 90,
     description: 'Real stage lights. Real sound. You\'re not busking anymore.',
     bg: 'venue-concert',
+    bpm: 128,
   },
 ];
 
