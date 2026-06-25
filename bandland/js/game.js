@@ -86,6 +86,20 @@ const Game = (() => {
     return typeof MAX_BAND_SLOTS !== 'undefined' ? MAX_BAND_SLOTS : 30;
   }
 
+  function getSlotCosts() {
+    const max = slotMax();
+    if (typeof BAND_SLOT_COSTS !== 'undefined' && BAND_SLOT_COSTS.length >= max) {
+      return BAND_SLOT_COSTS;
+    }
+    const costs = [0, 80, 200, 400];
+    while (costs.length < max) {
+      const tier = costs.length;
+      const prev = costs[costs.length - 1];
+      costs.push(Math.round(prev * 1.08 + tier * 35));
+    }
+    return costs;
+  }
+
   function getBandSlotCount() {
     return Math.max(1, Math.floor(Number(state.bandSlots)) || 1);
   }
@@ -101,8 +115,9 @@ const Game = (() => {
   function nextBandSlotCost() {
     const slots = getBandSlotCount();
     if (slots >= slotMax()) return null;
-    const cost = BAND_SLOT_COSTS[slots];
-    return cost !== undefined ? cost : null;
+    const costs = getSlotCosts();
+    const cost = costs[slots];
+    return cost != null ? cost : null;
   }
 
   function persist() {
@@ -421,7 +436,8 @@ const Game = (() => {
       const nextCost = nextBandSlotCost();
       const openSlots = getOpenBandSlots();
       const slotCount = getBandSlotCount();
-      const canBuy = nextCost !== null;
+      const atMax = slotCount >= slotMax();
+      const canBuy = !atMax && nextCost != null;
       content = `
         <div class="shop-list">
           ${state.shopNotice ? `<p class="shop-notice">${state.shopNotice}</p>` : ''}
@@ -429,11 +445,11 @@ const Game = (() => {
             <span class="shop-emoji">👥</span>
             <div class="shop-info">
               <strong>Band Member Slot</strong>
-              <span>${state.bandMembers.length} bandmates · ${openSlots} open · ${slotCount} total slots</span>
+              <span>${state.bandMembers.length} bandmates · ${openSlots} open · ${slotCount} / ${slotMax()} slots</span>
             </div>
             ${canBuy
               ? `<button class="btn btn-buy" data-buy-slot="1" ${state.bandCash < nextCost ? 'disabled' : ''}>$${nextCost}</button>`
-              : '<span class="owned-badge">MAX</span>'}
+              : `<span class="owned-badge">${atMax ? 'MAX' : 'N/A'}</span>`}
           </div>
         </div>
       `;
