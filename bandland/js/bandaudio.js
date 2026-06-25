@@ -9,10 +9,10 @@ const BandAudio = (() => {
 
   const CHORD_PART_KEYS = ['ukulele', 'electric-guitar', 'Guitar', 'Keys'];
   const GHOST_PARTS = [
-    { key: 'drum-kit', role: 'Drums', scale: 0.72 },
-    { key: 'Bass', role: 'Bass', scale: 0.65 },
-    { key: 'Keys', role: 'Keys', scale: 0.55 },
-    { key: 'Guitar', role: 'Guitar', scale: 0.5 },
+    { key: 'drum-kit', role: 'Drums', scale: 0.65 },
+    { key: 'Bass', role: 'Bass', scale: 0.58 },
+    { key: 'Keys', role: 'Keys', scale: 0.5 },
+    { key: 'Guitar', role: 'Guitar', scale: 0.45 },
   ];
 
   function setBand(bandMembers, songObj) {
