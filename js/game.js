@@ -22,6 +22,8 @@ const Game = (() => {
     equippedSong: 'street-jam',
   };
 
+  let parallaxCleanup = null;
+
   function getActiveInstrument() {
     const id = state.equippedInstrument
       || state.inventories.instruments[state.inventories.instruments.length - 1]
@@ -529,6 +531,14 @@ const Game = (() => {
     }
     root().innerHTML = html;
     bindEvents();
+    if (parallaxCleanup) parallaxCleanup();
+    parallaxCleanup = null;
+    if (['hub', 'perform'].includes(state.screen)) {
+      const parallaxRoot = state.screen === 'hub'
+        ? document.querySelector('.hub-venue-preview')
+        : document.querySelector('.perform-screen');
+      if (parallaxRoot) parallaxCleanup = initVenueParallax(parallaxRoot);
+    }
   }
 
   function bindEvents() {
