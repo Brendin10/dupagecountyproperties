@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bandland</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="hud hidden" id="hud">
+      <div class="hud-brand">BANDLAND</div>
+      <div class="hud-stats">
+        <div class="stat-pill cash-pill">
+          <span class="stat-icon">💵</span>
+          <span id="hud-cash">0</span>
+          <span class="stat-label">BandCash</span>
+        </div>
+        <div class="stat-pill star-pill">
+          <span class="stat-icon">⭐</span>
+          <span id="hud-stars">0</span>
+          <span class="stat-label">Star Meter</span>
+        </div>
+      </div>
+    </header>
+
+    <main id="screen-root"></main>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/instruments.js"></script>
+  <script src="js/characters.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/metronome.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
