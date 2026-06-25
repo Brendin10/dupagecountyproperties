@@ -43,7 +43,7 @@ const SaveManager = {
     state.inventories = data.inventories ?? state.inventories;
     if (!state.inventories.songs) state.inventories.songs = ['street-jam'];
     state.bandMembers = data.bandMembers ?? [];
-    state.bandSlots = data.bandSlots ?? 1;
+    state.bandSlots = Math.min(data.bandSlots ?? 1, MAX_BAND_SLOTS);
     state.currentVenue = data.currentVenue ?? 'street-corner';
     if (state.currentVenue === 'concert-venue') state.currentVenue = 'small-concert-venue';
     state.equippedInstrument = data.equippedInstrument ?? 'trash-lid';

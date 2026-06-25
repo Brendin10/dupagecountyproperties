@@ -160,7 +160,7 @@ const Game = (() => {
 
   function buyBandSlot() {
     const nextCost = BAND_SLOT_COSTS[state.bandSlots] ?? 9999;
-    if (state.bandCash < nextCost || state.bandSlots >= 4) return false;
+    if (state.bandCash < nextCost || state.bandSlots >= MAX_BAND_SLOTS) return false;
     state.bandCash -= nextCost;
     state.bandSlots += 1;
     updateHud();
@@ -389,7 +389,7 @@ const Game = (() => {
               <strong>Band Member Slot</strong>
               <span>Current: ${state.bandMembers.length} / ${state.bandSlots} slots</span>
             </div>
-            ${nextCost !== null && state.bandSlots < 4
+            ${nextCost !== null && state.bandSlots < MAX_BAND_SLOTS
               ? `<button class="btn btn-buy" data-buy-slot="1" ${state.bandCash < nextCost ? 'disabled' : ''}>$${nextCost}</button>`
               : '<span class="owned-badge">MAX</span>'}
           </div>

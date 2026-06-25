@@ -131,7 +131,19 @@ const SHOP_ITEMS = {
   })),
 };
 
-const BAND_SLOT_COSTS = [0, 80, 200, 400];
+const MAX_BAND_SLOTS = 30;
+
+function buildBandSlotCosts() {
+  const costs = [0, 80, 200, 400];
+  while (costs.length < MAX_BAND_SLOTS) {
+    const tier = costs.length;
+    const prev = costs[costs.length - 1];
+    costs.push(Math.round(prev * 1.08 + tier * 35));
+  }
+  return costs;
+}
+
+const BAND_SLOT_COSTS = buildBandSlotCosts();
 
 const RECRUIT_POOL = [
   { id: 'riff', name: 'Riff', emoji: '🎸', role: 'Guitar' },
