@@ -48,7 +48,37 @@ const Game = (() => {
     'drum-kit': 'anim-drums',
     ukulele: 'anim-strum',
     'electric-guitar': 'anim-strum',
+    bongo: 'anim-drums',
+    cowbell: 'anim-cymbal',
+    triangle: 'anim-cymbal',
+    piano: 'anim-keys',
+    keyboard: 'anim-keys',
+    organ: 'anim-keys',
+    'synth-lead': 'anim-keys',
+    accordion: 'anim-keys',
+    violin: 'anim-strum',
+    banjo: 'anim-strum',
+    'acoustic-guitar': 'anim-strum',
+    'bass-guitar': 'anim-strum',
+    trumpet: 'anim-horn',
+    trombone: 'anim-horn',
+    saxophone: 'anim-horn',
+    flute: 'anim-sing',
+    clarinet: 'anim-sing',
+    harmonica: 'anim-sing',
+    xylophone: 'anim-cymbal',
   };
+
+  const SUBTYPE_ANIM = {
+    cymbal: 'anim-cymbal', shake: 'anim-shake', drums: 'anim-drums', bongo: 'anim-drums',
+    bell: 'anim-cymbal', triangle: 'anim-cymbal', ukulele: 'anim-strum', electric: 'anim-strum',
+    acoustic: 'anim-strum', banjo: 'anim-strum', bass: 'anim-strum', bow: 'anim-strum',
+    piano: 'anim-keys', synth: 'anim-keys', organ: 'anim-keys', accordion: 'anim-keys',
+    brass: 'anim-horn', sax: 'anim-horn', flute: 'anim-sing', clarinet: 'anim-sing',
+    harmonica: 'anim-sing', mallet: 'anim-cymbal',
+  };
+
+  let activeHold = null;
 
   const ROLE_ANIM = {
     Guitar: 'anim-strum',
@@ -726,7 +756,11 @@ const Game = (() => {
       });
     });
 
-    $('#btn-play-note')?.addEventListener('click', onPlayNote);
+    $('#btn-play-note')?.addEventListener('mousedown', (e) => { e.preventDefault(); onNotePress(); });
+    $('#btn-play-note')?.addEventListener('mouseup', onNoteRelease);
+    $('#btn-play-note')?.addEventListener('mouseleave', onNoteRelease);
+    $('#btn-play-note')?.addEventListener('touchstart', (e) => { e.preventDefault(); onNotePress(); }, { passive: false });
+    $('#btn-play-note')?.addEventListener('touchend', onNoteRelease);
   }
 
   function startPerformanceLoop() {
@@ -756,6 +790,8 @@ const Game = (() => {
   function stopPerformanceLoop() {
     Metronome.stop();
     BandAudio.stop();
+    AudioEngine.stopSustain?.();
+    activeHold = null;
     if (state.perfUiRaf) cancelAnimationFrame(state.perfUiRaf);
     if (state.perfInterval) clearInterval(state.perfInterval);
     state.perfInterval = null;
@@ -804,7 +840,7 @@ const Game = (() => {
   function triggerPlayAnimation(inst, rating) {
     const performer = document.getElementById('performer');
     if (!performer) return;
-    const anim = INST_ANIM[inst.id] || 'anim-hit';
+    const anim = INST_ANIM[inst.id] || SUBTYPE_ANIM[inst.subtype] || 'anim-hit';
     performer.classList.remove(...ALL_ANIM_CLASSES);
     void performer.offsetWidth;
     if (rating !== 'miss') {
@@ -853,7 +889,10 @@ const Game = (() => {
       combo: 0,
       newUnlock: null,
       recruitRolls: 0,
+      hitBeats: new Set(),
     };
+
+    activeHold = null;
 
     stopPerformanceLoop();
     state.perfInterval = setInterval(tickPerformance, 1000);
@@ -861,24 +900,18 @@ const Game = (() => {
     startPerformanceLoop();
   }
 
-  function onPlayNote() {
+  function applyHitScore(rating, note, inst) {
     const p = state.performance;
     if (!p) return;
-
-    const inst = getActiveInstrument();
-    const song = getActiveSong();
-    const partKey = getPlayerPartKey(inst);
-    const elapsed = Metronome.getElapsed();
-    const isMelodic = inst.type === 'melodic';
-    const notes = getUpcomingNotes(song, partKey, elapsed, p.bpm, RhythmLane.LOOKAHEAD);
-    const { rating, note } = rateNoteHit(notes, elapsed, p.bpm, isMelodic);
 
     triggerPlayAnimation(inst, rating);
     RhythmLane.flashHit(rating);
 
     if (rating === 'miss') {
       AudioEngine.playMiss();
+      AudioEngine.stopSustain?.();
       p.combo = 0;
+      const isMelodic = inst.type === 'melodic';
       const starLoss = isMelodic ? 0.65 : 0.5;
       p.sessionStars = Math.max(0, p.sessionStars - starLoss);
       state.starMeter = Math.max(0, state.starMeter - starLoss);
@@ -890,9 +923,9 @@ const Game = (() => {
     }
 
     if (note) {
-      AudioEngine.playPartEvent(note, inst.id, 1);
+      AudioEngine.playPartEvent(note, inst, 1);
     } else {
-      AudioEngine.playInstrument(inst, note?.chord);
+      AudioEngine.playInstrument(inst);
     }
     p.combo += 1;
 
@@ -946,6 +979,60 @@ const Game = (() => {
     }
   }
 
+  function onNotePress() {
+    const p = state.performance;
+    if (!p || activeHold) return;
+
+    const inst = getActiveInstrument();
+    const song = getActiveSong();
+    const partKey = getPlayerPartKey(inst);
+    const elapsed = Metronome.getElapsed();
+    const isMelodic = inst.type === 'melodic';
+    const notes = getUpcomingNotes(song, partKey, elapsed, p.bpm, RhythmLane.LOOKAHEAD);
+    const { rating, note, phase } = rateNotePress(notes, elapsed, p.bpm, isMelodic);
+
+    if (phase === 'hold-continue') return;
+
+    if (!note || rating === 'miss') {
+      applyHitScore('miss', null, inst);
+      return;
+    }
+
+    const key = noteKey(note);
+    if (p.hitBeats.has(key)) return;
+
+    if (note.isHold && phase === 'hold-start') {
+      p.hitBeats.add(key);
+      activeHold = { note, inst, pressElapsed: elapsed };
+      AudioEngine.startSustain?.(inst, note);
+      const zone = document.getElementById('hit-zone');
+      if (zone) zone.classList.add('holding');
+      triggerPlayAnimation(inst, 'good');
+      return;
+    }
+
+    p.hitBeats.add(key);
+    applyHitScore(rating, note, inst);
+  }
+
+  function onNoteRelease() {
+    const p = state.performance;
+    if (!p || !activeHold) return;
+
+    const { note, inst, pressElapsed } = activeHold;
+    const elapsed = Metronome.getElapsed();
+    const { rating } = rateHoldRelease(note, elapsed, p.bpm);
+    activeHold = null;
+    AudioEngine.stopSustain?.();
+    const zone = document.getElementById('hit-zone');
+    if (zone) zone.classList.remove('holding');
+    applyHitScore(rating, note, inst);
+  }
+
+  function onPlayNote() {
+    onNotePress();
+  }
+
   function spawnFloater(text, type) {
     const container = document.getElementById('floaters');
     if (!container) return;
@@ -986,6 +1073,7 @@ const Game = (() => {
   }
 
   function init() {
+    if (typeof ensureSongInstrumentParts === 'function') ensureSongInstrumentParts();
     setScreen('title');
   }
 

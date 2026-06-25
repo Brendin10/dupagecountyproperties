@@ -101,12 +101,8 @@ function buildVenues() {
 const VENUES = buildVenues();
 
 const SHOP_ITEMS = {
-  instruments: [
+  instruments: typeof INSTRUMENT_SHOP_ITEMS !== 'undefined' ? INSTRUMENT_SHOP_ITEMS : [
     { id: 'trash-lid', name: 'Trash Can Lid', emoji: '🥁', cost: 0, crowdBonus: 1, owned: true, starter: true },
-    { id: 'tambourine', name: 'Tambourine', emoji: '🪇', cost: 35, crowdBonus: 3 },
-    { id: 'ukulele', name: 'Ukulele', emoji: '🎸', cost: 90, crowdBonus: 6 },
-    { id: 'electric-guitar', name: 'Electric Guitar', emoji: '🎸', cost: 220, crowdBonus: 12 },
-    { id: 'drum-kit', name: 'Drum Kit', emoji: '🥁', cost: 450, crowdBonus: 20 },
   ],
   clothes: [
     { id: 'street-tee', name: 'Street Tee', emoji: '👕', cost: 20, crowdBonus: 2 },

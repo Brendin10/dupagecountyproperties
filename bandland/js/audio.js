@@ -15,7 +15,8 @@ const AudioEngine = (() => {
   const NOTE_FREQ = {
     E2: 82.41, A1: 55.0, B1: 61.74, C2: 65.41, 'C#2': 69.3, D2: 73.42,
     G1: 49.0, F1: 43.65, G2: 98.0, G4: 392.0, A4: 440.0, C5: 523.25,
-    D5: 587.33, F5: 698.46, E4: 329.63, F4: 349.23,
+    D5: 587.33, F5: 698.46, E4: 329.63, F4: 349.23, B4: 493.88,
+    'F#5': 739.99, 'D#5': 622.25,
   };
 
   const CHORD_FREQS = {
@@ -30,7 +31,45 @@ const AudioEngine = (() => {
     D: [293.66, 369.99, 440.0],
     Em: [164.81, 196.0, 246.94],
     Dm: [146.83, 174.61, 220.0],
+    Bb: [233.08, 293.66, 349.23],
+    Bm: [246.94, 293.66, 369.99],
+    Eb: [311.13, 392.0, 466.16],
   };
+
+  const ROLE_SUBTYPE = {
+    Guitar: 'electric',
+    Bass: 'bass',
+    Keys: 'piano',
+    Horns: 'brass',
+    Drums: 'drums',
+    Vocals: 'vocal',
+    'electric-guitar': 'electric',
+    ukulele: 'ukulele',
+    piano: 'piano',
+    keyboard: 'synth',
+    trumpet: 'brass',
+    saxophone: 'sax',
+    trombone: 'brass',
+    violin: 'bow',
+    flute: 'flute',
+    clarinet: 'clarinet',
+    banjo: 'banjo',
+    'bass-guitar': 'bass',
+    'acoustic-guitar': 'acoustic',
+    harmonica: 'harmonica',
+    accordion: 'accordion',
+    xylophone: 'mallet',
+    organ: 'organ',
+    'synth-lead': 'synth',
+    'drum-kit': 'drums',
+    tambourine: 'shake',
+    'trash-lid': 'cymbal',
+    cowbell: 'bell',
+    bongo: 'bongo',
+    triangle: 'triangle',
+  };
+
+  let activeSustain = null;
 
   function getCtx() {
     if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -243,71 +282,476 @@ const AudioEngine = (() => {
     playPluck(ac, now, CHORD_FREQS[chordName] || CHORD_FREQS.C, vol, power);
   }
 
-  function playGuitarChord(ac, now, chordName, vol = 1) {
-    const freqs = CHORD_FREQS[chordName] || CHORD_FREQS.E;
-    freqs.forEach((f, i) => {
-      const pan = i === 0 ? -0.25 : i === 2 ? 0.25 : 0;
-      [f, f * 1.004].forEach((freq, j) => {
+  function resolveSubtype(roleOrInst) {
+    if (!roleOrInst) return 'generic';
+    if (typeof roleOrInst === 'object') {
+      return roleOrInst.subtype || ROLE_SUBTYPE[roleOrInst.id] || 'generic';
+    }
+    if (ROLE_SUBTYPE[roleOrInst]) return ROLE_SUBTYPE[roleOrInst];
+    if (typeof INSTRUMENTS !== 'undefined' && INSTRUMENTS[roleOrInst]) {
+      return INSTRUMENTS[roleOrInst].subtype;
+    }
+    return roleOrInst;
+  }
+
+  function chordFreqs(chordName) {
+    return CHORD_FREQS[chordName] || CHORD_FREQS.C;
+  }
+
+  function addVibrato(ac, osc, now, rate = 5.5, depth = 4) {
+    const lfo = ac.createOscillator();
+    const lfoGain = ac.createGain();
+    lfo.frequency.value = rate;
+    lfoGain.gain.value = depth;
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc.frequency);
+    lfo.start(now);
+    lfo.stop(now + 3);
+    return lfo;
+  }
+
+  function playUkulele(ac, now, chordName, vol = 1) {
+    chordFreqs(chordName).forEach((freq, i) => {
+      const t = now + i * 0.012;
+      const len = Math.floor(ac.sampleRate * 0.28);
+      const buf = ac.createBuffer(1, len, ac.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let s = 0; s < len; s++) {
+        const env = (1 - s / len) ** 2.2;
+        d[s] = Math.sin(2 * Math.PI * freq * s / ac.sampleRate) * env;
+        d[s] += Math.sin(2 * Math.PI * freq * 2 * s / ac.sampleRate) * env * 0.15;
+      }
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      const bp = ac.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 1800 + i * 200;
+      bp.Q.value = 1.2;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.16 * vol, t + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
+      connectToMix(g, i === 0 ? -0.2 : i === 2 ? 0.2 : 0, 'music');
+      src.connect(bp);
+      bp.connect(g);
+      src.start(t);
+    });
+  }
+
+  function playElectricGuitar(ac, now, chordName, vol = 1) {
+    chordFreqs(chordName).forEach((freq, i) => {
+      const pan = i === 0 ? -0.3 : i === 2 ? 0.3 : 0;
+      [freq, freq * 1.005].forEach((f, j) => {
         const osc = ac.createOscillator();
         osc.type = 'sawtooth';
-        osc.frequency.value = freq;
+        osc.frequency.value = f;
+        const drive = ac.createWaveShaper();
+        const curve = new Float32Array(256);
+        for (let k = 0; k < 256; k++) {
+          const x = (k / 128) - 1;
+          curve[k] = Math.tanh(x * 2.8);
+        }
+        drive.curve = curve;
         const lp = ac.createBiquadFilter();
         lp.type = 'lowpass';
-        lp.frequency.setValueAtTime(3200, now);
-        lp.frequency.exponentialRampToValueAtTime(1100, now + 0.4);
+        lp.frequency.setValueAtTime(3800, now);
+        lp.frequency.exponentialRampToValueAtTime(900, now + 0.42);
         const g = ac.createGain();
-        const t = now + i * 0.005 + j * 0.002;
-        const peak = 0.065 * vol;
+        const t = now + i * 0.006 + j * 0.002;
+        const peak = 0.075 * vol;
         g.gain.setValueAtTime(0, t);
-        g.gain.linearRampToValueAtTime(peak, t + 0.012);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
-        osc.connect(lp);
+        g.gain.linearRampToValueAtTime(peak, t + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+        osc.connect(drive);
+        drive.connect(lp);
         lp.connect(g);
-        connectToMix(g, pan + (j === 1 ? 0.05 : 0), 'music');
+        connectToMix(g, pan + (j ? 0.04 : 0), 'music');
         osc.start(t);
-        osc.stop(t + 0.48);
+        osc.stop(t + 0.52);
       });
     });
   }
 
-  function playKeysChord(ac, now, chordName) {
-    const freqs = CHORD_FREQS[chordName] || CHORD_FREQS.C;
-    freqs.forEach((freq, i) => {
-      const osc = ac.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      const osc2 = ac.createOscillator();
-      osc2.type = 'sine';
-      osc2.frequency.value = freq * 2;
+  function playAcousticGuitar(ac, now, chordName, vol = 1) {
+    chordFreqs(chordName).forEach((freq, i) => {
+      const len = Math.floor(ac.sampleRate * 0.5);
+      const buf = ac.createBuffer(1, len, ac.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let s = 0; s < len; s++) {
+        const env = (1 - s / len) ** 1.4;
+        d[s] = Math.sin(2 * Math.PI * freq * s / ac.sampleRate) * env;
+      }
+      const src = ac.createBufferSource();
+      src.buffer = buf;
+      const lp = ac.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 3200;
       const g = ac.createGain();
-      const t = now + i * 0.012;
+      const t = now + i * 0.018;
       g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.06, t + 0.02);
+      g.gain.linearRampToValueAtTime(0.14 * vol, t + 0.012);
       g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-      connectToMix(g, 0, 'music');
-      osc.connect(g);
-      osc2.connect(g);
-      osc.start(t);
-      osc2.start(t);
-      osc.stop(t + 0.58);
-      osc2.stop(t + 0.58);
+      connectToMix(g, i === 0 ? -0.15 : 0.15, 'music');
+      src.connect(lp);
+      lp.connect(g);
+      src.start(t);
     });
   }
 
-  function playHornNote(ac, now, note, vol = 0.1) {
-    const freq = NOTE_FREQ[note] || 440;
+  function playBanjo(ac, now, chordName, vol = 1) {
+    const freqs = chordFreqs(chordName).map((f) => f * 2);
+    freqs.forEach((freq, i) => {
+      const osc = ac.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      const bp = ac.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = freq;
+      bp.Q.value = 8;
+      const g = ac.createGain();
+      const t = now + i * 0.01;
+      g.gain.setValueAtTime(0.18 * vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+      connectToMix(g, 0, 'music');
+      osc.connect(bp);
+      bp.connect(g);
+      osc.start(t);
+      osc.stop(t + 0.24);
+    });
+  }
+
+  function playPiano(ac, now, chordName, vol = 1) {
+    chordFreqs(chordName).forEach((freq, i) => {
+      const t = now + i * 0.014;
+      [1, 2, 3].forEach((harm, hi) => {
+        const osc = ac.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = freq * harm;
+        const g = ac.createGain();
+        const peak = (0.09 - hi * 0.02) * vol;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(peak, t + 0.006);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.55 + hi * 0.1);
+        connectToMix(g, 0, 'music');
+        osc.connect(g);
+        osc.start(t);
+        osc.stop(t + 0.7);
+      });
+    });
+  }
+
+  function playOrgan(ac, now, chordName, vol = 1) {
+    chordFreqs(chordName).forEach((freq, i) => {
+      [1, 2, 0.5].forEach((ratio, ri) => {
+        const osc = ac.createOscillator();
+        osc.type = ri === 2 ? 'square' : 'sine';
+        osc.frequency.value = freq * ratio;
+        const g = ac.createGain();
+        const t = now + i * 0.01;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.05 * vol, t + 0.04);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+        connectToMix(g, (i - 1) * 0.12, 'music');
+        osc.connect(g);
+        osc.start(t);
+        osc.stop(t + 0.68);
+      });
+    });
+  }
+
+  function playSynth(ac, now, chordName, vol = 1, lead = false) {
+    const freqs = lead ? [chordFreqs(chordName)[0] * 2] : chordFreqs(chordName);
+    freqs.forEach((freq, i) => {
+      const osc = ac.createOscillator();
+      osc.type = lead ? 'square' : 'sawtooth';
+      osc.frequency.value = freq;
+      const lp = ac.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(lead ? 2400 : 1800, now);
+      lp.frequency.exponentialRampToValueAtTime(lead ? 900 : 600, now + 0.35);
+      const g = ac.createGain();
+      const t = now + i * 0.008;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.1 * vol, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, t + (lead ? 0.28 : 0.45));
+      connectToMix(g, lead ? 0 : (i - 1) * 0.15, 'music');
+      osc.connect(lp);
+      lp.connect(g);
+      osc.start(t);
+      osc.stop(t + 0.5);
+    });
+  }
+
+  function playBrass(ac, now, noteOrChord, vol = 1, trombone = false) {
+    const freq = typeof noteOrChord === 'string' && NOTE_FREQ[noteOrChord]
+      ? NOTE_FREQ[noteOrChord]
+      : chordFreqs(noteOrChord)[0] * (trombone ? 0.5 : 1);
     const osc = ac.createOscillator();
     osc.type = 'sawtooth';
     osc.frequency.setValueAtTime(freq * 0.98, now);
-    osc.frequency.linearRampToValueAtTime(freq * 1.02, now + 0.12);
+    osc.frequency.linearRampToValueAtTime(freq * 1.02, now + 0.15);
+    addVibrato(ac, osc, now, 5, 3);
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = trombone ? 600 : 1200;
+    bp.Q.value = trombone ? 1.5 : 2.5;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.12 * vol, now + 0.04);
+    g.gain.setValueAtTime(0.1 * vol, now + 0.2);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+    connectToMix(g, 0, 'music');
+    osc.connect(bp);
+    bp.connect(g);
+    osc.start(now);
+    osc.stop(now + 0.4);
+  }
+
+  function playSax(ac, now, noteOrChord, vol = 1) {
+    const freq = typeof noteOrChord === 'string' && NOTE_FREQ[noteOrChord]
+      ? NOTE_FREQ[noteOrChord]
+      : chordFreqs(noteOrChord)[0];
+    const osc = ac.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = freq;
+    addVibrato(ac, osc, now, 6, 5);
     const lp = ac.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 2200;
-    const g = masterGain(ac, now, vol, 0.28, 0, 'music');
+    lp.frequency.value = 1800;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.11 * vol, now + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+    connectToMix(g, 0, 'music');
     osc.connect(lp);
     lp.connect(g);
     osc.start(now);
-    osc.stop(now + 0.3);
+    osc.stop(now + 0.44);
+  }
+
+  function playBow(ac, now, chordName, vol = 1) {
+    const freq = chordFreqs(chordName)[0] * 2;
+    const osc = ac.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = freq;
+    addVibrato(ac, osc, now, 7, 6);
+    const lp = ac.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 2400;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.1 * vol, now + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+    connectToMix(g, 0, 'music');
+    osc.connect(lp);
+    lp.connect(g);
+    osc.start(now);
+    osc.stop(now + 0.52);
+  }
+
+  function playFlute(ac, now, noteOrChord, vol = 1) {
+    const freq = typeof noteOrChord === 'string' && NOTE_FREQ[noteOrChord]
+      ? NOTE_FREQ[noteOrChord]
+      : chordFreqs(noteOrChord)[0] * 2;
+    const osc = ac.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    addVibrato(ac, osc, now, 5.5, 4);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(0.09 * vol, now + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    connectToMix(g, 0, 'music');
+    osc.connect(g);
+    osc.start(now);
+    osc.stop(now + 0.38);
+  }
+
+  function playClarinet(ac, now, chordName, vol = 1) {
+    const freq = chordFreqs(chordName)[0];
+    [1, 3, 5].forEach((harm, i) => {
+      const osc = ac.createOscillator();
+      osc.type = 'square';
+      osc.frequency.value = freq * harm;
+      const lp = ac.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 1600;
+      const g = ac.createGain();
+      const t = now + i * 0.01;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime((0.08 - i * 0.015) * vol, t + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      connectToMix(g, 0, 'music');
+      osc.connect(lp);
+      lp.connect(g);
+      osc.start(t);
+      osc.stop(t + 0.42);
+    });
+  }
+
+  function playHarmonica(ac, now, chordName, vol = 1) {
+    const freq = chordFreqs(chordName)[0] * 2;
+    [freq, freq * 1.01].forEach((f, i) => {
+      const osc = ac.createOscillator();
+      osc.type = 'square';
+      osc.frequency.value = f;
+      const bp = ac.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 1400;
+      bp.Q.value = 3;
+      const g = ac.createGain();
+      const t = now + i * 0.005;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(0.08 * vol, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      connectToMix(g, 0, 'music');
+      osc.connect(bp);
+      bp.connect(g);
+      osc.start(t);
+      osc.stop(t + 0.28);
+    });
+  }
+
+  function playAccordion(ac, now, chordName, vol = 1) {
+    chordFreqs(chordName).forEach((freq, i) => {
+      [freq, freq * 1.008].forEach((f, j) => {
+        const osc = ac.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.value = f;
+        const g = ac.createGain();
+        const t = now + i * 0.02 + j * 0.003;
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(0.06 * vol, t + 0.05);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+        connectToMix(g, (i - 1) * 0.2, 'music');
+        osc.connect(g);
+        osc.start(t);
+        osc.stop(t + 0.52);
+      });
+    });
+  }
+
+  function playMallet(ac, now, chordName, vol = 1) {
+    chordFreqs(chordName).forEach((freq, i) => {
+      const osc = ac.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq * 2;
+      const g = ac.createGain();
+      const t = now + i * 0.04;
+      g.gain.setValueAtTime(0.14 * vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      connectToMix(g, (i - 1) * 0.25, 'music');
+      osc.connect(g);
+      osc.start(t);
+      osc.stop(t + 0.36);
+    });
+  }
+
+  function playBellHit(ac, now, vol = 0.2) {
+    [880, 1320, 1760].forEach((freq, i) => {
+      const osc = ac.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const g = ac.createGain();
+      const t = now + i * 0.002;
+      g.gain.setValueAtTime(vol * 0.35, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+      connectToMix(g, 0, 'perc');
+      osc.connect(g);
+      osc.start(t);
+      osc.stop(t + 0.62);
+    });
+  }
+
+  function playTriangleHit(ac, now, vol = 0.16) {
+    const osc = ac.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = 2800;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(vol, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+    connectToMix(g, 0, 'perc');
+    osc.connect(g);
+    osc.start(now);
+    osc.stop(now + 1.25);
+  }
+
+  function playMelodicBySubtype(ac, now, subtype, chordOrNote, vol = 1, instId = '') {
+    switch (subtype) {
+      case 'ukulele': playUkulele(ac, now, chordOrNote, vol); break;
+      case 'electric': playElectricGuitar(ac, now, chordOrNote, vol); break;
+      case 'acoustic': playAcousticGuitar(ac, now, chordOrNote, vol); break;
+      case 'banjo': playBanjo(ac, now, chordOrNote, vol); break;
+      case 'piano': playPiano(ac, now, chordOrNote, vol); break;
+      case 'organ': playOrgan(ac, now, chordOrNote, vol); break;
+      case 'synth': playSynth(ac, now, chordOrNote, vol, instId === 'synth-lead'); break;
+      case 'brass': playBrass(ac, now, chordOrNote, vol, instId === 'trombone'); break;
+      case 'sax': playSax(ac, now, chordOrNote, vol); break;
+      case 'bow': playBow(ac, now, chordOrNote, vol); break;
+      case 'flute': playFlute(ac, now, chordOrNote, vol); break;
+      case 'clarinet': playClarinet(ac, now, chordOrNote, vol); break;
+      case 'harmonica': playHarmonica(ac, now, chordOrNote, vol); break;
+      case 'accordion': playAccordion(ac, now, chordOrNote, vol); break;
+      case 'mallet': playMallet(ac, now, chordOrNote, vol); break;
+      case 'bass': playBassNote(ac, now, chordOrNote, 0.28 * vol); break;
+      default: playPluck(ac, now, typeof chordOrNote === 'string' && NOTE_FREQ[chordOrNote]
+        ? [NOTE_FREQ[chordOrNote]]
+        : chordFreqs(chordOrNote), 0.14 * vol);
+    }
+  }
+
+  function startSustain(inst, note) {
+    stopSustain();
+    const ac = getCtx();
+    const now = ac.currentTime;
+    const subtype = resolveSubtype(inst);
+    const instId = typeof inst === 'object' ? inst.id : '';
+    const freqs = note.chord
+      ? chordFreqs(note.chord)
+      : [NOTE_FREQ[note.note] || 440];
+    const master = ac.createGain();
+    master.gain.setValueAtTime(0, now);
+    master.gain.linearRampToValueAtTime(0.12, now + 0.04);
+    connectToMix(master, 0, 'music');
+    const nodes = [];
+    freqs.forEach((freq, i) => {
+      const osc = ac.createOscillator();
+      osc.type = subtype === 'electric' ? 'sawtooth' : subtype === 'bow' || subtype === 'sax' ? 'sawtooth' : 'sine';
+      osc.frequency.value = freq;
+      if (subtype === 'bow' || subtype === 'sax' || subtype === 'flute' || subtype === 'brass') {
+        addVibrato(ac, osc, now, 5.5, 4);
+      }
+      const lp = ac.createGain();
+      lp.gain.value = 0.35 / freqs.length;
+      osc.connect(lp);
+      lp.connect(master);
+      osc.start(now);
+      nodes.push(osc);
+    });
+    activeSustain = { master, nodes, ac };
+  }
+
+  function stopSustain() {
+    if (!activeSustain) return;
+    const { master, nodes, ac } = activeSustain;
+    const now = ac.currentTime;
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(master.gain.value, now);
+    master.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    nodes.forEach((n) => { try { n.stop(now + 0.1); } catch (_) {} });
+    activeSustain = null;
+  }
+
+  function playGuitarChord(ac, now, chordName, vol = 1) {
+    playElectricGuitar(ac, now, chordName, vol);
+  }
+
+  function playKeysChord(ac, now, chordName) {
+    playPiano(ac, now, chordName, 0.85);
+  }
+
+  function playHornNote(ac, now, note, vol = 0.1) {
+    playBrass(ac, now, note, vol);
   }
 
   function playVocal(ac, now, style = 'ooh') {
@@ -337,17 +781,21 @@ const AudioEngine = (() => {
     const ac = getCtx();
     const now = ac.currentTime;
     const v = volScale;
+    const subtype = resolveSubtype(roleOrInst);
+    const instId = typeof roleOrInst === 'object' ? roleOrInst.id : roleOrInst;
 
     if (event.chord) {
-      if (roleOrInst === 'Guitar' || roleOrInst === 'electric-guitar') playGuitarChord(ac, now, event.chord, v);
-      else if (roleOrInst === 'Keys') playKeysChord(ac, now, event.chord);
-      else playChord(ac, now, event.chord, 0.16 * v, roleOrInst === 'electric-guitar');
+      playMelodicBySubtype(ac, now, subtype, event.chord, v, instId);
       return;
     }
     if (event.note) {
-      if (roleOrInst === 'Bass') playBassNote(ac, now, event.note, 0.28 * v);
-      else if (roleOrInst === 'Horns') playHornNote(ac, now, event.note, 0.12 * v);
-      else playPluck(ac, now, [NOTE_FREQ[event.note] || 440], 0.14 * v);
+      if (subtype === 'bass' || roleOrInst === 'Bass') {
+        playBassNote(ac, now, event.note, 0.28 * v);
+      } else if (subtype === 'brass' || subtype === 'sax' || subtype === 'flute' || roleOrInst === 'Horns') {
+        playMelodicBySubtype(ac, now, subtype === 'generic' ? 'brass' : subtype, event.note, v, instId);
+      } else {
+        playMelodicBySubtype(ac, now, subtype, event.note, v, instId);
+      }
       return;
     }
     if (event.hit) {
@@ -355,7 +803,11 @@ const AudioEngine = (() => {
         case 'kick': playKick(ac, now, 0.52 * v); break;
         case 'snare': playSnare(ac, now, 0.38 * v); break;
         case 'hihat': playHihat(ac, now, 0.14 * v); break;
-        case 'cymbal': playCymbal(ac, now, 0.3 * v); break;
+        case 'cymbal':
+          if (subtype === 'bell') playBellHit(ac, now, 0.22 * v);
+          else if (subtype === 'triangle') playTriangleHit(ac, now, 0.18 * v);
+          else playCymbal(ac, now, 0.3 * v);
+          break;
         case 'shake': playShake(ac, now, 0.22 * v); break;
         case 'ooh':
         case 'ah': playVocal(ac, now, event.hit); break;
@@ -368,14 +820,20 @@ const AudioEngine = (() => {
     const ac = getCtx();
     const now = ac.currentTime;
     if (!instrument) { playCymbal(ac, now, 0.45); return; }
-    switch (instrument.id) {
-      case 'trash-lid': playCymbal(ac, now, 0.3); break;
-      case 'tambourine': playShake(ac, now, 0.22); break;
-      case 'drum-kit': playKick(ac, now, 0.48); break;
-      case 'electric-guitar': playGuitarChord(ac, now, chord || 'E'); break;
-      case 'ukulele': playChord(ac, now, chord || 'C', 0.14); break;
-      default: playPartEvent({ chord: chord || 'C' }, instrument.id);
+    const c = chord || instrument.progression?.[0] || 'C';
+    if (instrument.type === 'percussion') {
+      switch (instrument.subtype) {
+        case 'cymbal': playCymbal(ac, now, 0.3); break;
+        case 'shake': playShake(ac, now, 0.22); break;
+        case 'drums': playKick(ac, now, 0.48); break;
+        case 'bell': playBellHit(ac, now, 0.22); break;
+        case 'triangle': playTriangleHit(ac, now, 0.18); break;
+        case 'bongo': playSnare(ac, now, 0.32); break;
+        default: playCymbal(ac, now, 0.3);
+      }
+      return;
     }
+    playMelodicBySubtype(ac, now, instrument.subtype, c, 1, instrument.id);
   }
 
   function playCrash() { playCymbal(getCtx(), getCtx().currentTime, 0.45); }
@@ -534,9 +992,10 @@ const AudioEngine = (() => {
   return {
     resume, getCtx, initMix, getMix,
     playCrash, playCheer, playCoin, playMiss, playTick,
-    playInstrument, playPartEvent, playSongPad,
+    playInstrument, playPartEvent, playSongPad, startSustain, stopSustain,
     playLiveBass, playLiveShimmer, playLiveStrum,
     playKick, playSnare, playHihat, playCymbal, playShake,
     playChord, playGuitarChord, playBassNote, playKeysChord, playHornNote, playVocal,
+    playUkulele, playElectricGuitar, playPiano,
   };
 })();
