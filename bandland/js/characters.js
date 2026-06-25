@@ -1,5 +1,33 @@
 const OUTLINE = '#1C1230';
 
+function furTufts(cx, cy, color, count = 6, spread = 14) {
+  return Array.from({ length: count }, (_, i) => {
+    const ang = (i / count) * Math.PI * 2 - Math.PI / 2;
+    const x = cx + Math.cos(ang) * spread;
+    const y = cy + Math.sin(ang) * (spread * 0.65);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5.5" fill="${color}" stroke="${OUTLINE}" stroke-width="1.5"/>`;
+  }).join('');
+}
+
+function happyFace(eyeColor, mouthY = 112) {
+  return `
+    <ellipse cx="78" cy="84" rx="18" ry="19" fill="white" stroke="${OUTLINE}" stroke-width="3"/>
+    <ellipse cx="122" cy="84" rx="18" ry="19" fill="white" stroke="${OUTLINE}" stroke-width="3"/>
+    <ellipse cx="80" cy="86" rx="11" ry="12" fill="${eyeColor}"/>
+    <ellipse cx="124" cy="86" rx="11" ry="12" fill="${eyeColor}"/>
+    <circle cx="74" cy="78" r="6" fill="white"/>
+    <circle cx="118" cy="78" r="6" fill="white"/>
+    <circle cx="84" cy="90" r="3.5" fill="white"/>
+    <circle cx="128" cy="90" r="3.5" fill="white"/>
+    <path d="M70 74 Q78 66 86 74" fill="none" stroke="${OUTLINE}" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M114 74 Q122 66 130 74" fill="none" stroke="${OUTLINE}" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M72 ${mouthY - 6} Q100 ${mouthY + 14} 128 ${mouthY - 6}" fill="#FF8EC8" stroke="${OUTLINE}" stroke-width="3"/>
+    <path d="M82 ${mouthY + 2} Q100 ${mouthY + 10} 118 ${mouthY + 2}" fill="white" stroke="${OUTLINE}" stroke-width="2"/>
+    <ellipse cx="100" cy="${mouthY + 6}" rx="7" ry="4" fill="#FF6B9D"/>
+    <circle cx="62" cy="100" r="10" fill="#FF78B4" opacity="0.55"/>
+    <circle cx="138" cy="100" r="10" fill="#FF78B4" opacity="0.55"/>`;
+}
+
 function charSvg(inner, cls = '') {
   return `<svg viewBox="0 0 200 270" class="char-part-svg ${cls}" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`;
 }
@@ -30,10 +58,11 @@ const BENNY_LAYERS = (size) => {
       <rect x="62" y="218" width="8" height="14" rx="3" fill="#8E58FF" opacity="0.5"/>
       <rect x="120" y="218" width="8" height="14" rx="3" fill="#8E58FF" opacity="0.5"/>`),
     charLayer('body', 3, `
-      <ellipse cx="100" cy="165" rx="54" ry="46" fill="#7E48EF" stroke="${OUTLINE}" stroke-width="4"/>
-      <ellipse cx="100" cy="168" rx="42" ry="36" fill="#8E58FF"/>
-      <ellipse cx="100" cy="174" rx="28" ry="22" fill="#BC94FF"/>
-      <ellipse cx="100" cy="178" rx="18" ry="14" fill="#D2B2FF"/>`),
+      <ellipse cx="100" cy="165" rx="56" ry="48" fill="#7E48EF" stroke="${OUTLINE}" stroke-width="4"/>
+      <ellipse cx="100" cy="168" rx="44" ry="38" fill="#8E58FF"/>
+      <ellipse cx="100" cy="174" rx="30" ry="24" fill="#BC94FF"/>
+      <ellipse cx="100" cy="178" rx="20" ry="16" fill="#D2B2FF"/>
+      ${furTufts(100, 162, '#9E68FF', 8, 34)}`),
     charLayer('arms-back', 4, `
       <ellipse cx="38" cy="168" rx="16" ry="18" fill="#7E48EF" stroke="${OUTLINE}" stroke-width="3"/>
       <ellipse cx="162" cy="168" rx="16" ry="18" fill="#7E48EF" stroke="${OUTLINE}" stroke-width="3"/>`),
@@ -48,9 +77,10 @@ const BENNY_LAYERS = (size) => {
       <line x1="66" y1="154" x2="74" y2="160" stroke="${OUTLINE}" stroke-width="2"/>
       <rect x="88" y="128" width="24" height="8" rx="3" fill="#6a4828" stroke="${OUTLINE}" stroke-width="1"/>`),
     charLayer('head', 7, `
-      <ellipse cx="100" cy="92" rx="52" ry="50" fill="#7E48EF" stroke="${OUTLINE}" stroke-width="4"/>
-      <ellipse cx="100" cy="96" rx="42" ry="40" fill="#8E58FF"/>
-      <ellipse cx="100" cy="100" rx="32" ry="30" fill="#BC94FF" opacity="0.55"/>`),
+      <ellipse cx="100" cy="92" rx="54" ry="52" fill="#7E48EF" stroke="${OUTLINE}" stroke-width="4"/>
+      <ellipse cx="100" cy="96" rx="44" ry="42" fill="#8E58FF"/>
+      <ellipse cx="100" cy="100" rx="34" ry="32" fill="#BC94FF" opacity="0.55"/>
+      ${furTufts(100, 58, '#9E68FF', 7, 30)}`),
     charLayer('horns', 8, `
       <polygon points="66,48 58,14 80,32" fill="#C89848" stroke="${OUTLINE}" stroke-width="3"/>
       <polygon points="66,48 64,32 76,40" fill="#D6A860"/>
@@ -63,20 +93,7 @@ const BENNY_LAYERS = (size) => {
       <circle cx="128" cy="50" r="6" fill="#9E68FF" stroke="${OUTLINE}" stroke-width="2"/>
       <ellipse cx="48" cy="82" rx="10" ry="8" fill="#7E48EF" stroke="${OUTLINE}" stroke-width="2"/>
       <ellipse cx="152" cy="82" rx="10" ry="8" fill="#7E48EF" stroke="${OUTLINE}" stroke-width="2"/>`),
-    charLayer('face', 10, `
-      <ellipse cx="78" cy="86" rx="17" ry="18" fill="white" stroke="${OUTLINE}" stroke-width="3"/>
-      <ellipse cx="122" cy="86" rx="17" ry="18" fill="white" stroke="${OUTLINE}" stroke-width="3"/>
-      <ellipse cx="80" cy="88" rx="10" ry="11" fill="#1478C8"/>
-      <ellipse cx="124" cy="88" rx="10" ry="11" fill="#1478C8"/>
-      <circle cx="74" cy="80" r="5" fill="white"/>
-      <circle cx="118" cy="80" r="5" fill="white"/>
-      <circle cx="84" cy="92" r="3" fill="white"/>
-      <circle cx="128" cy="92" r="3" fill="white"/>
-      <path d="M76 108 Q100 124 124 108" fill="none" stroke="${OUTLINE}" stroke-width="4" stroke-linecap="round"/>
-      <polygon points="88,108 92,120 82,116" fill="white" stroke="${OUTLINE}" stroke-width="2"/>
-      <polygon points="112,108 118,116 108,120" fill="white" stroke="${OUTLINE}" stroke-width="2"/>
-      <circle cx="64" cy="100" r="8" fill="#FF78B4" opacity="0.45"/>
-      <circle cx="136" cy="100" r="8" fill="#FF78B4" opacity="0.45"/>`),
+    charLayer('face', 10, happyFace('#1478C8', 114)),
     charLayer('arms-front', 11, `
       <ellipse cx="42" cy="162" rx="18" ry="20" fill="#8E58FF" stroke="${OUTLINE}" stroke-width="4"/>
       <ellipse cx="158" cy="162" rx="18" ry="20" fill="#8E58FF" stroke="${OUTLINE}" stroke-width="4"/>
@@ -99,11 +116,12 @@ const LIZZY_LAYERS = () => [
     <rect x="116" y="210" width="26" height="32" rx="12" fill="#5630B0" stroke="${OUTLINE}" stroke-width="3"/>
     <ellipse cx="71" cy="238" rx="13" ry="7" fill="#6638C0" stroke="${OUTLINE}" stroke-width="2"/>
     <ellipse cx="129" cy="238" rx="13" ry="7" fill="#6638C0" stroke="${OUTLINE}" stroke-width="2"/>`),
-  charLayer('body', 4, `
-    <ellipse cx="100" cy="166" rx="52" ry="44" fill="#8450EF" stroke="${OUTLINE}" stroke-width="4"/>
-    <ellipse cx="100" cy="170" rx="40" ry="34" fill="#9458FF"/>
-    <ellipse cx="100" cy="176" rx="26" ry="20" fill="#C29AFF"/>
-    <ellipse cx="100" cy="180" rx="16" ry="12" fill="#DAB6FF"/>`),
+    charLayer('body', 4, `
+      <ellipse cx="100" cy="166" rx="54" ry="46" fill="#8450EF" stroke="${OUTLINE}" stroke-width="4"/>
+      <ellipse cx="100" cy="170" rx="42" ry="36" fill="#9458FF"/>
+      <ellipse cx="100" cy="176" rx="28" ry="22" fill="#C29AFF"/>
+      <ellipse cx="100" cy="180" rx="18" ry="14" fill="#DAB6FF"/>
+      ${furTufts(100, 164, '#B878FF', 8, 32)}`),
   charLayer('arms-back', 5, `
     <ellipse cx="40" cy="170" rx="15" ry="17" fill="#8450EF" stroke="${OUTLINE}" stroke-width="3"/>
     <ellipse cx="160" cy="170" rx="15" ry="17" fill="#8450EF" stroke="${OUTLINE}" stroke-width="3"/>`),
@@ -115,10 +133,11 @@ const LIZZY_LAYERS = () => [
     <path d="M50 144 L64 160 L58 176 Z" fill="#FF9ECE" stroke="${OUTLINE}" stroke-width="2"/>
     <ellipse cx="132" cy="154" rx="9" ry="8" fill="#281638" stroke="${OUTLINE}" stroke-width="2"/>
     <rect x="86" y="128" width="28" height="8" rx="3" fill="#FF8EC8" stroke="${OUTLINE}" stroke-width="1"/>`),
-  charLayer('head', 8, `
-    <ellipse cx="100" cy="94" rx="50" ry="48" fill="#8450EF" stroke="${OUTLINE}" stroke-width="4"/>
-    <ellipse cx="100" cy="98" rx="40" ry="38" fill="#9458FF"/>
-    <ellipse cx="100" cy="102" rx="30" ry="28" fill="#C29AFF" opacity="0.5"/>`),
+    charLayer('head', 8, `
+      <ellipse cx="100" cy="94" rx="52" ry="50" fill="#8450EF" stroke="${OUTLINE}" stroke-width="4"/>
+      <ellipse cx="100" cy="98" rx="42" ry="40" fill="#9458FF"/>
+      <ellipse cx="100" cy="102" rx="32" ry="30" fill="#C29AFF" opacity="0.5"/>
+      ${furTufts(100, 60, '#B878FF', 7, 28)}`),
   charLayer('horns', 9, `
     <polygon points="72,54 66,30 84,42" fill="#D6A860" stroke="${OUTLINE}" stroke-width="3"/>
     <polygon points="128,54 134,30 116,42" fill="#D6A860" stroke="${OUTLINE}" stroke-width="3"/>`),
@@ -126,23 +145,10 @@ const LIZZY_LAYERS = () => [
     <circle cx="56" cy="76" r="7" fill="#9458FF" stroke="${OUTLINE}" stroke-width="2"/>
     <circle cx="144" cy="76" r="7" fill="#9458FF" stroke="${OUTLINE}" stroke-width="2"/>
     <ellipse cx="100" cy="38" rx="22" ry="18" fill="#F882FF" opacity="0.7"/>`),
-  charLayer('face', 11, `
-    <ellipse cx="78" cy="90" rx="18" ry="19" fill="white" stroke="${OUTLINE}" stroke-width="3"/>
-    <ellipse cx="122" cy="90" rx="18" ry="19" fill="white" stroke="${OUTLINE}" stroke-width="3"/>
-    <ellipse cx="80" cy="92" rx="11" ry="12" fill="#C83CB4"/>
-    <ellipse cx="124" cy="92" rx="11" ry="12" fill="#C83CB4"/>
-    <circle cx="74" cy="84" r="5" fill="white"/>
-    <circle cx="118" cy="84" r="5" fill="white"/>
-    <circle cx="84" cy="96" r="3" fill="white"/>
-    <circle cx="128" cy="96" r="3" fill="white"/>
-    <path d="M58 80 L52 70" stroke="${OUTLINE}" stroke-width="3" stroke-linecap="round"/>
-    <path d="M142 80 L148 70" stroke="${OUTLINE}" stroke-width="3" stroke-linecap="round"/>
-    <path d="M74 112 Q100 128 126 112" fill="none" stroke="${OUTLINE}" stroke-width="4" stroke-linecap="round"/>
-    <ellipse cx="100" cy="118" rx="9" ry="5" fill="#B45078" stroke="${OUTLINE}" stroke-width="2"/>
-    <polygon points="90,112 94,122 86,118" fill="white" stroke="${OUTLINE}" stroke-width="2"/>
-    <polygon points="110,112 114,118 106,122" fill="white" stroke="${OUTLINE}" stroke-width="2"/>
-    <circle cx="62" cy="104" r="9" fill="#FF78B4" opacity="0.5"/>
-    <circle cx="138" cy="104" r="9" fill="#FF78B4" opacity="0.5"/>`),
+    charLayer('face', 11, `
+      ${happyFace('#C83CB4', 116)}
+      <path d="M58 80 L52 68" stroke="${OUTLINE}" stroke-width="3" stroke-linecap="round"/>
+      <path d="M142 80 L148 68" stroke="${OUTLINE}" stroke-width="3" stroke-linecap="round"/>`),
   charLayer('arms-front', 12, `
     <ellipse cx="44" cy="164" rx="17" ry="19" fill="#9458FF" stroke="${OUTLINE}" stroke-width="4"/>
     <ellipse cx="156" cy="164" rx="17" ry="19" fill="#9458FF" stroke="${OUTLINE}" stroke-width="4"/>
@@ -181,12 +187,21 @@ function renderCharacter(id, size, opts = {}) {
 function renderCrowdMember(index) {
   const colors = ['#FF6B9D', '#6BCBFF', '#FFD166', '#95E06C', '#C77DFF'];
   const c = colors[index % colors.length];
+  const light = c;
   return `
     <svg viewBox="0 0 40 50" width="32" height="40" class="crowd-member">
       <ellipse cx="20" cy="38" rx="14" ry="8" fill="#3C3250" stroke="#1C1230" stroke-width="2"/>
-      <ellipse cx="20" cy="16" rx="12" ry="13" fill="#BEA0D2" stroke="#1C1230" stroke-width="2"/>
-      <ellipse cx="20" cy="14" rx="13" ry="12" fill="${c}" stroke="#1C1230" stroke-width="2"/>
+      <ellipse cx="20" cy="16" rx="13" ry="14" fill="${c}" stroke="#1C1230" stroke-width="2"/>
+      <ellipse cx="20" cy="14" rx="11" ry="11" fill="${light}" opacity="0.85"/>
+      <circle cx="12" cy="8" r="3" fill="${c}" stroke="#1C1230" stroke-width="1"/>
+      <circle cx="28" cy="8" r="3" fill="${c}" stroke="#1C1230" stroke-width="1"/>
+      <circle cx="20" cy="4" r="3" fill="${c}" stroke="#1C1230" stroke-width="1"/>
       <rect x="10" y="18" width="20" height="18" rx="5" fill="${c}" stroke="#1C1230" stroke-width="2"/>
+      <ellipse cx="15" cy="14" rx="3" ry="3.5" fill="white" stroke="#1C1230" stroke-width="1"/>
+      <ellipse cx="25" cy="14" rx="3" ry="3.5" fill="white" stroke="#1C1230" stroke-width="1"/>
+      <circle cx="15" cy="14" r="1.5" fill="#2D1B69"/>
+      <circle cx="25" cy="14" r="1.5" fill="#2D1B69"/>
+      <path d="M14 19 Q20 23 26 19" fill="none" stroke="#1C1230" stroke-width="1.5" stroke-linecap="round"/>
     </svg>
   `;
 }

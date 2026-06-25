@@ -78,29 +78,43 @@ function renderBandmate(id, size = 80) {
   if (!m) return '';
   const w = size;
   const h = size * 1.35;
+  const tufts = (cx, cy, spread) => Array.from({ length: 6 }, (_, i) => {
+    const ang = (i / 6) * Math.PI * 2 - Math.PI / 2;
+    const x = cx + Math.cos(ang) * spread;
+    const y = cy + Math.sin(ang) * (spread * 0.6);
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.5" fill="${m.furLight}" stroke="${OUTLINE}" stroke-width="1.5"/>`;
+  }).join('');
   return `
     <svg viewBox="0 0 200 270" width="${w}" height="${h}" class="bandmate-svg" aria-label="${m.name}">
       <ellipse cx="100" cy="252" rx="42" ry="8" fill="rgba(0,0,0,0.15)"/>
       <rect x="62" y="210" width="22" height="28" rx="10" fill="${m.accent}" stroke="${OUTLINE}" stroke-width="2"/>
       <rect x="116" y="210" width="22" height="28" rx="10" fill="${m.accent}" stroke="${OUTLINE}" stroke-width="2"/>
-      <ellipse cx="100" cy="162" rx="48" ry="42" fill="${m.fur}" stroke="${OUTLINE}" stroke-width="3"/>
-      <ellipse cx="100" cy="166" rx="38" ry="32" fill="${m.furLight}"/>
-      <ellipse cx="100" cy="172" rx="24" ry="18" fill="${m.belly}"/>
-      <ellipse cx="44" cy="160" rx="14" ry="16" fill="${m.fur}" stroke="${OUTLINE}" stroke-width="2"/>
-      <ellipse cx="156" cy="160" rx="14" ry="16" fill="${m.fur}" stroke="${OUTLINE}" stroke-width="2"/>
-      <ellipse cx="100" cy="88" rx="46" ry="44" fill="${m.fur}" stroke="${OUTLINE}" stroke-width="3"/>
-      <ellipse cx="100" cy="92" rx="36" ry="34" fill="${m.furLight}"/>
+      <ellipse cx="100" cy="162" rx="50" ry="44" fill="${m.fur}" stroke="${OUTLINE}" stroke-width="3"/>
+      <ellipse cx="100" cy="166" rx="40" ry="34" fill="${m.furLight}"/>
+      <ellipse cx="100" cy="172" rx="26" ry="20" fill="${m.belly}"/>
+      ${tufts(100, 160, 30)}
+      <ellipse cx="44" cy="160" rx="15" ry="17" fill="${m.fur}" stroke="${OUTLINE}" stroke-width="2"/>
+      <ellipse cx="156" cy="160" rx="15" ry="17" fill="${m.fur}" stroke="${OUTLINE}" stroke-width="2"/>
+      <ellipse cx="36" cy="176" rx="8" ry="8" fill="${m.furLight}" stroke="${OUTLINE}" stroke-width="1"/>
+      <ellipse cx="164" cy="176" rx="8" ry="8" fill="${m.furLight}" stroke="${OUTLINE}" stroke-width="1"/>
+      <ellipse cx="100" cy="88" rx="48" ry="46" fill="${m.fur}" stroke="${OUTLINE}" stroke-width="3"/>
+      <ellipse cx="100" cy="92" rx="38" ry="36" fill="${m.furLight}"/>
+      ${tufts(100, 56, 26)}
       <circle cx="72" cy="52" r="5" fill="${m.fur}" stroke="${OUTLINE}" stroke-width="1"/>
       <circle cx="128" cy="52" r="5" fill="${m.fur}" stroke="${OUTLINE}" stroke-width="1"/>
-      <ellipse cx="80" cy="86" rx="14" ry="15" fill="white" stroke="${OUTLINE}" stroke-width="2"/>
-      <ellipse cx="120" cy="86" rx="14" ry="15" fill="white" stroke="${OUTLINE}" stroke-width="2"/>
-      <circle cx="82" cy="88" r="7" fill="#2D1B69"/>
-      <circle cx="122" cy="88" r="7" fill="#2D1B69"/>
-      <circle cx="85" cy="85" r="2.5" fill="white"/>
-      <circle cx="125" cy="85" r="2.5" fill="white"/>
-      <path d="M82 104 Q100 116 118 104" fill="none" stroke="${OUTLINE}" stroke-width="3" stroke-linecap="round"/>
-      <circle cx="68" cy="98" r="7" fill="#FF8EC8" opacity="0.4"/>
-      <circle cx="132" cy="98" r="7" fill="#FF8EC8" opacity="0.4"/>
+      <circle cx="100" cy="44" r="5" fill="${m.furLight}" stroke="${OUTLINE}" stroke-width="1"/>
+      <ellipse cx="80" cy="84" rx="15" ry="16" fill="white" stroke="${OUTLINE}" stroke-width="2"/>
+      <ellipse cx="120" cy="84" rx="15" ry="16" fill="white" stroke="${OUTLINE}" stroke-width="2"/>
+      <circle cx="82" cy="86" r="8" fill="#2D1B69"/>
+      <circle cx="122" cy="86" r="8" fill="#2D1B69"/>
+      <circle cx="85" cy="82" r="3" fill="white"/>
+      <circle cx="125" cy="82" r="3" fill="white"/>
+      <path d="M74 76 Q82 68 90 76" fill="none" stroke="${OUTLINE}" stroke-width="2" stroke-linecap="round"/>
+      <path d="M110 76 Q118 68 126 76" fill="none" stroke="${OUTLINE}" stroke-width="2" stroke-linecap="round"/>
+      <path d="M76 104 Q100 120 124 104" fill="#FF9EC8" stroke="${OUTLINE}" stroke-width="2.5"/>
+      <path d="M84 108 Q100 114 116 108" fill="white" stroke="${OUTLINE}" stroke-width="1.5"/>
+      <circle cx="68" cy="96" r="8" fill="#FF8EC8" opacity="0.5"/>
+      <circle cx="132" cy="96" r="8" fill="#FF8EC8" opacity="0.5"/>
       ${renderBandmateHold(m.hold)}
     </svg>`;
 }

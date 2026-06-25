@@ -923,7 +923,7 @@ const Game = (() => {
     }
 
     if (note) {
-      AudioEngine.playPartEvent(note, inst, 1);
+      AudioEngine.playPartEvent(note, inst, 0.38);
     } else {
       AudioEngine.playInstrument(inst);
     }
@@ -936,7 +936,7 @@ const Game = (() => {
     p.cheer = Math.min(p.cheerGoal * 1.5, p.cheer + (rating === 'perfect' ? 4 : 2));
 
     if (p.cheer > p.cheerGoal * 0.5 && Math.random() < 0.12) AudioEngine.playCheer();
-    if (p.combo >= 5 && p.combo % 5 === 0) AudioEngine.playCheer();
+    if (p.combo >= 5 && p.combo % 5 === 0) AudioEngine.playCheerLoud();
 
     const tip = (1 + p.crowd * 0.12) * p.tipMultiplier * mult * (0.85 + Math.random() * 0.3);
     p.sessionCash += tip;
