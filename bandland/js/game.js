@@ -27,6 +27,47 @@ const Game = (() => {
     return INSTRUMENTS[id] || INSTRUMENTS['trash-lid'];
   }
 
+  function getBandmateId(member) {
+    if (member.id) return member.id;
+    const found = typeof getBandmateByName === 'function' ? getBandmateByName(member.name) : null;
+    return found?.id || 'riff';
+  }
+
+  function renderBandmateCharacter(member, size = 80) {
+    return renderBandmate(getBandmateId(member), size);
+  }
+
+  function normalizeBandMembers() {
+    state.bandMembers = state.bandMembers.map((m) => ({
+      ...m,
+      id: m.id || getBandmateId(m),
+    }));
+  }
+
+  function persist() {
+    SaveManager.save(state);
+  }
+
+  function resetProgress() {
+    state.character = null;
+    state.bandCash = 0;
+    state.starMeter = 0;
+    state.hasLid = false;
+    state.tutorialStep = 0;
+    state.inventories = {
+      instruments: ['trash-lid'],
+      clothes: [],
+      makeup: [],
+      accessories: [],
+    };
+    state.bandMembers = [];
+    state.bandSlots = 1;
+    state.currentVenue = 'street-corner';
+    state.performance = null;
+    state.pendingRecruit = null;
+    state.equippedInstrument = 'trash-lid';
+  }
+
   const root = () => document.getElementById('screen-root');
   const hud = () => document.getElementById('hud');
 
@@ -67,6 +108,7 @@ const Game = (() => {
     state.inventories[cat].push(itemId);
     if (cat === 'instruments') state.equippedInstrument = itemId;
     updateHud();
+    persist();
     return true;
   }
 
@@ -76,6 +118,7 @@ const Game = (() => {
     state.bandCash -= nextCost;
     state.bandSlots += 1;
     updateHud();
+    persist();
     return true;
   }
 
@@ -83,9 +126,11 @@ const Game = (() => {
     if (!state.pendingRecruit) return false;
     if (state.bandMembers.length >= state.bandSlots) return false;
     state.bandMembers.push(state.pendingRecruit);
+    normalizeBandMembers();
     state.starMeter += 5;
     state.pendingRecruit = null;
     updateHud();
+    persist();
     return true;
   }
 
@@ -94,6 +139,7 @@ const Game = (() => {
   }
 
   function renderTitle() {
+    const hasSave = SaveManager.hasSave();
     return `
       <section class="screen title-screen">
         <div class="title-bg"></div>
@@ -101,7 +147,10 @@ const Game = (() => {
           <p class="eyebrow">Welcome to</p>
           <h1 class="game-title">BAND<span>LAND</span></h1>
           <p class="subtitle">From trash can lids to sold-out shows.</p>
-          <button class="btn btn-primary btn-lg" id="btn-start">Start Your Journey</button>
+          <div class="title-actions">
+            ${hasSave ? '<button class="btn btn-primary btn-lg" id="btn-continue">Continue</button>' : ''}
+            <button class="btn ${hasSave ? 'btn-secondary' : 'btn-primary'} btn-lg" id="btn-start">Start Your Journey</button>
+          </div>
         </div>
         <div class="title-notes">🎵 🥁 🎸 ⭐</div>
       </section>
@@ -207,9 +256,13 @@ const Game = (() => {
     const bandSection = `
       <div class="inv-section">
         <h4>Band (${state.bandMembers.length}/${state.bandSlots})</h4>
-        <div class="inv-items">
+        <div class="inv-items band-roster">
           ${state.bandMembers.length
-            ? state.bandMembers.map((m) => `<span class="inv-chip" title="${m.role}">${m.emoji} ${m.name}</span>`).join('')
+            ? state.bandMembers.map((m) => `
+                <div class="bandmate-chip" title="${m.role}">
+                  ${renderBandmateCharacter(m, 52)}
+                  <span>${m.name}</span>
+                </div>`).join('')
             : '<span class="inv-empty">Solo act</span>'}
         </div>
       </div>
@@ -227,6 +280,10 @@ const Game = (() => {
           </aside>
 
           <div class="hub-main">
+            <div class="hub-venue-preview">
+              ${renderVenueBackdrop(state.currentVenue)}
+              <div class="hub-venue-label">${VENUES.find((v) => v.id === state.currentVenue)?.name || 'Venue'}</div>
+            </div>
             <h2>Choose Your Venue</h2>
             <div class="venue-grid">${venueCards}</div>
 
@@ -247,9 +304,10 @@ const Game = (() => {
     const full = state.bandMembers.length >= state.bandSlots;
     return `
       <div class="modal-overlay">
-        <div class="modal">
+        <div class="modal recruit-modal">
+          <div class="recruit-preview">${renderBandmateCharacter(r, 130)}</div>
           <h3>🌟 Someone Wants In!</h3>
-          <p><strong>${r.emoji} ${r.name}</strong> (${r.role}) wants to join your band!</p>
+          <p><strong>${r.name}</strong> (${r.role}) wants to join your band!</p>
           ${full
             ? `<p class="warn">Buy a band slot in the shop first! (${state.bandMembers.length}/${state.bandSlots})</p>`
             : `<p>They'll boost your crowd and star power.</p>`}
@@ -340,6 +398,8 @@ const Game = (() => {
 
     return `
       <section class="screen perform-screen ${venue.bg}">
+        ${renderVenueBackdrop(venue.id)}
+        <div class="perform-content">
         <div class="perform-header">
           <h2>${venue.emoji} ${venue.name}</h2>
           <div class="perform-timer" id="perf-timer">⏱ ${p.timeLeft}s</div>
@@ -349,7 +409,10 @@ const Game = (() => {
           <div class="crowd-row" id="crowd-row">${crowdHtml}</div>
           <div class="stage-lights"></div>
           <div class="performer-wrap">
-            ${state.bandMembers.map((m, i) => `<span class="bandmate" style="--i:${i}">${m.emoji}</span>`).join('')}
+            ${state.bandMembers.map((m, i) => `
+              <div class="bandmate-slot" style="--i:${i}; --side:${i % 2 === 0 ? -1 : 1}">
+                ${renderBandmateCharacter(m, 72)}
+              </div>`).join('')}
             <div class="performer-stack">
               <div class="performer" id="performer">${renderCharacter(state.character, 130, { instrument: inst })}</div>
               <div class="rhythm-zone">
@@ -387,6 +450,7 @@ const Game = (() => {
         <div class="perform-floaters" id="floaters"></div>
         <div class="perform-footer">
           <span class="gig-cash" id="gig-cash">+${Math.floor(p.sessionCash)} BandCash this gig</span>
+        </div>
         </div>
       </section>
     `;
@@ -431,12 +495,26 @@ const Game = (() => {
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => document.querySelectorAll(sel);
 
-    $('#btn-start')?.addEventListener('click', () => setScreen('select'));
+    $('#btn-start')?.addEventListener('click', () => {
+      SaveManager.clear();
+      resetProgress();
+      setScreen('select');
+    });
+
+    $('#btn-continue')?.addEventListener('click', () => {
+      const data = SaveManager.load();
+      if (SaveManager.apply(state, data)) {
+        normalizeBandMembers();
+        state.tutorialStep = state.hasLid ? 1 : 0;
+        setScreen(state.hasLid ? 'hub' : 'tutorial');
+      }
+    });
 
     $$('.character-card').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.character = btn.dataset.character;
         state.tutorialStep = 0;
+        persist();
         setScreen('tutorial');
       });
     });
@@ -452,6 +530,7 @@ const Game = (() => {
       if (hint) hint.textContent = 'Perfect! That crash/cymbal sound is GOLD.';
       setTimeout(() => {
         state.hasLid = true;
+        persist();
         setScreen('hub');
       }, 1200);
     });
@@ -459,13 +538,17 @@ const Game = (() => {
     $$('.venue-card:not(.locked)').forEach((btn) => {
       btn.addEventListener('click', () => {
         state.currentVenue = btn.dataset.venue;
+        persist();
         render();
       });
     });
 
     $('#btn-perform')?.addEventListener('click', startPerformance);
     $('#btn-shop')?.addEventListener('click', () => setScreen('shop'));
-    $('#btn-back-hub')?.addEventListener('click', () => setScreen('hub'));
+    $('#btn-back-hub')?.addEventListener('click', () => {
+      persist();
+      setScreen('hub');
+    });
 
     $$('.shop-tab').forEach((tab) => {
       tab.addEventListener('click', () => {
@@ -491,6 +574,7 @@ const Game = (() => {
 
     $('#btn-decline-recruit')?.addEventListener('click', () => {
       state.pendingRecruit = null;
+      persist();
       render();
     });
 
@@ -499,6 +583,7 @@ const Game = (() => {
         const id = btn.dataset.equip;
         if (id && state.inventories.instruments.includes(id)) {
           state.equippedInstrument = id;
+          persist();
           render();
         }
       });
@@ -511,7 +596,11 @@ const Game = (() => {
     const p = state.performance;
     if (!p) return;
 
+    BandAudio.setBand(state.bandMembers);
+    BandAudio.start(p.bpm);
+
     Metronome.start(p.bpm, (beatIdx) => {
+      BandAudio.onBeat();
       document.querySelectorAll('.metro-dot').forEach((dot, i) => {
         dot.classList.toggle('active', i === beatIdx % 8);
       });
@@ -527,6 +616,7 @@ const Game = (() => {
 
   function stopPerformanceLoop() {
     Metronome.stop();
+    BandAudio.stop();
     if (state.perfUiRaf) cancelAnimationFrame(state.perfUiRaf);
     if (state.perfInterval) clearInterval(state.perfInterval);
     state.perfInterval = null;
@@ -689,7 +779,8 @@ const Game = (() => {
 
     if (state.starMeter >= 20 && !state.pendingRecruit && p.recruitRolls < 2 && Math.random() < 0.08) {
       const recruit = RECRUIT_POOL[Math.floor(Math.random() * RECRUIT_POOL.length)];
-      if (!state.bandMembers.find((m) => m.name === recruit.name)) {
+      const recruitId = recruit.id || getBandmateId(recruit);
+      if (!state.bandMembers.find((m) => getBandmateId(m) === recruitId)) {
         state.pendingRecruit = recruit;
         p.recruitRolls += 1;
       }
@@ -697,6 +788,7 @@ const Game = (() => {
 
     updateHud();
     updatePerformanceUI();
+    persist();
 
     const crowdRow = document.getElementById('crowd-row');
     if (crowdRow) {
@@ -741,6 +833,7 @@ const Game = (() => {
         p.newUnlock = newest?.name;
       }
 
+      persist();
       setScreen('results');
     } else {
       updatePerformanceUI();

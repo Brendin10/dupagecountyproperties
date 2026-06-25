@@ -430,6 +430,56 @@ body {
   margin: 0 auto;
 }
 
+.hub-venue-preview {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  height: 140px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(155, 107, 255, 0.25);
+}
+
+.hub-venue-preview .venue-backdrop {
+  position: absolute;
+  inset: 0;
+}
+
+.hub-venue-label {
+  position: absolute;
+  bottom: 10px;
+  left: 14px;
+  z-index: 2;
+  font-weight: 700;
+  font-size: 1rem;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.45);
+  padding: 4px 12px;
+  border-radius: 8px;
+}
+
+.band-roster {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bandmate-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.bandmate-chip span {
+  color: var(--muted);
+}
+
+.bandmate-svg {
+  display: block;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.35));
+}
+
 .hub-layout {
   display: grid;
   grid-template-columns: 240px 1fr;
@@ -650,6 +700,54 @@ body {
   padding: 16px;
   min-height: calc(100vh - 60px);
   position: relative;
+  overflow: hidden;
+}
+
+.perform-screen > .venue-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.perform-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.venue-backdrop {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.venue-backdrop-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.title-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+
+.recruit-modal {
+  text-align: center;
+}
+
+.recruit-preview {
+  margin-bottom: 8px;
+}
+
+.recruit-preview .bandmate-svg {
+  margin: 0 auto;
 }
 
 .perform-header {
@@ -677,7 +775,7 @@ body {
   min-height: 320px;
   border-radius: var(--radius);
   overflow: hidden;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.15);
   margin-bottom: 16px;
 }
 
@@ -728,13 +826,19 @@ body {
   50% { filter: brightness(1.4) drop-shadow(0 0 20px gold); }
 }
 
-.bandmate {
+.bandmate-slot {
   position: absolute;
-  font-size: 1.8rem;
-  bottom: 80px;
-  left: calc(50% + var(--i) * 50px - 25px);
+  bottom: 68px;
+  left: calc(50% + var(--side, 1) * (55px + var(--i) * 38px));
+  transform: translateX(-50%);
+  z-index: 2;
   animation: crowdBounce 0.8s ease infinite;
   animation-delay: calc(var(--i) * 0.1s);
+  opacity: 0.92;
+}
+
+.bandmate-slot .bandmate-svg {
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4));
 }
 
 .play-btn {
@@ -919,12 +1023,12 @@ body {
   flex-wrap: wrap;
 }
 
-/* Performance venue BG overrides on perform screen */
-.perform-screen.venue-street { background: linear-gradient(180deg, #5ba3d9 0%, #c4a574 70%); }
-.perform-screen.venue-tavern { background: linear-gradient(180deg, #3d2817 0%, #6b4423 100%); }
-.perform-screen.venue-square { background: linear-gradient(180deg, #5a9fd4 0%, #6aaa6a 100%); }
-.perform-screen.venue-talent { background: linear-gradient(180deg, #2d1050 0%, #6b2d5b 100%); }
-.perform-screen.venue-concert { background: linear-gradient(180deg, #0a0a14 0%, #3d1a6e 100%); }
+/* Performance venue BG — subtle tint behind SVG backdrops */
+.perform-screen.venue-street { background: #4a8ec4; }
+.perform-screen.venue-tavern { background: #2a1810; }
+.perform-screen.venue-square { background: #6a9ab8; }
+.perform-screen.venue-talent { background: #1a0a2e; }
+.perform-screen.venue-concert { background: #0a0814; }
 
 /* Metronome & rhythm zone below character */
 .performer-stack {

@@ -83,10 +83,10 @@ const SHOP_ITEMS = {
 const BAND_SLOT_COSTS = [0, 80, 200, 400];
 
 const RECRUIT_POOL = [
-  { name: 'Riff', emoji: '🎸', role: 'Guitar' },
-  { name: 'Boom', emoji: '🥁', role: 'Drums' },
-  { name: 'Melody', emoji: '🎹', role: 'Keys' },
-  { name: 'Vox', emoji: '🎤', role: 'Vocals' },
-  { name: 'Slap', emoji: '🎸', role: 'Bass' },
-  { name: 'Ziggy', emoji: '🎺', role: 'Horns' },
+  { id: 'riff', name: 'Riff', emoji: '🎸', role: 'Guitar' },
+  { id: 'boom', name: 'Boom', emoji: '🥁', role: 'Drums' },
+  { id: 'melody', name: 'Melody', emoji: '🎹', role: 'Keys' },
+  { id: 'vox', name: 'Vox', emoji: '🎤', role: 'Vocals' },
+  { id: 'slap', name: 'Slap', emoji: '🎸', role: 'Bass' },
+  { id: 'ziggy', name: 'Ziggy', emoji: '🎺', role: 'Horns' },
 ];
