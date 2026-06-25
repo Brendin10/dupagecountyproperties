@@ -451,6 +451,45 @@ function generateTierBackdrop(venue) {
   return backdropLayers(venue.id, [far, mid, near, front]);
 }
 
+function renderStageLighting(tier = 0) {
+  const t = tier ?? 0;
+  const spots = Math.min(1 + Math.floor(t / 3), 6);
+  const lasers = t >= 6 ? Math.min(1 + Math.floor((t - 6) / 3), 5) : 0;
+  const strobes = t >= 12 ? Math.min(1 + Math.floor((t - 12) / 4), 4) : 0;
+  const washes = t >= 3 ? Math.min(2 + Math.floor((t - 3) / 5), 4) : 0;
+
+  const spotHtml = Array.from({ length: spots }, (_, i) => {
+    const x = 12 + (i / Math.max(spots - 1, 1)) * 76;
+    const delay = i * 0.7;
+    const color = ['#ffd166', '#6bcbff', '#ff6b9d', '#95e06c', '#c77dff', '#fff'][i % 6];
+    return `<div class="stage-spotlight" style="left:${x}%;--spot-color:${color};--spot-delay:${delay}s"></div>`;
+  }).join('');
+
+  const laserHtml = Array.from({ length: lasers }, (_, i) => {
+    const x = 15 + i * (70 / Math.max(lasers, 1));
+    const color = ['#ff0044', '#00ffcc', '#cc44ff', '#44ff66', '#ffaa00'][i % 5];
+    return `<div class="stage-laser" style="left:${x}%;--laser-color:${color};--laser-delay:${i * 0.35}s"></div>`;
+  }).join('');
+
+  const strobeHtml = Array.from({ length: strobes }, (_, i) =>
+    `<div class="stage-strobe" style="left:${20 + i * 18}%;--strobe-delay:${i * 0.15}s"></div>`
+  ).join('');
+
+  const washHtml = Array.from({ length: washes }, (_, i) => {
+    const colors = ['rgba(107,203,119,0.2)', 'rgba(255,107,157,0.18)', 'rgba(107,203,255,0.16)', 'rgba(255,209,102,0.18)'];
+    return `<div class="stage-wash" style="background:${colors[i % colors.length]};--wash-delay:${i * 0.5}s"></div>`;
+  }).join('');
+
+  const beams = t >= 8
+    ? `<div class="stage-beam-fan left"></div><div class="stage-beam-fan right"></div>`
+    : '';
+
+  return `<div class="stage-lighting-rig" data-tier="${t}" aria-hidden="true">
+    ${washHtml}${beams}${laserHtml}${spotHtml}${strobeHtml}
+    <div class="stage-light-haze"></div>
+  </div>`;
+}
+
 function renderVenueBackdrop(venueId) {
   const id = venueId === 'concert-venue' ? 'small-concert-venue' : venueId;
   const fn = VENUE_BACKDROPS[id];

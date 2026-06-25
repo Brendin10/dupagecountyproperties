@@ -1661,3 +1661,275 @@ body {
   35% { transform: translateY(-4px) rotate(-6deg); }
   65% { transform: translateY(-2px) rotate(4deg); }
 }
+
+/* Stage lighting rig — scales with venue tier */
+.stage-lighting-rig {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  overflow: hidden;
+}
+
+.stage-light-haze {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 100%, rgba(255, 209, 102, 0.08), transparent 70%);
+  animation: hazePulse 4s ease-in-out infinite;
+}
+
+@keyframes hazePulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.stage-spotlight {
+  position: absolute;
+  top: -20px;
+  width: 120px;
+  height: 200px;
+  margin-left: -60px;
+  background: conic-gradient(from 180deg at 50% 0%, transparent 42%, var(--spot-color, #ffd166) 50%, transparent 58%);
+  opacity: 0.35;
+  transform-origin: top center;
+  animation: spotSweep 3.5s ease-in-out infinite;
+  animation-delay: var(--spot-delay, 0s);
+  filter: blur(2px);
+}
+
+@keyframes spotSweep {
+  0%, 100% { transform: rotate(-18deg); opacity: 0.25; }
+  50% { transform: rotate(18deg); opacity: 0.5; }
+}
+
+.stage-laser {
+  position: absolute;
+  top: 0;
+  width: 4px;
+  height: 100%;
+  margin-left: -2px;
+  background: linear-gradient(180deg, var(--laser-color, #ff0044), transparent 85%);
+  opacity: 0.55;
+  box-shadow: 0 0 12px var(--laser-color), 0 0 24px var(--laser-color);
+  animation: laserSwing 2.2s ease-in-out infinite;
+  animation-delay: var(--laser-delay, 0s);
+}
+
+@keyframes laserSwing {
+  0%, 100% { transform: rotate(-25deg) scaleY(0.9); }
+  50% { transform: rotate(25deg) scaleY(1); }
+}
+
+.stage-strobe {
+  position: absolute;
+  top: 0;
+  width: 80px;
+  height: 100%;
+  margin-left: -40px;
+  background: radial-gradient(ellipse at top, rgba(255, 255, 255, 0.5), transparent 70%);
+  animation: strobeFlash 0.8s steps(2) infinite;
+  animation-delay: var(--strobe-delay, 0s);
+  opacity: 0;
+}
+
+@keyframes strobeFlash {
+  0%, 49% { opacity: 0; }
+  50%, 100% { opacity: 0.7; }
+}
+
+.stage-wash {
+  position: absolute;
+  inset: 0;
+  animation: washShift 6s ease-in-out infinite;
+  animation-delay: var(--wash-delay, 0s);
+}
+
+@keyframes washShift {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.75; }
+}
+
+.stage-beam-fan {
+  position: absolute;
+  top: -10px;
+  width: 45%;
+  height: 70%;
+  opacity: 0.2;
+  background: linear-gradient(135deg, rgba(107, 203, 255, 0.4), transparent 60%);
+  animation: beamFan 5s ease-in-out infinite;
+}
+
+.stage-beam-fan.left { left: 0; transform-origin: top left; }
+.stage-beam-fan.right { right: 0; transform-origin: top right; transform: scaleX(-1); }
+
+@keyframes beamFan {
+  0%, 100% { transform: rotate(-8deg); opacity: 0.15; }
+  50% { transform: rotate(8deg); opacity: 0.35; }
+}
+
+/* Gem hit explosions */
+.gem-fx-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.note-gem.gem-exploding {
+  animation: gemVanish 0.28s ease-out forwards;
+  z-index: 6;
+}
+
+@keyframes gemVanish {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1.8); opacity: 0; filter: brightness(2); }
+}
+
+.gem-particle {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin: -4px 0 0 -4px;
+  animation: particleBurst 0.5s ease-out forwards;
+  box-shadow: 0 0 8px currentColor;
+}
+
+@keyframes particleBurst {
+  0% { transform: translate(0, 0) scale(1); opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; }
+}
+
+.gem-burst-ring {
+  position: absolute;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 50%;
+  border: 3px solid var(--gold);
+  animation: burstRing 0.45s ease-out forwards;
+}
+
+.gem-burst-ring.burst-perfect { border-color: var(--gold); box-shadow: 0 0 16px var(--gold); }
+.gem-burst-ring.burst-good { border-color: var(--green); box-shadow: 0 0 12px var(--green); }
+
+@keyframes burstRing {
+  0% { transform: scale(0.5); opacity: 1; }
+  100% { transform: scale(4); opacity: 0; }
+}
+
+.hit-zone.hit-pop .hit-zone-core {
+  animation: zonePop 0.28s ease;
+}
+
+@keyframes zonePop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+/* Band on fire at 10+ combo */
+.lineup-slot.on-fire,
+.bandmate-slot.on-fire {
+  position: relative;
+}
+
+.lineup-slot.on-fire::before,
+.bandmate-slot.on-fire::before {
+  content: '🔥';
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.4rem;
+  z-index: 25;
+  animation: flameBob 0.35s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 8px #ff6600);
+}
+
+.lineup-slot.on-fire::after,
+.bandmate-slot.on-fire::after {
+  content: '';
+  position: absolute;
+  inset: -6px -10px 0;
+  background: radial-gradient(ellipse at bottom, rgba(255, 120, 0, 0.55) 0%, rgba(255, 50, 0, 0.25) 40%, transparent 72%);
+  border-radius: 50% 50% 20% 20%;
+  z-index: -1;
+  animation: flameFlicker 0.25s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+.performer-wrap.band-on-fire {
+  filter: drop-shadow(0 0 12px rgba(255, 100, 0, 0.4));
+}
+
+@keyframes flameBob {
+  from { transform: translateX(-50%) translateY(0) scale(1); }
+  to { transform: translateX(-50%) translateY(-6px) scale(1.15); }
+}
+
+@keyframes flameFlicker {
+  from { opacity: 0.75; transform: scaleY(1); }
+  to { opacity: 1; transform: scaleY(1.08); }
+}
+
+.combo-display {
+  text-shadow: 0 0 8px rgba(255, 209, 102, 0.5);
+}
+
+/* Booed off stage */
+.booed-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #1a0a14 0%, #2a1020 50%, #1a0810 100%);
+}
+
+.booed-overlay {
+  text-align: center;
+  padding: 2rem;
+  animation: booedShake 0.5s ease;
+}
+
+.booed-title {
+  font-size: clamp(1.6rem, 6vw, 2.8rem);
+  color: #ff6b6b;
+  text-shadow: 0 0 24px rgba(255, 107, 107, 0.6);
+  margin-bottom: 1rem;
+  letter-spacing: 0.04em;
+  animation: booedPop 0.6s ease 0.2s both;
+}
+
+.booed-sub {
+  font-size: 1.1rem;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+.booed-tip {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 2rem;
+}
+
+@keyframes booedPop {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes booedShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+.floater.miss {
+  font-size: 1.1rem;
+  font-weight: 800;
+}

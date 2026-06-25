@@ -561,8 +561,8 @@ const Game = (() => {
 
         <div class="perform-stage">
           <div class="crowd-row" id="crowd-row">${crowdHtml}</div>
-          <div class="stage-lights"></div>
-          <div class="performer-wrap">
+          ${typeof renderStageLighting === 'function' ? renderStageLighting(venue.tier ?? 0) : '<div class="stage-lights"></div>'}
+          <div class="performer-wrap ${p.onFire ? 'band-on-fire' : ''}">
             ${renderStageLineup(inst)}
             <div class="performer-stack">
               ${RhythmLane.renderHtml(song.name)}
@@ -589,6 +589,19 @@ const Game = (() => {
         <div class="perform-footer">
           <span class="gig-cash" id="gig-cash">+${Math.floor(p.sessionCash)} BandCash this gig</span>
         </div>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderBooed() {
+    return `
+      <section class="screen booed-screen">
+        <div class="booed-overlay">
+          <h1 class="booed-title">YOU GOT BOOED OFF STAGE</h1>
+          <p class="booed-sub">Five misses in a row — the crowd wasn't feeling it.</p>
+          <p class="booed-tip">Keep practicing those gems and come back stronger!</p>
+          <button class="btn btn-primary btn-lg" id="btn-back-hub">Back to Map</button>
         </div>
       </section>
     `;
@@ -623,6 +636,7 @@ const Game = (() => {
       case 'shop': html = renderShop(); break;
       case 'perform': html = renderPerformance(); break;
       case 'results': html = renderResults(); break;
+      case 'booed': html = renderBooed(); break;
       default: html = renderTitle();
     }
     root().innerHTML = html;
@@ -763,14 +777,41 @@ const Game = (() => {
     $('#btn-play-note')?.addEventListener('touchend', onNoteRelease);
   }
 
+  function updateFireState() {
+    const p = state.performance;
+    if (!p) return;
+    const on = !!p.onFire;
+    document.getElementById('performer')?.classList.toggle('on-fire', on);
+    document.querySelectorAll('.lineup-slot.side').forEach((el) => el.classList.toggle('on-fire', on));
+    document.querySelector('.performer-wrap')?.classList.toggle('band-on-fire', on);
+  }
+
+  function endBooedOffStage() {
+    const p = state.performance;
+    if (!p || p.booed) return;
+    p.booed = true;
+    p.onFire = false;
+    stopPerformanceLoop();
+    AudioEngine.setCrowdBooing?.(true);
+    AudioEngine.playBoo?.();
+    setTimeout(() => AudioEngine.playBoo?.(), 200);
+    setTimeout(() => AudioEngine.playBoo?.(), 450);
+    state.bandCash = Math.max(0, state.bandCash - Math.floor(p.sessionCash * 0.3));
+    p.sessionCash = Math.floor(p.sessionCash * 0.4);
+    persist();
+    setScreen('booed');
+  }
+
   function startPerformanceLoop() {
     const p = state.performance;
     if (!p) return;
 
     const song = getActiveSong();
     const bpm = p.bpm;
+    const venue = VENUES.find((v) => v.id === state.currentVenue);
 
     AudioEngine.initMix();
+    AudioEngine.startCrowdAmbience?.(venue?.tier ?? 0);
     BandAudio.setBand(state.bandMembers, song);
     BandAudio.setOnMemberPlay((member) => triggerBandmateAnimation(member));
     BandAudio.start(bpm);
@@ -791,6 +832,8 @@ const Game = (() => {
     Metronome.stop();
     BandAudio.stop();
     AudioEngine.stopSustain?.();
+    AudioEngine.stopCrowdAmbience?.();
+    AudioEngine.setCrowdBooing?.(false);
     activeHold = null;
     if (state.perfUiRaf) cancelAnimationFrame(state.perfUiRaf);
     if (state.perfInterval) clearInterval(state.perfInterval);
@@ -825,7 +868,12 @@ const Game = (() => {
     const cashEl = document.getElementById('gig-cash');
     if (cashEl) cashEl.textContent = `+${Math.floor(p.sessionCash)} BandCash this gig`;
     const comboEl = document.getElementById('combo-display');
-    if (comboEl) comboEl.textContent = p.combo > 1 ? `COMBO ×${p.combo}` : '';
+    if (comboEl) {
+      if (p.onFire) comboEl.textContent = `🔥 ON FIRE ×${p.combo}`;
+      else if (p.missStreak >= 3) comboEl.textContent = `BOOED ×${p.missStreak}`;
+      else comboEl.textContent = p.combo > 1 ? `COMBO ×${p.combo}` : '';
+    }
+    updateFireState();
   }
 
   function triggerBandmateAnimation(member) {
@@ -887,6 +935,10 @@ const Game = (() => {
       tipMultiplier: venue.tipMultiplier,
       bpm,
       combo: 0,
+      missStreak: 0,
+      onFire: false,
+      booed: false,
+      venueTier: venue.tier ?? 0,
       newUnlock: null,
       recruitRolls: 0,
       hitBeats: new Set(),
@@ -911,6 +963,19 @@ const Game = (() => {
       AudioEngine.playMiss();
       AudioEngine.stopSustain?.();
       p.combo = 0;
+      p.onFire = false;
+      p.missStreak = (p.missStreak || 0) + 1;
+      updateFireState();
+
+      if (p.missStreak >= 5) {
+        endBooedOffStage();
+        return;
+      }
+      if (p.missStreak >= 3) {
+        AudioEngine.setCrowdBooing?.(true);
+        spawnFloater('BOO!', 'miss');
+      }
+
       const isMelodic = inst.type === 'melodic';
       const starLoss = isMelodic ? 0.65 : 0.5;
       p.sessionStars = Math.max(0, p.sessionStars - starLoss);
@@ -922,12 +987,21 @@ const Game = (() => {
       return;
     }
 
+    p.missStreak = 0;
+    AudioEngine.setCrowdBooing?.(false);
+
+    const isMelodic = inst.type === 'melodic';
+    AudioEngine.playHitBurst?.(rating);
     if (note) {
-      AudioEngine.playPartEvent(note, inst, 0.38);
+      AudioEngine.playPartEvent(note, inst, rating === 'perfect' ? 0.48 : 0.38);
+      RhythmLane.explodeGem(note, rating, isMelodic);
     } else {
       AudioEngine.playInstrument(inst);
+      RhythmLane.explodeGem({ beat: -1 }, rating, isMelodic);
     }
     p.combo += 1;
+    if (p.combo >= 10) p.onFire = true;
+    updateFireState();
 
     const mult = rating === 'perfect' ? 1.5 : 1.0;
     const appeal = crowdAppeal();
@@ -936,7 +1010,10 @@ const Game = (() => {
     p.cheer = Math.min(p.cheerGoal * 1.5, p.cheer + (rating === 'perfect' ? 4 : 2));
 
     if (p.cheer > p.cheerGoal * 0.5 && Math.random() < 0.12) AudioEngine.playCheer();
-    if (p.combo >= 5 && p.combo % 5 === 0) AudioEngine.playCheerLoud();
+    if (p.combo >= 5 && p.combo % 5 === 0) {
+      AudioEngine.playCheerLoud();
+      AudioEngine.boostCrowdCheer?.();
+    }
 
     const tip = (1 + p.crowd * 0.12) * p.tipMultiplier * mult * (0.85 + Math.random() * 0.3);
     p.sessionCash += tip;
