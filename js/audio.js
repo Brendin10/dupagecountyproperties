@@ -1,10 +1,10 @@
 const AudioEngine = (() => {
   let ctx = null;
   let mixReady = false;
-  let mixBus = null;
+  let musicBus = null;
+  let percBus = null;
   let dryGain = null;
   let wetGain = null;
-  let convolver = null;
   let reverbSend = null;
 
   const CHORD_ROOT = {
@@ -40,62 +40,68 @@ const AudioEngine = (() => {
 
   function resume() { return getCtx(); }
 
-  function createImpulse(ac, duration, decay) {
-    const len = Math.floor(ac.sampleRate * duration);
-    const buf = ac.createBuffer(2, len, ac.sampleRate);
-    for (let c = 0; c < 2; c++) {
-      const d = buf.getChannelData(c);
-      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** decay;
-    }
-    return buf;
-  }
-
   function initMix() {
-    if (mixReady) return mixBus;
+    if (mixReady) return musicBus;
     const ac = getCtx();
-    mixBus = ac.createGain();
-    mixBus.gain.value = 1;
+    musicBus = ac.createGain();
+    musicBus.gain.value = 1;
+    percBus = ac.createGain();
+    percBus.gain.value = 1;
     dryGain = ac.createGain();
-    dryGain.gain.value = 0.7;
+    dryGain.gain.value = 0.9;
     wetGain = ac.createGain();
-    wetGain.gain.value = 0.48;
+    wetGain.gain.value = 0.2;
     reverbSend = ac.createGain();
-    reverbSend.gain.value = 0.52;
-    convolver = ac.createConvolver();
-    convolver.buffer = createImpulse(ac, 2.4, 2.4);
-    mixBus.connect(dryGain);
-    mixBus.connect(reverbSend);
-    reverbSend.connect(convolver);
-    convolver.connect(wetGain);
+    reverbSend.gain.value = 0.3;
+
+    const delay = ac.createDelay(0.5);
+    delay.delayTime.value = 0.12;
+    const delayFilter = ac.createBiquadFilter();
+    delayFilter.type = 'lowpass';
+    delayFilter.frequency.value = 2000;
+    const delayFeedback = ac.createGain();
+    delayFeedback.gain.value = 0.26;
+
+    musicBus.connect(dryGain);
+    musicBus.connect(reverbSend);
+    reverbSend.connect(delay);
+    delay.connect(delayFilter);
+    delayFilter.connect(delayFeedback);
+    delayFeedback.connect(delay);
+    delayFilter.connect(wetGain);
+
+    percBus.connect(dryGain);
+
     dryGain.connect(ac.destination);
     wetGain.connect(ac.destination);
     mixReady = true;
-    return mixBus;
+    return musicBus;
   }
 
   function getMix() {
     return initMix();
   }
 
-  function connectToMix(node, pan = 0) {
+  function connectToMix(node, pan = 0, bus = 'music') {
     initMix();
-    if (pan !== 0 && node.connect) {
+    const target = bus === 'perc' ? percBus : musicBus;
+    if (pan !== 0) {
       const ac = getCtx();
       const p = ac.createStereoPanner();
       p.pan.value = Math.max(-1, Math.min(1, pan));
       node.connect(p);
-      p.connect(mixBus);
+      p.connect(target);
       return p;
     }
-    node.connect(mixBus);
+    node.connect(target);
     return node;
   }
 
-  function masterGain(ac, now, peak, dur, pan = 0) {
+  function masterGain(ac, now, peak, dur, pan = 0, bus = 'music') {
     const g = ac.createGain();
     g.gain.setValueAtTime(peak, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + dur);
-    connectToMix(g, pan);
+    connectToMix(g, pan, bus);
     return g;
   }
 
@@ -104,104 +110,90 @@ const AudioEngine = (() => {
     osc.type = 'sine';
     osc.frequency.setValueAtTime(180, now);
     osc.frequency.exponentialRampToValueAtTime(42, now + 0.14);
-    const g = masterGain(ac, now, vol, 0.28, 0);
+    const g = masterGain(ac, now, vol, 0.28, 0, 'perc');
     osc.connect(g);
     osc.start(now);
     osc.stop(now + 0.26);
 
-    const len = Math.floor(ac.sampleRate * 0.02);
-    const buf = ac.createBuffer(1, len, ac.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
-    const click = ac.createBufferSource();
-    click.buffer = buf;
-    const cg = masterGain(ac, now, 0.15, 0.03);
+    const click = ac.createOscillator();
+    click.type = 'sine';
+    click.frequency.value = 1100;
+    const cg = masterGain(ac, now, 0.07, 0.012, 0, 'perc');
     click.connect(cg);
     click.start(now);
+    click.stop(now + 0.02);
   }
 
   function playSnare(ac, now, vol = 0.35) {
-    const len = Math.floor(ac.sampleRate * 0.2);
-    const buf = ac.createBuffer(1, len, ac.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 1.4;
-    const noise = ac.createBufferSource();
-    noise.buffer = buf;
-    const bp = ac.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = 2200;
-    bp.Q.value = 0.5;
-    const g = masterGain(ac, now, vol * 0.85, 0.22, 0.08);
-    noise.connect(bp);
-    bp.connect(g);
-    noise.start(now);
-
     const tone = ac.createOscillator();
     tone.type = 'triangle';
-    tone.frequency.setValueAtTime(220, now);
-    tone.frequency.exponentialRampToValueAtTime(160, now + 0.06);
-    const tg = masterGain(ac, now, 0.18, 0.1, -0.05);
+    tone.frequency.setValueAtTime(240, now);
+    tone.frequency.exponentialRampToValueAtTime(130, now + 0.09);
+    const tg = masterGain(ac, now, vol * 0.6, 0.11, 0.04, 'perc');
     tone.connect(tg);
     tone.start(now);
-    tone.stop(now + 0.09);
+    tone.stop(now + 0.1);
+
+    const click = ac.createOscillator();
+    click.type = 'square';
+    click.frequency.value = 850;
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 1900;
+    bp.Q.value = 1;
+    const cg = masterGain(ac, now, vol * 0.22, 0.035, -0.04, 'perc');
+    click.connect(bp);
+    bp.connect(cg);
+    click.start(now);
+    click.stop(now + 0.04);
   }
 
   function playHihat(ac, now, vol = 0.14) {
-    const len = Math.floor(ac.sampleRate * 0.06);
-    const buf = ac.createBuffer(1, len, ac.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
-    const src = ac.createBufferSource();
-    src.buffer = buf;
-    const hp = ac.createBiquadFilter();
-    hp.type = 'highpass';
-    hp.frequency.value = 7000;
-    const g = masterGain(ac, now, vol, 0.06);
-    src.connect(hp);
-    hp.connect(g);
-    src.start(now);
+    [4100, 6600, 9200].forEach((freq, i) => {
+      const osc = ac.createOscillator();
+      osc.type = 'square';
+      osc.frequency.value = freq;
+      const hp = ac.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 4500;
+      const g = masterGain(ac, now + i * 0.001, vol * 0.32, 0.035, 0, 'perc');
+      osc.connect(hp);
+      hp.connect(g);
+      osc.start(now + i * 0.001);
+      osc.stop(now + 0.04);
+    });
   }
 
   function playCymbal(ac, now, vol = 0.28) {
-    const len = Math.floor(ac.sampleRate * 0.45);
-    const buf = ac.createBuffer(1, len, ac.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 2;
-    const src = ac.createBufferSource();
-    src.buffer = buf;
-    const hp = ac.createBiquadFilter();
-    hp.type = 'highpass';
-    hp.frequency.setValueAtTime(5000, now);
-    hp.frequency.exponentialRampToValueAtTime(1200, now + 0.35);
-    const g = masterGain(ac, now, vol, 0.42);
-    src.connect(hp);
-    hp.connect(g);
-    src.start(now);
-
-    const ping = ac.createOscillator();
-    ping.type = 'triangle';
-    ping.frequency.setValueAtTime(820, now);
-    ping.frequency.exponentialRampToValueAtTime(380, now + 0.2);
-    const pg = masterGain(ac, now, 0.08, 0.22);
-    ping.connect(pg);
-    ping.start(now);
-    ping.stop(now + 0.24);
+    const ratios = [1, 1.48, 2.05, 2.78, 3.55, 4.4];
+    const base = 320;
+    ratios.forEach((r, i) => {
+      const osc = ac.createOscillator();
+      osc.type = 'triangle';
+      const f = base * r;
+      osc.frequency.setValueAtTime(f, now);
+      osc.frequency.exponentialRampToValueAtTime(f * 0.5, now + 0.38);
+      const g = ac.createGain();
+      const t = now + i * 0.003;
+      g.gain.setValueAtTime(vol * 0.13, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      connectToMix(g, (i - 2.5) * 0.07, 'perc');
+      osc.connect(g);
+      osc.start(t);
+      osc.stop(t + 0.42);
+    });
   }
 
   function playShake(ac, now, vol = 0.2) {
-    const len = Math.floor(ac.sampleRate * 0.1);
-    const buf = ac.createBuffer(1, len, ac.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
-    const src = ac.createBufferSource();
-    src.buffer = buf;
-    const bp = ac.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = 4500;
-    const g = masterGain(ac, now, vol, 0.1);
-    src.connect(bp);
-    bp.connect(g);
-    src.start(now);
+    [2600, 3400, 4200, 5000].forEach((freq, i) => {
+      const osc = ac.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      const g = masterGain(ac, now + i * 0.006, vol * 0.28, 0.06, (i - 1.5) * 0.12, 'perc');
+      osc.connect(g);
+      osc.start(now + i * 0.006);
+      osc.stop(now + 0.07);
+    });
   }
 
   function playBassNote(ac, now, note, vol = 0.22) {
@@ -212,8 +204,8 @@ const AudioEngine = (() => {
     const osc2 = ac.createOscillator();
     osc2.type = 'triangle';
     osc2.frequency.value = freq * 2;
-    const g = masterGain(ac, now, vol, 0.35);
-    const g2 = masterGain(ac, now, vol * 0.25, 0.2);
+    const g = masterGain(ac, now, vol, 0.35, 0, 'music');
+    const g2 = masterGain(ac, now, vol * 0.25, 0.2, 0, 'music');
     osc.connect(g);
     osc2.connect(g2);
     osc.start(now);
@@ -240,7 +232,7 @@ const AudioEngine = (() => {
       g.gain.setValueAtTime(0, now + delay);
       g.gain.linearRampToValueAtTime(vol, now + delay + 0.01);
       g.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.45);
-      g.connect(getMix());
+      connectToMix(g, 0, 'music');
       src.connect(lp);
       lp.connect(g);
       src.start(now + delay);
@@ -271,7 +263,7 @@ const AudioEngine = (() => {
         g.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
         osc.connect(lp);
         lp.connect(g);
-        connectToMix(g, pan + (j === 1 ? 0.05 : 0));
+        connectToMix(g, pan + (j === 1 ? 0.05 : 0), 'music');
         osc.start(t);
         osc.stop(t + 0.48);
       });
@@ -292,7 +284,7 @@ const AudioEngine = (() => {
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(0.06, t + 0.02);
       g.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-      g.connect(getMix());
+      connectToMix(g, 0, 'music');
       osc.connect(g);
       osc2.connect(g);
       osc.start(t);
@@ -311,7 +303,7 @@ const AudioEngine = (() => {
     const lp = ac.createBiquadFilter();
     lp.type = 'lowpass';
     lp.frequency.value = 2200;
-    const g = masterGain(ac, now, vol, 0.28);
+    const g = masterGain(ac, now, vol, 0.28, 0, 'music');
     osc.connect(lp);
     lp.connect(g);
     osc.start(now);
@@ -333,7 +325,7 @@ const AudioEngine = (() => {
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(0.07, t + 0.04);
       g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
-      g.connect(getMix());
+      connectToMix(g, 0, 'music');
       osc.connect(bp);
       bp.connect(g);
       osc.start(t);
@@ -445,7 +437,7 @@ const AudioEngine = (() => {
       g.gain.linearRampToValueAtTime(vol, t + 0.12);
       g.gain.setValueAtTime(vol * 0.85, t + 0.5);
       g.gain.exponentialRampToValueAtTime(0.001, t + 2.2);
-      connectToMix(g, i === 0 ? -0.3 : i === 2 ? 0.3 : 0);
+      connectToMix(g, i === 0 ? -0.3 : i === 2 ? 0.3 : 0, 'music');
       osc.connect(g);
       osc2.connect(g);
       osc3.connect(g);
@@ -478,7 +470,7 @@ const AudioEngine = (() => {
     osc.connect(lp);
     osc2.connect(lp);
     lp.connect(g);
-    connectToMix(g, 0);
+    connectToMix(g, 0, 'music');
     osc.start(now);
     osc2.start(now);
     osc.stop(now + 0.58);
@@ -501,7 +493,7 @@ const AudioEngine = (() => {
       g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
       osc.connect(hp);
       hp.connect(g);
-      connectToMix(g, i % 2 === 0 ? -0.4 : 0.4);
+      connectToMix(g, i % 2 === 0 ? -0.4 : 0.4, 'music');
       osc.start(t);
       osc.stop(t + 0.38);
     });
@@ -520,7 +512,7 @@ const AudioEngine = (() => {
       g.gain.linearRampToValueAtTime(vol * 0.4, t + 0.05);
       g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
       osc.connect(g);
-      connectToMix(g, -0.15 + i * 0.15);
+      connectToMix(g, -0.15 + i * 0.15, 'music');
       osc.start(t);
       osc.stop(t + 0.65);
     });
@@ -533,7 +525,7 @@ const AudioEngine = (() => {
     osc.type = 'square';
     osc.frequency.setValueAtTime(180, now);
     osc.frequency.exponentialRampToValueAtTime(90, now + 0.12);
-    const g = masterGain(ac, now, 0.06, 0.14);
+    const g = masterGain(ac, now, 0.06, 0.14, 0, 'music');
     osc.connect(g);
     osc.start(now);
     osc.stop(now + 0.14);
