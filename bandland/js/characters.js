@@ -1,57 +1,60 @@
+const OUTLINE = '#1C1230';
+
 const CHARACTERS = {
   benny: {
     id: 'benny',
     name: 'Benny',
-    tagline: 'Purple powerhouse. Leather jacket energy.',
+    tagline: 'Purple powerhouse. Chunky biker fuzz.',
     render(size = 200) {
       return `
-        <svg viewBox="0 0 200 260" width="${size}" height="${size * 1.3}" class="character-svg benny-svg" aria-label="Benny">
-          <ellipse cx="100" cy="235" rx="55" ry="10" fill="rgba(0,0,0,0.15)"/>
-          <!-- legs -->
-          <rect x="72" y="195" width="22" height="28" rx="10" fill="#7B4DFF"/>
-          <rect x="106" y="195" width="22" height="28" rx="10" fill="#7B4DFF"/>
-          <ellipse cx="83" cy="224" rx="14" ry="8" fill="#5A35CC"/>
-          <ellipse cx="117" cy="224" rx="14" ry="8" fill="#5A35CC"/>
-          <!-- body fur -->
-          <ellipse cx="100" cy="150" rx="58" ry="62" fill="#9B6BFF"/>
-          <ellipse cx="100" cy="155" rx="48" ry="50" fill="#B48CFF"/>
+        <svg viewBox="0 0 200 270" width="${size}" height="${size * 1.35}" class="character-svg benny-svg" aria-label="Benny">
+          <ellipse cx="100" cy="252" rx="50" ry="9" fill="rgba(0,0,0,0.18)"/>
+          <!-- feet -->
+          <rect x="58" y="210" width="26" height="32" rx="12" fill="#6234BC" stroke="${OUTLINE}" stroke-width="3"/>
+          <rect x="116" y="210" width="26" height="32" rx="12" fill="#6234BC" stroke="${OUTLINE}" stroke-width="3"/>
+          <ellipse cx="71" cy="238" rx="13" ry="7" fill="#8E58FF" stroke="${OUTLINE}" stroke-width="2"/>
+          <ellipse cx="129" cy="238" rx="13" ry="7" fill="#8E58FF" stroke="${OUTLINE}" stroke-width="2"/>
+          <!-- body blob -->
+          <ellipse cx="100" cy="162" rx="54" ry="46" fill="#8E58FF" stroke="${OUTLINE}" stroke-width="4"/>
+          <ellipse cx="100" cy="166" rx="42" ry="36" fill="#BC94FF"/>
+          <ellipse cx="100" cy="172" rx="28" ry="22" fill="#D2B2FF"/>
           <!-- jacket -->
-          <path d="M48 118 Q100 95 152 118 L158 188 Q100 205 42 188 Z" fill="#6B3E1E"/>
-          <path d="M58 125 L100 112 L142 125 L138 180 Q100 192 62 180 Z" fill="#8B5A2B"/>
-          <rect x="92" y="112" width="16" height="78" fill="#5D3418"/>
-          <circle cx="78" cy="145" r="9" fill="#F5F0E8" stroke="#333" stroke-width="2"/>
-          <text x="78" y="149" text-anchor="middle" font-size="10" fill="#333">☠</text>
-          <text x="128" y="158" text-anchor="middle" font-size="7" fill="#F5F0E8" font-family="Fredoka, sans-serif">HAIRY</text>
-          <text x="128" y="166" text-anchor="middle" font-size="6" fill="#F5F0E8" font-family="Fredoka, sans-serif">MONSTER</text>
+          <path d="M44 138 Q100 122 156 138 L150 188 Q100 200 50 188 Z" fill="#764426" stroke="${OUTLINE}" stroke-width="4"/>
+          <path d="M56 144 Q100 132 144 144 L140 178 Q100 186 60 178 Z" fill="#A86C3A"/>
+          <rect x="92" y="132" width="16" height="54" rx="3" fill="#583018" stroke="${OUTLINE}" stroke-width="2"/>
+          <ellipse cx="70" cy="158" rx="10" ry="9" fill="#F8F2E6" stroke="${OUTLINE}" stroke-width="2"/>
+          <line x1="66" y1="156" x2="74" y2="162" stroke="${OUTLINE}" stroke-width="2"/>
           <!-- arms -->
-          <ellipse cx="46" cy="155" rx="16" ry="22" fill="#9B6BFF"/>
-          <ellipse cx="154" cy="155" rx="16" ry="22" fill="#9B6BFF"/>
-          <circle cx="40" cy="172" r="10" fill="#B48CFF"/>
-          <circle cx="160" cy="172" r="10" fill="#B48CFF"/>
+          <ellipse cx="42" cy="162" rx="18" ry="20" fill="#8E58FF" stroke="${OUTLINE}" stroke-width="4"/>
+          <ellipse cx="158" cy="162" rx="18" ry="20" fill="#8E58FF" stroke="${OUTLINE}" stroke-width="4"/>
+          <ellipse cx="34" cy="178" rx="10" ry="10" fill="#BC94FF" stroke="${OUTLINE}" stroke-width="2"/>
+          <ellipse cx="166" cy="178" rx="10" ry="10" fill="#BC94FF" stroke="${OUTLINE}" stroke-width="2"/>
           <!-- head -->
-          <circle cx="100" cy="88" r="52" fill="#9B6BFF"/>
-          <circle cx="100" cy="92" r="44" fill="#B48CFF"/>
+          <ellipse cx="100" cy="88" rx="52" ry="50" fill="#8E58FF" stroke="${OUTLINE}" stroke-width="4"/>
+          <ellipse cx="100" cy="92" rx="42" ry="40" fill="#BC94FF"/>
+          <!-- fur tufts -->
+          <circle cx="54" cy="72" r="6" fill="#8E58FF" stroke="${OUTLINE}" stroke-width="2"/>
+          <circle cx="146" cy="72" r="6" fill="#8E58FF" stroke="${OUTLINE}" stroke-width="2"/>
+          <circle cx="72" cy="52" r="5" fill="#8E58FF" stroke="${OUTLINE}" stroke-width="2"/>
+          <circle cx="128" cy="52" r="5" fill="#8E58FF" stroke="${OUTLINE}" stroke-width="2"/>
           <!-- horns -->
-          <path d="M68 52 Q62 18 78 34 Q72 48 68 52" fill="#C9A06C"/>
-          <path d="M132 52 Q138 18 122 34 Q128 48 132 52" fill="#C9A06C"/>
-          <path d="M70 50 Q66 30 76 38" fill="#E8C88E" opacity="0.6"/>
-          <path d="M130 50 Q134 30 124 38" fill="#E8C88E" opacity="0.6"/>
-          <!-- eyes -->
-          <ellipse cx="82" cy="88" rx="14" ry="16" fill="white"/>
-          <ellipse cx="118" cy="88" rx="14" ry="16" fill="white"/>
-          <circle cx="84" cy="90" r="8" fill="#2D1B69"/>
-          <circle cx="120" cy="90" r="8" fill="#2D1B69"/>
-          <circle cx="87" cy="87" r="3" fill="white"/>
-          <circle cx="123" cy="87" r="3" fill="white"/>
-          <path d="M68 74 Q82 68 96 74" fill="none" stroke="#5A35CC" stroke-width="4" stroke-linecap="round"/>
-          <path d="M104 74 Q118 68 132 74" fill="none" stroke="#5A35CC" stroke-width="4" stroke-linecap="round"/>
-          <!-- mouth & fangs -->
-          <path d="M78 108 Q100 122 122 108" fill="none" stroke="#4A2D91" stroke-width="3" stroke-linecap="round"/>
-          <polygon points="88,108 92,118 84,116" fill="white"/>
-          <polygon points="112,108 116,118 108,116" fill="white"/>
-          <!-- cheek blush -->
-          <circle cx="68" cy="100" r="8" fill="#FF8EC8" opacity="0.35"/>
-          <circle cx="132" cy="100" r="8" fill="#FF8EC8" opacity="0.35"/>
+          <polygon points="66,48 60,18 78,34" fill="#D6A860" stroke="${OUTLINE}" stroke-width="3"/>
+          <polygon points="134,48 140,18 122,34" fill="#D6A860" stroke="${OUTLINE}" stroke-width="3"/>
+          <!-- MSM glossy eyes -->
+          <ellipse cx="78" cy="86" rx="17" ry="18" fill="white" stroke="${OUTLINE}" stroke-width="3"/>
+          <ellipse cx="122" cy="86" rx="17" ry="18" fill="white" stroke="${OUTLINE}" stroke-width="3"/>
+          <ellipse cx="80" cy="88" rx="10" ry="11" fill="#1478C8"/>
+          <ellipse cx="124" cy="88" rx="10" ry="11" fill="#1478C8"/>
+          <circle cx="74" cy="80" r="5" fill="white"/>
+          <circle cx="118" cy="80" r="5" fill="white"/>
+          <circle cx="84" cy="92" r="3" fill="white"/>
+          <circle cx="128" cy="92" r="3" fill="white"/>
+          <!-- grin + tusks -->
+          <path d="M76 108 Q100 124 124 108" fill="none" stroke="${OUTLINE}" stroke-width="4" stroke-linecap="round"/>
+          <polygon points="88,108 92,120 82,116" fill="white" stroke="${OUTLINE}" stroke-width="2"/>
+          <polygon points="112,108 118,116 108,120" fill="white" stroke="${OUTLINE}" stroke-width="2"/>
+          <circle cx="64" cy="100" r="8" fill="#FF78B4" opacity="0.45"/>
+          <circle cx="136" cy="100" r="8" fill="#FF78B4" opacity="0.45"/>
         </svg>
       `;
     },
@@ -59,59 +62,61 @@ const CHARACTERS = {
   lizzy: {
     id: 'lizzy',
     name: 'Lizzy',
-    tagline: 'Pink jacket queen. Ponytail power.',
+    tagline: 'Pink jacket queen. Ponytail puff.',
     render(size = 200) {
       return `
-        <svg viewBox="0 0 200 260" width="${size}" height="${size * 1.3}" class="character-svg lizzy-svg" aria-label="Lizzy">
-          <ellipse cx="100" cy="235" rx="55" ry="10" fill="rgba(0,0,0,0.15)"/>
-          <!-- ponytail -->
-          <ellipse cx="100" cy="30" rx="22" ry="28" fill="#D050FF"/>
-          <path d="M88 42 Q70 90 74 140 Q78 120 88 80 Q95 55 100 45" fill="#E070FF"/>
-          <path d="M112 42 Q130 90 126 140 Q122 120 112 80 Q105 55 100 45" fill="#C040EE"/>
-          <!-- legs -->
-          <rect x="72" y="195" width="22" height="28" rx="10" fill="#7B4DFF"/>
-          <rect x="106" y="195" width="22" height="28" rx="10" fill="#7B4DFF"/>
-          <ellipse cx="83" cy="224" rx="14" ry="8" fill="#5A35CC"/>
-          <ellipse cx="117" cy="224" rx="14" ry="8" fill="#5A35CC"/>
+        <svg viewBox="0 0 200 270" width="${size}" height="${size * 1.35}" class="character-svg lizzy-svg" aria-label="Lizzy">
+          <ellipse cx="100" cy="252" rx="50" ry="9" fill="rgba(0,0,0,0.18)"/>
+          <!-- ponytail puff -->
+          <ellipse cx="100" cy="28" rx="26" ry="30" fill="#DC48FF" stroke="${OUTLINE}" stroke-width="4"/>
+          <ellipse cx="100" cy="32" rx="18" ry="22" fill="#F882FF"/>
+          <path d="M78 44 Q62 90 70 130 Q76 100 84 70 Q90 52 100 42" fill="#C838F0" stroke="${OUTLINE}" stroke-width="3"/>
+          <path d="M122 44 Q138 90 130 130 Q124 100 116 70 Q110 52 100 42" fill="#C838F0" stroke="${OUTLINE}" stroke-width="3"/>
+          <!-- feet -->
+          <rect x="58" y="210" width="26" height="32" rx="12" fill="#6638C0" stroke="${OUTLINE}" stroke-width="3"/>
+          <rect x="116" y="210" width="26" height="32" rx="12" fill="#6638C0" stroke="${OUTLINE}" stroke-width="3"/>
+          <ellipse cx="71" cy="238" rx="13" ry="7" fill="#9458FF" stroke="${OUTLINE}" stroke-width="2"/>
+          <ellipse cx="129" cy="238" rx="13" ry="7" fill="#9458FF" stroke="${OUTLINE}" stroke-width="2"/>
           <!-- body -->
-          <ellipse cx="100" cy="152" rx="54" ry="58" fill="#9B6BFF"/>
-          <ellipse cx="100" cy="156" rx="45" ry="48" fill="#B48CFF"/>
+          <ellipse cx="100" cy="164" rx="52" ry="44" fill="#9458FF" stroke="${OUTLINE}" stroke-width="4"/>
+          <ellipse cx="100" cy="168" rx="40" ry="34" fill="#C29AFF"/>
+          <ellipse cx="100" cy="174" rx="26" ry="20" fill="#DAB6FF"/>
           <!-- pink jacket -->
-          <path d="M50 120 Q100 98 150 120 L156 186 Q100 202 44 186 Z" fill="#FF7EB9"/>
-          <path d="M60 126 L100 114 L140 126 L136 178 Q100 190 64 178 Z" fill="#FF9FD0"/>
-          <rect x="92" y="114" width="16" height="72" fill="#FF5EA8"/>
-          <circle cx="124" cy="148" r="8" fill="#2D1B69" stroke="#fff" stroke-width="1.5"/>
-          <text x="124" y="151" text-anchor="middle" font-size="8" fill="#fff">☠</text>
-          <text x="76" y="170" text-anchor="middle" font-size="6" fill="#5D1040" font-family="Fredoka, sans-serif" transform="rotate(-8 76 170)">HAIRY</text>
-          <text x="76" y="177" text-anchor="middle" font-size="5" fill="#5D1040" font-family="Fredoka, sans-serif" transform="rotate(-8 76 177)">MONSTER</text>
+          <path d="M46 140 Q100 124 154 140 L148 186 Q100 198 52 186 Z" fill="#FF6CB2" stroke="${OUTLINE}" stroke-width="4"/>
+          <path d="M58 146 Q100 134 142 146 L138 176 Q100 184 62 176 Z" fill="#FF9ECE"/>
+          <rect x="92" y="134" width="16" height="50" rx="3" fill="#E64696" stroke="${OUTLINE}" stroke-width="2"/>
+          <ellipse cx="132" cy="156" rx="8" ry="7" fill="#281638" stroke="${OUTLINE}" stroke-width="2"/>
           <!-- arms -->
-          <ellipse cx="48" cy="158" rx="15" ry="21" fill="#9B6BFF"/>
-          <ellipse cx="152" cy="158" rx="15" ry="21" fill="#9B6BFF"/>
-          <circle cx="42" cy="175" r="10" fill="#B48CFF"/>
-          <circle cx="158" cy="175" r="10" fill="#B48CFF"/>
+          <ellipse cx="44" cy="164" rx="17" ry="19" fill="#9458FF" stroke="${OUTLINE}" stroke-width="4"/>
+          <ellipse cx="156" cy="164" rx="17" ry="19" fill="#9458FF" stroke="${OUTLINE}" stroke-width="4"/>
+          <ellipse cx="36" cy="180" rx="10" ry="10" fill="#C29AFF" stroke="${OUTLINE}" stroke-width="2"/>
+          <ellipse cx="164" cy="180" rx="10" ry="10" fill="#C29AFF" stroke="${OUTLINE}" stroke-width="2"/>
           <!-- head -->
-          <circle cx="100" cy="90" r="50" fill="#9B6BFF"/>
-          <circle cx="100" cy="94" r="42" fill="#B48CFF"/>
+          <ellipse cx="100" cy="92" rx="50" ry="48" fill="#9458FF" stroke="${OUTLINE}" stroke-width="4"/>
+          <ellipse cx="100" cy="96" rx="40" ry="38" fill="#C29AFF"/>
+          <circle cx="56" cy="76" r="6" fill="#9458FF" stroke="${OUTLINE}" stroke-width="2"/>
+          <circle cx="144" cy="76" r="6" fill="#9458FF" stroke="${OUTLINE}" stroke-width="2"/>
           <!-- horns -->
-          <path d="M72 56 Q68 30 80 40 Q76 52 72 56" fill="#C9A06C"/>
-          <path d="M128 56 Q132 30 120 40 Q124 52 128 56" fill="#C9A06C"/>
-          <!-- eyes with lashes -->
-          <ellipse cx="82" cy="90" rx="15" ry="17" fill="white"/>
-          <ellipse cx="118" cy="90" rx="15" ry="17" fill="white"/>
-          <circle cx="84" cy="92" r="8" fill="#2D1B69"/>
-          <circle cx="120" cy="92" r="8" fill="#2D1B69"/>
-          <circle cx="87" cy="89" r="3" fill="white"/>
-          <circle cx="123" cy="89" r="3" fill="white"/>
-          <path d="M68 82 L64 74 M70 86 L65 80 M72 90 L67 86" stroke="#5A35CC" stroke-width="2" stroke-linecap="round"/>
-          <path d="M132 82 L136 74 M130 86 L135 80 M128 90 L133 86" stroke="#5A35CC" stroke-width="2" stroke-linecap="round"/>
-          <path d="M70 76 Q82 70 94 76" fill="none" stroke="#D050FF" stroke-width="3" stroke-linecap="round"/>
-          <path d="M106 76 Q118 70 130 76" fill="none" stroke="#D050FF" stroke-width="3" stroke-linecap="round"/>
+          <polygon points="72,54 68,34 82,44" fill="#D6A860" stroke="${OUTLINE}" stroke-width="3"/>
+          <polygon points="128,54 132,34 118,44" fill="#D6A860" stroke="${OUTLINE}" stroke-width="3"/>
+          <!-- glossy eyes + lashes -->
+          <ellipse cx="78" cy="90" rx="18" ry="19" fill="white" stroke="${OUTLINE}" stroke-width="3"/>
+          <ellipse cx="122" cy="90" rx="18" ry="19" fill="white" stroke="${OUTLINE}" stroke-width="3"/>
+          <ellipse cx="80" cy="92" rx="11" ry="12" fill="#C83CB4"/>
+          <ellipse cx="124" cy="92" rx="11" ry="12" fill="#C83CB4"/>
+          <circle cx="74" cy="84" r="5" fill="white"/>
+          <circle cx="118" cy="84" r="5" fill="white"/>
+          <circle cx="84" cy="96" r="3" fill="white"/>
+          <circle cx="128" cy="96" r="3" fill="white"/>
+          <path d="M58 80 L52 70" stroke="${OUTLINE}" stroke-width="3" stroke-linecap="round"/>
+          <path d="M142 80 L148 70" stroke="${OUTLINE}" stroke-width="3" stroke-linecap="round"/>
           <!-- smile -->
-          <path d="M76 110 Q100 126 124 110" fill="none" stroke="#4A2D91" stroke-width="3" stroke-linecap="round"/>
-          <polygon points="90,110 94,120 86,118" fill="white"/>
-          <polygon points="110,110 114,120 106,118" fill="white"/>
-          <circle cx="66" cy="102" r="9" fill="#FF8EC8" opacity="0.4"/>
-          <circle cx="134" cy="102" r="9" fill="#FF8EC8" opacity="0.4"/>
+          <path d="M74 112 Q100 128 126 112" fill="none" stroke="${OUTLINE}" stroke-width="4" stroke-linecap="round"/>
+          <ellipse cx="100" cy="118" rx="9" ry="5" fill="#B45078" stroke="${OUTLINE}" stroke-width="2"/>
+          <polygon points="90,112 94,122 86,118" fill="white" stroke="${OUTLINE}" stroke-width="2"/>
+          <polygon points="110,112 114,118 106,122" fill="white" stroke="${OUTLINE}" stroke-width="2"/>
+          <circle cx="62" cy="104" r="9" fill="#FF78B4" opacity="0.5"/>
+          <circle cx="138" cy="104" r="9" fill="#FF78B4" opacity="0.5"/>
         </svg>
       `;
     },
@@ -127,11 +132,10 @@ function renderCrowdMember(index) {
   const c = colors[index % colors.length];
   return `
     <svg viewBox="0 0 40 50" width="32" height="40" class="crowd-member">
-      <circle cx="20" cy="14" r="10" fill="${c}"/>
-      <rect x="12" y="24" width="16" height="18" rx="6" fill="${c}" opacity="0.85"/>
-      <circle cx="16" cy="13" r="2" fill="#333"/>
-      <circle cx="24" cy="13" r="2" fill="#333"/>
-      <path d="M16 18 Q20 21 24 18" fill="none" stroke="#333" stroke-width="1.5"/>
+      <ellipse cx="20" cy="38" rx="14" ry="8" fill="#3C3250" stroke="#1C1230" stroke-width="2"/>
+      <ellipse cx="20" cy="16" rx="12" ry="13" fill="#BEA0D2" stroke="#1C1230" stroke-width="2"/>
+      <ellipse cx="20" cy="14" rx="13" ry="12" fill="${c}" stroke="#1C1230" stroke-width="2"/>
+      <rect x="10" y="18" width="20" height="18" rx="5" fill="${c}" stroke="#1C1230" stroke-width="2"/>
     </svg>
   `;
 }

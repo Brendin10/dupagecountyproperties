@@ -41,7 +41,11 @@ A 2D rhythm gig game ported from the web prototype. Play as **Benny** or **Lizzy
 | Local Talent Show | 100 | 120 |
 | Small Concert Venue | 160 | 128 |
 
-## Regenerating Art & Audio
+## Character Art
+
+Benny and Lizzy use a **chunky cartoon monster** look inspired by *My Singing Monsters* — thick outlines, glossy eyes, fur tufts, and cel-shaded bodies. This applies to character design only; gameplay is original to Bandland.
+
+Regenerate sprites after editing `tools/generate_sprites.py`:
 
 ```bash
 cd BandlandUnity
