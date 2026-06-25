@@ -1484,6 +1484,68 @@ body {
   pointer-events: none;
 }
 
+.note-gem.hold {
+  transform: translate(0, -50%);
+  align-items: flex-start;
+  padding-left: 2px;
+}
+
+.note-gem.hold .gem-shape {
+  font-size: 1rem;
+  letter-spacing: -0.15em;
+  width: 100%;
+  text-align: left;
+  overflow: hidden;
+}
+
+.note-gem.hold.melodic .gem-shape {
+  color: #ffb347;
+  text-shadow: 0 0 10px #ffb347;
+}
+
+.note-gem.hold.percussion .gem-shape {
+  color: #7ee8ff;
+  text-shadow: 0 0 10px #7ee8ff;
+}
+
+.note-gem.hold.active .gem-shape {
+  filter: drop-shadow(0 0 10px currentColor) brightness(1.3);
+}
+
+.note-gem.hold::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: 3px;
+  background: linear-gradient(90deg, currentColor 0%, transparent 100%);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.note-gem.hold.melodic::after {
+  color: #ffb347;
+}
+
+.note-gem.hold.percussion::after {
+  color: #7ee8ff;
+}
+
+.hit-zone.holding .hit-zone-core {
+  border-color: #ffb347;
+  background: rgba(255, 179, 71, 0.25);
+  box-shadow: 0 0 22px rgba(255, 179, 71, 0.55);
+  animation: hold-pulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes hold-pulse {
+  from { box-shadow: 0 0 14px rgba(255, 179, 71, 0.4); }
+  to { box-shadow: 0 0 26px rgba(255, 179, 71, 0.7); }
+}
+
 .gem-shape {
   font-size: 1.4rem;
   line-height: 1;
