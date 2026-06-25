@@ -18,13 +18,11 @@ const BandAudio = (() => {
   function onBeat(beatIdx) {
     if (!running || !song || members.length === 0) return;
     if (beatIdx === lastBeat) return;
+    if (beatIdx >= (song.totalBeats || 9999)) return;
     lastBeat = beatIdx;
 
-    const loop = song.loopBeats || 16;
-    const loopBeat = ((beatIdx % loop) + loop) % loop;
-
     members.forEach((m, i) => {
-      const events = getPartEvents(song, m.role, loopBeat);
+      const events = getPartEvents(song, m.role, beatIdx);
       events.forEach((ev) => {
         setTimeout(() => {
           AudioEngine.playPartEvent(ev, m.role, 0.55);

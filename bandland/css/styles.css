@@ -281,8 +281,84 @@ body {
   font-size: 0.9rem;
 }
 
-.character-svg {
+.character-svg,
+.character-layered {
   filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+}
+
+/* Layered character depth */
+.character-layered {
+  position: relative;
+  display: inline-block;
+}
+
+.char-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.char-part-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.char-layer.layer-shadow {
+  transform: translateY(5px);
+  filter: blur(0.6px);
+  opacity: 0.85;
+}
+
+.char-layer.layer-legs {
+  transform: translateY(1px);
+}
+
+.char-layer.layer-jacket {
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.28));
+  transform: translateY(-1px);
+}
+
+.char-layer.layer-hair,
+.char-layer.layer-hair-back,
+.char-layer.layer-hair-front,
+.char-layer.layer-horns {
+  transform: translateY(-3px);
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.2));
+}
+
+.char-layer.layer-face {
+  transform: translateY(-2px);
+}
+
+.char-layer.layer-arms-front {
+  transform: translateY(-1px);
+  z-index: 15 !important;
+}
+
+.char-layer.layer-instrument {
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.38));
+  transform: translateY(-2px);
+}
+
+/* Layered instrument depth */
+.instrument-layered .inst-layer.inst-shadow {
+  opacity: 0.75;
+}
+
+.instrument-layered .inst-layer.inst-body-front,
+.instrument-layered .inst-layer.inst-face,
+.instrument-layered .inst-layer.inst-rim {
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.25));
+}
+
+.instrument-layered .inst-layer.inst-strings {
+  transform: translateY(-0.5px);
+}
+
+.lineup-slot.lead .character-layered {
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45));
 }
 
 /* Story / Tutorial */

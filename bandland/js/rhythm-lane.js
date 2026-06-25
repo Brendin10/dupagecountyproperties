@@ -15,7 +15,7 @@ const RhythmLane = (() => {
           <div class="note-lane" id="note-lane"></div>
         </div>
         <div class="highway-footer">
-          <span class="song-playing">♪ ${songName}</span>
+          <span class="song-playing">♪ <span id="song-section-label">${songName}</span></span>
           <span class="combo-display" id="combo-display"></span>
         </div>
         <p class="rhythm-hint" id="rhythm-hint">Hit the gems at the glowing zone!</p>
@@ -54,6 +54,12 @@ const RhythmLane = (() => {
     if (hitZone) {
       const inWindow = notes.some((n) => Math.abs(n.beat - currentBeat) < (isMelodic ? 0.22 : 0.18));
       hitZone.classList.toggle('ready', inWindow);
+    }
+
+    const sectionEl = document.getElementById('song-section-label');
+    if (sectionEl && song.sections) {
+      const sec = getSongSection(song, elapsed, bpm);
+      sectionEl.textContent = `${song.name} — ${sec?.name || ''}`;
     }
   }
 

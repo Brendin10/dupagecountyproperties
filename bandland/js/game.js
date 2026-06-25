@@ -758,7 +758,7 @@ const Game = (() => {
     const bpm = getPerformanceBpm();
 
     state.performance = {
-      timeLeft: 30,
+      timeLeft: 60,
       crowd: Math.min(3 + Math.floor(appeal * 0.2), crowdCap),
       crowdCap,
       cheer: 0,
