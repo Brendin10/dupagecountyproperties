@@ -1,235 +1,382 @@
+const BPM_BOOST = 15;
+const GIG_DURATION_SEC = 60;
+
+function buildSections(totalBeats) {
+  const introLen = Math.round(totalBeats * 0.15);
+  const outroLen = Math.round(totalBeats * 0.15);
+  const verseLen = Math.round((totalBeats - introLen - outroLen) / 2);
+  const chorusLen = totalBeats - introLen - verseLen - outroLen;
+  const v1Start = introLen;
+  const chorusStart = v1Start + verseLen;
+  const outroStart = chorusStart + chorusLen;
+  return [
+    { id: 'intro', name: 'Intro', start: 0, end: introLen },
+    { id: 'verse', name: 'Verse 1', start: v1Start, end: chorusStart },
+    { id: 'chorus', name: 'Chorus', start: chorusStart, end: outroStart },
+    { id: 'outro', name: 'Outro', start: outroStart, end: totalBeats },
+  ];
+}
+
+function sectionAt(sections, beat) {
+  return sections.find((s) => beat >= s.start && beat < s.end) || sections[sections.length - 1];
+}
+
+function getSongSection(song, elapsed, bpm) {
+  const beat = (elapsed / (60 / bpm));
+  return sectionAt(song.sections, Math.min(beat, song.totalBeats - 1));
+}
+
+function everyN(start, end, n, fn) {
+  const ev = [];
+  for (let b = start; b < end; b += n) ev.push(fn(b));
+  return ev;
+}
+
+function chordPattern(start, end, chords, beatsPer = 4) {
+  const ev = [];
+  for (let b = start; b < end; b += beatsPer) {
+    const idx = Math.floor((b - start) / beatsPer) % chords.length;
+    ev.push({ beat: b, chord: chords[idx] });
+  }
+  return ev;
+}
+
+function notePattern(start, end, notes, beatsPer = 4) {
+  const ev = [];
+  for (let b = start; b < end; b += beatsPer) {
+    const idx = Math.floor((b - start) / beatsPer) % notes.length;
+    ev.push({ beat: b, note: notes[idx] });
+  }
+  return ev;
+}
+
+function drumVerse(start, end, density = 1) {
+  const ev = [];
+  for (let b = start; b < end; b++) {
+    if (b % 4 === 0) ev.push({ beat: b, hit: 'kick' });
+    if (b % 4 === 2) ev.push({ beat: b, hit: 'snare' });
+    if (density > 0.5 && b % 2 === 1) ev.push({ beat: b, hit: 'hihat' });
+  }
+  return ev;
+}
+
+function drumChorus(start, end) {
+  const ev = [];
+  for (let b = start; b < end; b++) {
+    if (b % 4 === 0) ev.push({ beat: b, hit: 'kick' });
+    if (b % 4 === 2) ev.push({ beat: b, hit: 'snare' });
+    if (b % 2 === 1) ev.push({ beat: b, hit: 'hihat' });
+  }
+  return ev;
+}
+
+function drumIntro(start, end) {
+  return everyN(start, end, 2, (b) => ({ beat: b, hit: 'hihat' }));
+}
+
+function drumOutro(start, end) {
+  const ev = [];
+  for (let b = start; b < end; b++) {
+    if (b % 4 === 0) ev.push({ beat: b, hit: 'kick' });
+    if (b % 8 === 4) ev.push({ beat: b, hit: 'cymbal' });
+  }
+  return ev;
+}
+
+function sparseCymbal(start, end, step = 8) {
+  return everyN(start, end, step, (b) => ({ beat: b, hit: 'cymbal' }));
+}
+
+function sparseShake(start, end, step = 2) {
+  return everyN(start, end, step, (b) => ({ beat: b, hit: 'shake' }));
+}
+
+function vocalPattern(start, end, style = 'ooh', step = 4) {
+  return everyN(start, end, step, (b) => ({ beat: b, hit: style }));
+}
+
+function buildSongParts(sections, config) {
+  const parts = {};
+  const roles = Object.keys(config);
+  for (const role of roles) {
+    const events = [];
+    for (const sec of sections) {
+      const gen = config[role][sec.id];
+      if (gen) events.push(...gen(sec.start, sec.end));
+    }
+    parts[role] = events.sort((a, b) => a.beat - b.beat);
+  }
+  return parts;
+}
+
+function createSong({ id, name, emoji, cost, baseBpm, config }) {
+  const bpm = baseBpm + BPM_BOOST;
+  const totalBeats = bpm;
+  const sections = buildSections(totalBeats);
+  return {
+    id, name, emoji, cost, bpm,
+    totalBeats,
+    durationSec: GIG_DURATION_SEC,
+    sections,
+    parts: buildSongParts(sections, config),
+  };
+}
+
 const SONGS = {
-  'street-jam': {
-    id: 'street-jam',
-    name: 'Street Jam',
-    emoji: '🎶',
-    cost: 0,
-    bpm: 88,
-    loopBeats: 16,
-    parts: {
-      'trash-lid': [
-        { beat: 0, hit: 'cymbal' }, { beat: 4, hit: 'cymbal' },
-        { beat: 8, hit: 'cymbal' }, { beat: 12, hit: 'cymbal' },
-      ],
-      tambourine: [
-        { beat: 0, hit: 'shake' }, { beat: 2, hit: 'shake' },
-        { beat: 4, hit: 'shake' }, { beat: 6, hit: 'shake' },
-        { beat: 8, hit: 'shake' }, { beat: 10, hit: 'shake' },
-        { beat: 12, hit: 'shake' }, { beat: 14, hit: 'shake' },
-      ],
-      'drum-kit': [
-        { beat: 0, hit: 'kick' }, { beat: 2, hit: 'snare' },
-        { beat: 4, hit: 'kick' }, { beat: 6, hit: 'snare' },
-        { beat: 8, hit: 'kick' }, { beat: 10, hit: 'snare' },
-        { beat: 12, hit: 'kick' }, { beat: 14, hit: 'snare' },
-      ],
-      ukulele: [
-        { beat: 0, chord: 'C' }, { beat: 4, chord: 'G' },
-        { beat: 8, chord: 'Am' }, { beat: 12, chord: 'F' },
-      ],
-      'electric-guitar': [
-        { beat: 0, chord: 'E' }, { beat: 4, chord: 'B' },
-        { beat: 8, chord: 'C#m' }, { beat: 12, chord: 'A' },
-      ],
-      Guitar: [
-        { beat: 2, chord: 'E' }, { beat: 6, chord: 'B' },
-        { beat: 10, chord: 'C#m' }, { beat: 14, chord: 'A' },
-      ],
-      Bass: [
-        { beat: 0, note: 'E2' }, { beat: 4, note: 'B1' },
-        { beat: 8, note: 'C#2' }, { beat: 12, note: 'A1' },
-      ],
-      Drums: [
-        { beat: 1, hit: 'hihat' }, { beat: 3, hit: 'hihat' },
-        { beat: 5, hit: 'hihat' }, { beat: 7, hit: 'hihat' },
-        { beat: 9, hit: 'hihat' }, { beat: 11, hit: 'hihat' },
-        { beat: 13, hit: 'hihat' }, { beat: 15, hit: 'hihat' },
-      ],
-      Keys: [
-        { beat: 0, chord: 'C' }, { beat: 8, chord: 'Am' },
-      ],
-      Vocals: [
-        { beat: 4, hit: 'ooh' }, { beat: 12, hit: 'ooh' },
-      ],
-      Horns: [
-        { beat: 7, note: 'G4' }, { beat: 15, note: 'A4' },
-      ],
+  'street-jam': createSong({
+    id: 'street-jam', name: 'Street Jam', emoji: '🎶', cost: 0, baseBpm: 88,
+    config: {
+      'trash-lid': {
+        intro: (s, e) => sparseCymbal(s, e, 8),
+        verse: (s, e) => sparseCymbal(s, e, 4),
+        chorus: (s, e) => everyN(s, e, 4, (b) => ({ beat: b, hit: 'cymbal' })),
+        outro: (s, e) => sparseCymbal(s, e, 8),
+      },
+      tambourine: {
+        intro: () => [],
+        verse: (s, e) => sparseShake(s, e, 2),
+        chorus: (s, e) => sparseShake(s, e, 1),
+        outro: (s, e) => sparseShake(s, e, 4),
+      },
+      'drum-kit': {
+        intro: drumIntro,
+        verse: (s, e) => drumVerse(s, e, 1),
+        chorus: drumChorus,
+        outro: drumOutro,
+      },
+      ukulele: {
+        intro: (s, e) => chordPattern(s, e, ['C'], 8),
+        verse: (s, e) => chordPattern(s, e, ['C', 'G', 'Am', 'F']),
+        chorus: (s, e) => chordPattern(s, e, ['C', 'G', 'Am', 'F'], 2),
+        outro: (s, e) => chordPattern(s, e, ['C', 'F'], 8),
+      },
+      'electric-guitar': {
+        intro: (s, e) => chordPattern(s, e, ['E'], 8),
+        verse: (s, e) => chordPattern(s, e, ['E', 'B', 'C#m', 'A']),
+        chorus: (s, e) => chordPattern(s, e, ['E', 'B', 'C#m', 'A'], 2),
+        outro: (s, e) => chordPattern(s, e, ['E', 'A'], 8),
+      },
+      Guitar: {
+        intro: () => [],
+        verse: (s, e) => chordPattern(s, e, ['E', 'B', 'C#m', 'A'], 4),
+        chorus: (s, e) => chordPattern(s, e, ['E', 'B', 'C#m', 'A'], 2),
+        outro: () => [],
+      },
+      Bass: {
+        intro: (s, e) => notePattern(s, e, ['E2'], 8),
+        verse: (s, e) => notePattern(s, e, ['E2', 'B1', 'C#2', 'A1']),
+        chorus: (s, e) => notePattern(s, e, ['E2', 'B1', 'C#2', 'A1'], 2),
+        outro: (s, e) => notePattern(s, e, ['E2'], 4),
+      },
+      Drums: {
+        intro: drumIntro,
+        verse: (s, e) => everyN(s, e, 2, (b) => ({ beat: b, hit: 'hihat' })),
+        chorus: (s, e) => everyN(s, e, 1, (b) => ({ beat: b, hit: 'hihat' })),
+        outro: (s, e) => everyN(s, e, 4, (b) => ({ beat: b, hit: 'hihat' })),
+      },
+      Keys: {
+        intro: () => [],
+        verse: (s, e) => chordPattern(s, e, ['C', 'Am'], 8),
+        chorus: (s, e) => chordPattern(s, e, ['C', 'G', 'Am', 'F'], 4),
+        outro: (s, e) => chordPattern(s, e, ['C'], 8),
+      },
+      Vocals: {
+        intro: () => [],
+        verse: (s, e) => vocalPattern(s, e, 'ooh', 8),
+        chorus: (s, e) => vocalPattern(s, e, 'ah', 4),
+        outro: (s, e) => vocalPattern(s, e, 'ooh', 8),
+      },
+      Horns: {
+        intro: () => [],
+        verse: () => [],
+        chorus: (s, e) => notePattern(s, e, ['G4', 'A4', 'B4', 'A4'], 4),
+        outro: (s, e) => everyN(s, e, 8, (b) => ({ beat: b, note: 'E4' })),
+      },
     },
-  },
-  'tavern-blues': {
-    id: 'tavern-blues',
-    name: 'Tavern Blues',
-    emoji: '🍺',
-    cost: 120,
-    bpm: 92,
-    loopBeats: 16,
-    parts: {
-      'trash-lid': [
-        { beat: 0, hit: 'cymbal' }, { beat: 8, hit: 'cymbal' },
-      ],
-      tambourine: [
-        { beat: 2, hit: 'shake' }, { beat: 6, hit: 'shake' },
-        { beat: 10, hit: 'shake' }, { beat: 14, hit: 'shake' },
-      ],
-      'drum-kit': [
-        { beat: 0, hit: 'kick' }, { beat: 3, hit: 'snare' },
-        { beat: 4, hit: 'kick' }, { beat: 7, hit: 'snare' },
-        { beat: 8, hit: 'kick' }, { beat: 11, hit: 'snare' },
-        { beat: 12, hit: 'kick' }, { beat: 15, hit: 'snare' },
-      ],
-      ukulele: [
-        { beat: 0, chord: 'Am' }, { beat: 4, chord: 'F' },
-        { beat: 8, chord: 'C' }, { beat: 12, chord: 'G' },
-      ],
-      'electric-guitar': [
-        { beat: 0, chord: 'Am' }, { beat: 4, chord: 'F' },
-        { beat: 8, chord: 'C' }, { beat: 12, chord: 'G' },
-      ],
-      Guitar: [
-        { beat: 2, chord: 'Am' }, { beat: 6, chord: 'F' },
-        { beat: 10, chord: 'C' }, { beat: 14, chord: 'G' },
-      ],
-      Bass: [
-        { beat: 0, note: 'A1' }, { beat: 4, note: 'F1' },
-        { beat: 8, note: 'C2' }, { beat: 12, note: 'G1' },
-      ],
-      Drums: [
-        { beat: 1, hit: 'hihat' }, { beat: 2, hit: 'hihat' },
-        { beat: 5, hit: 'hihat' }, { beat: 6, hit: 'hihat' },
-        { beat: 9, hit: 'hihat' }, { beat: 10, hit: 'hihat' },
-        { beat: 13, hit: 'hihat' }, { beat: 14, hit: 'hihat' },
-      ],
-      Keys: [
-        { beat: 0, chord: 'Am' }, { beat: 8, chord: 'G' },
-      ],
-      Vocals: [
-        { beat: 4, hit: 'ooh' }, { beat: 8, hit: 'ah' }, { beat: 12, hit: 'ooh' },
-      ],
-      Horns: [
-        { beat: 6, note: 'E4' }, { beat: 14, note: 'F4' },
-      ],
+  }),
+
+  'tavern-blues': createSong({
+    id: 'tavern-blues', name: 'Tavern Blues', emoji: '🍺', cost: 120, baseBpm: 92,
+    config: {
+      'trash-lid': {
+        intro: (s, e) => sparseCymbal(s, e, 16),
+        verse: (s, e) => sparseCymbal(s, e, 8),
+        chorus: (s, e) => everyN(s, e, 4, (b) => ({ beat: b, hit: 'cymbal' })),
+        outro: (s, e) => sparseCymbal(s, e, 16),
+      },
+      tambourine: {
+        verse: (s, e) => sparseShake(s, e, 4),
+        chorus: (s, e) => sparseShake(s, e, 2),
+        outro: (s, e) => sparseShake(s, e, 8),
+      },
+      'drum-kit': {
+        intro: drumIntro,
+        verse: (s, e) => drumVerse(s, e, 0.5),
+        chorus: drumChorus,
+        outro: drumOutro,
+      },
+      ukulele: {
+        intro: (s, e) => chordPattern(s, e, ['Am'], 8),
+        verse: (s, e) => chordPattern(s, e, ['Am', 'F', 'C', 'G']),
+        chorus: (s, e) => chordPattern(s, e, ['Am', 'F', 'C', 'G'], 2),
+        outro: (s, e) => chordPattern(s, e, ['Am'], 8),
+      },
+      'electric-guitar': {
+        intro: (s, e) => chordPattern(s, e, ['Am'], 8),
+        verse: (s, e) => chordPattern(s, e, ['Am', 'F', 'C', 'G']),
+        chorus: (s, e) => chordPattern(s, e, ['Am', 'F', 'C', 'G'], 2),
+        outro: (s, e) => chordPattern(s, e, ['Am'], 8),
+      },
+      Guitar: {
+        verse: (s, e) => chordPattern(s, e, ['Am', 'F', 'C', 'G'], 4),
+        chorus: (s, e) => chordPattern(s, e, ['Am', 'F', 'C', 'G'], 2),
+      },
+      Bass: {
+        intro: (s, e) => notePattern(s, e, ['A1'], 8),
+        verse: (s, e) => notePattern(s, e, ['A1', 'F1', 'C2', 'G1']),
+        chorus: (s, e) => notePattern(s, e, ['A1', 'F1', 'C2', 'G1'], 2),
+        outro: (s, e) => notePattern(s, e, ['A1'], 4),
+      },
+      Drums: {
+        intro: drumIntro,
+        verse: (s, e) => everyN(s, e, 2, (b) => ({ beat: b, hit: 'hihat' })),
+        chorus: drumChorus,
+        outro: (s, e) => everyN(s, e, 4, (b) => ({ beat: b, hit: 'hihat' })),
+      },
+      Keys: {
+        verse: (s, e) => chordPattern(s, e, ['Am', 'G'], 8),
+        chorus: (s, e) => chordPattern(s, e, ['Am', 'F', 'C', 'G'], 4),
+      },
+      Vocals: {
+        verse: (s, e) => vocalPattern(s, e, 'ooh', 8),
+        chorus: (s, e) => vocalPattern(s, e, 'ah', 4),
+        outro: (s, e) => vocalPattern(s, e, 'ooh', 8),
+      },
+      Horns: {
+        chorus: (s, e) => notePattern(s, e, ['E4', 'F4', 'G4', 'F4'], 4),
+        outro: (s, e) => everyN(s, e, 8, (b) => ({ beat: b, note: 'A4' })),
+      },
     },
-  },
-  'square-anthem': {
-    id: 'square-anthem',
-    name: 'Square Anthem',
-    emoji: '🏛️',
-    cost: 280,
-    bpm: 100,
-    loopBeats: 16,
-    parts: {
-      'trash-lid': [
-        { beat: 0, hit: 'cymbal' }, { beat: 4, hit: 'cymbal' },
-        { beat: 8, hit: 'cymbal' }, { beat: 12, hit: 'cymbal' },
-      ],
-      tambourine: [
-        { beat: 1, hit: 'shake' }, { beat: 3, hit: 'shake' },
-        { beat: 5, hit: 'shake' }, { beat: 7, hit: 'shake' },
-        { beat: 9, hit: 'shake' }, { beat: 11, hit: 'shake' },
-        { beat: 13, hit: 'shake' }, { beat: 15, hit: 'shake' },
-      ],
-      'drum-kit': [
-        { beat: 0, hit: 'kick' }, { beat: 2, hit: 'snare' },
-        { beat: 4, hit: 'kick' }, { beat: 6, hit: 'snare' },
-        { beat: 8, hit: 'kick' }, { beat: 10, hit: 'snare' },
-        { beat: 12, hit: 'kick' }, { beat: 14, hit: 'snare' },
-      ],
-      ukulele: [
-        { beat: 0, chord: 'G' }, { beat: 2, chord: 'D' },
-        { beat: 4, chord: 'Em' }, { beat: 6, chord: 'C' },
-        { beat: 8, chord: 'G' }, { beat: 10, chord: 'D' },
-        { beat: 12, chord: 'Em' }, { beat: 14, chord: 'C' },
-      ],
-      'electric-guitar': [
-        { beat: 0, chord: 'G' }, { beat: 4, chord: 'D' },
-        { beat: 8, chord: 'Em' }, { beat: 12, chord: 'C' },
-      ],
-      Guitar: [
-        { beat: 2, chord: 'G' }, { beat: 6, chord: 'D' },
-        { beat: 10, chord: 'Em' }, { beat: 14, chord: 'C' },
-      ],
-      Bass: [
-        { beat: 0, note: 'G1' }, { beat: 4, note: 'D2' },
-        { beat: 8, note: 'E2' }, { beat: 12, note: 'C2' },
-      ],
-      Drums: [
-        { beat: 1, hit: 'hihat' }, { beat: 3, hit: 'hihat' },
-        { beat: 5, hit: 'hihat' }, { beat: 7, hit: 'hihat' },
-        { beat: 9, hit: 'hihat' }, { beat: 11, hit: 'hihat' },
-        { beat: 13, hit: 'hihat' }, { beat: 15, hit: 'hihat' },
-      ],
-      Keys: [
-        { beat: 0, chord: 'G' }, { beat: 4, chord: 'D' },
-        { beat: 8, chord: 'Em' }, { beat: 12, chord: 'C' },
-      ],
-      Vocals: [
-        { beat: 0, hit: 'ah' }, { beat: 8, hit: 'ah' },
-      ],
-      Horns: [
-        { beat: 4, note: 'D4' }, { beat: 12, note: 'E4' },
-      ],
+  }),
+
+  'square-anthem': createSong({
+    id: 'square-anthem', name: 'Square Anthem', emoji: '🏛️', cost: 280, baseBpm: 100,
+    config: {
+      'trash-lid': {
+        verse: (s, e) => sparseCymbal(s, e, 4),
+        chorus: (s, e) => everyN(s, e, 4, (b) => ({ beat: b, hit: 'cymbal' })),
+        outro: (s, e) => sparseCymbal(s, e, 8),
+      },
+      tambourine: {
+        verse: (s, e) => sparseShake(s, e, 2),
+        chorus: (s, e) => sparseShake(s, e, 1),
+      },
+      'drum-kit': {
+        intro: drumIntro,
+        verse: (s, e) => drumVerse(s, e, 1),
+        chorus: drumChorus,
+        outro: drumOutro,
+      },
+      ukulele: {
+        intro: (s, e) => chordPattern(s, e, ['G'], 8),
+        verse: (s, e) => chordPattern(s, e, ['G', 'D', 'Em', 'C'], 2),
+        chorus: (s, e) => chordPattern(s, e, ['G', 'D', 'Em', 'C'], 1),
+        outro: (s, e) => chordPattern(s, e, ['G', 'C'], 8),
+      },
+      'electric-guitar': {
+        intro: (s, e) => chordPattern(s, e, ['G'], 8),
+        verse: (s, e) => chordPattern(s, e, ['G', 'D', 'Em', 'C']),
+        chorus: (s, e) => chordPattern(s, e, ['G', 'D', 'Em', 'C'], 2),
+        outro: (s, e) => chordPattern(s, e, ['G'], 8),
+      },
+      Guitar: {
+        verse: (s, e) => chordPattern(s, e, ['G', 'D', 'Em', 'C'], 2),
+        chorus: (s, e) => chordPattern(s, e, ['G', 'D', 'Em', 'C'], 1),
+      },
+      Bass: {
+        verse: (s, e) => notePattern(s, e, ['G1', 'D2', 'E2', 'C2'], 2),
+        chorus: (s, e) => notePattern(s, e, ['G1', 'D2', 'E2', 'C2'], 1),
+      },
+      Drums: {
+        intro: drumIntro,
+        verse: (s, e) => everyN(s, e, 2, (b) => ({ beat: b, hit: 'hihat' })),
+        chorus: (s, e) => everyN(s, e, 1, (b) => ({ beat: b, hit: 'hihat' })),
+        outro: drumOutro,
+      },
+      Keys: {
+        verse: (s, e) => chordPattern(s, e, ['G', 'D', 'Em', 'C'], 4),
+        chorus: (s, e) => chordPattern(s, e, ['G', 'D', 'Em', 'C'], 2),
+      },
+      Vocals: {
+        verse: (s, e) => vocalPattern(s, e, 'ah', 8),
+        chorus: (s, e) => vocalPattern(s, e, 'ah', 4),
+      },
+      Horns: {
+        chorus: (s, e) => notePattern(s, e, ['D4', 'E4', 'G4', 'E4'], 4),
+        outro: (s, e) => everyN(s, e, 4, (b) => ({ beat: b, note: 'G4' })),
+      },
     },
-  },
-  'spotlight': {
-    id: 'spotlight',
-    name: 'Spotlight',
-    emoji: '✨',
-    cost: 500,
-    bpm: 104,
-    loopBeats: 16,
-    parts: {
-      'trash-lid': [
-        { beat: 0, hit: 'cymbal' }, { beat: 2, hit: 'cymbal' },
-        { beat: 8, hit: 'cymbal' }, { beat: 10, hit: 'cymbal' },
-      ],
-      tambourine: [
-        { beat: 0, hit: 'shake' }, { beat: 1, hit: 'shake' },
-        { beat: 4, hit: 'shake' }, { beat: 5, hit: 'shake' },
-        { beat: 8, hit: 'shake' }, { beat: 9, hit: 'shake' },
-        { beat: 12, hit: 'shake' }, { beat: 13, hit: 'shake' },
-      ],
-      'drum-kit': [
-        { beat: 0, hit: 'kick' }, { beat: 2, hit: 'snare' },
-        { beat: 4, hit: 'kick' }, { beat: 6, hit: 'snare' },
-        { beat: 8, hit: 'kick' }, { beat: 10, hit: 'snare' },
-        { beat: 12, hit: 'kick' }, { beat: 14, hit: 'snare' },
-      ],
-      ukulele: [
-        { beat: 0, chord: 'F' }, { beat: 4, chord: 'Am' },
-        { beat: 8, chord: 'Dm' }, { beat: 12, chord: 'C' },
-      ],
-      'electric-guitar': [
-        { beat: 0, chord: 'F' }, { beat: 4, chord: 'Am' },
-        { beat: 8, chord: 'Dm' }, { beat: 12, chord: 'C' },
-      ],
-      Guitar: [
-        { beat: 1, chord: 'F' }, { beat: 5, chord: 'Am' },
-        { beat: 9, chord: 'Dm' }, { beat: 13, chord: 'C' },
-      ],
-      Bass: [
-        { beat: 0, note: 'F1' }, { beat: 4, note: 'A1' },
-        { beat: 8, note: 'D2' }, { beat: 12, note: 'C2' },
-      ],
-      Drums: [
-        { beat: 1, hit: 'hihat' }, { beat: 3, hit: 'hihat' },
-        { beat: 5, hit: 'hihat' }, { beat: 7, hit: 'hihat' },
-        { beat: 9, hit: 'hihat' }, { beat: 11, hit: 'hihat' },
-        { beat: 13, hit: 'hihat' }, { beat: 15, hit: 'hihat' },
-      ],
-      Keys: [
-        { beat: 0, chord: 'F' }, { beat: 2, chord: 'Am' },
-        { beat: 8, chord: 'Dm' }, { beat: 10, chord: 'C' },
-      ],
-      Vocals: [
-        { beat: 4, hit: 'ah' }, { beat: 6, hit: 'ooh' },
-        { beat: 12, hit: 'ah' }, { beat: 14, hit: 'ooh' },
-      ],
-      Horns: [
-        { beat: 3, note: 'A4' }, { beat: 7, note: 'C5' },
-        { beat: 11, note: 'D5' }, { beat: 15, note: 'F5' },
-      ],
+  }),
+
+  'spotlight': createSong({
+    id: 'spotlight', name: 'Spotlight', emoji: '✨', cost: 500, baseBpm: 104,
+    config: {
+      'trash-lid': {
+        verse: (s, e) => sparseCymbal(s, e, 4),
+        chorus: (s, e) => everyN(s, e, 2, (b) => ({ beat: b, hit: 'cymbal' })),
+        outro: (s, e) => everyN(s, e, 8, (b) => ({ beat: b, hit: 'cymbal' })),
+      },
+      tambourine: {
+        verse: (s, e) => sparseShake(s, e, 2),
+        chorus: (s, e) => sparseShake(s, e, 1),
+      },
+      'drum-kit': {
+        intro: drumIntro,
+        verse: (s, e) => drumVerse(s, e, 1),
+        chorus: drumChorus,
+        outro: drumOutro,
+      },
+      ukulele: {
+        intro: (s, e) => chordPattern(s, e, ['F'], 8),
+        verse: (s, e) => chordPattern(s, e, ['F', 'Am', 'Dm', 'C']),
+        chorus: (s, e) => chordPattern(s, e, ['F', 'Am', 'Dm', 'C'], 2),
+        outro: (s, e) => chordPattern(s, e, ['F'], 8),
+      },
+      'electric-guitar': {
+        intro: (s, e) => chordPattern(s, e, ['F'], 8),
+        verse: (s, e) => chordPattern(s, e, ['F', 'Am', 'Dm', 'C']),
+        chorus: (s, e) => chordPattern(s, e, ['F', 'Am', 'Dm', 'C'], 2),
+        outro: (s, e) => chordPattern(s, e, ['F'], 8),
+      },
+      Guitar: {
+        verse: (s, e) => chordPattern(s, e, ['F', 'Am', 'Dm', 'C'], 2),
+        chorus: (s, e) => chordPattern(s, e, ['F', 'Am', 'Dm', 'C'], 1),
+      },
+      Bass: {
+        verse: (s, e) => notePattern(s, e, ['F1', 'A1', 'D2', 'C2'], 2),
+        chorus: (s, e) => notePattern(s, e, ['F1', 'A1', 'D2', 'C2'], 1),
+      },
+      Drums: {
+        intro: drumIntro,
+        verse: (s, e) => everyN(s, e, 2, (b) => ({ beat: b, hit: 'hihat' })),
+        chorus: drumChorus,
+        outro: drumOutro,
+      },
+      Keys: {
+        verse: (s, e) => chordPattern(s, e, ['F', 'Am', 'Dm', 'C'], 4),
+        chorus: (s, e) => chordPattern(s, e, ['F', 'Am', 'Dm', 'C'], 2),
+      },
+      Vocals: {
+        verse: (s, e) => vocalPattern(s, e, 'ooh', 8),
+        chorus: (s, e) => vocalPattern(s, e, 'ah', 2),
+        outro: (s, e) => vocalPattern(s, e, 'ooh', 8),
+      },
+      Horns: {
+        chorus: (s, e) => notePattern(s, e, ['A4', 'C5', 'D5', 'F5'], 2),
+        outro: (s, e) => everyN(s, e, 4, (b) => ({ beat: b, note: 'A4' })),
+      },
     },
-  },
+  }),
 };
 
 const SONG_LIST = Object.values(SONGS);
@@ -242,31 +389,31 @@ function getPlayerPartKey(instrument) {
   return instrument?.id || 'trash-lid';
 }
 
-function getPartEvents(song, partKey, beatInLoop) {
+function getPartEvents(song, partKey, beat) {
   const part = song.parts[partKey];
-  if (!part) return [];
-  return part.filter((e) => e.beat === beatInLoop);
+  if (!part || beat < 0 || beat >= song.totalBeats) return [];
+  return part.filter((e) => e.beat === beat);
 }
 
 function getUpcomingNotes(song, partKey, elapsed, bpm, lookAhead = 3) {
   const beatDur = 60 / bpm;
-  const loop = song.loopBeats || 16;
+  const total = song.totalBeats || song.loopBeats || 16;
   const part = song.parts[partKey] || [];
   const currentBeat = elapsed / beatDur;
   const notes = [];
 
   for (let b = Math.floor(currentBeat); b <= Math.ceil(currentBeat + lookAhead); b += 1) {
-    const loopBeat = ((b % loop) + loop) % loop;
-    const events = part.filter((e) => e.beat === loopBeat);
+    if (b >= total) continue;
+    const events = part.filter((e) => e.beat === b);
+    const sec = sectionAt(song.sections, b);
     for (const ev of events) {
-      const noteBeat = b;
-      const dist = noteBeat - currentBeat;
+      const dist = b - currentBeat;
       if (dist >= -0.15 && dist <= lookAhead) {
         notes.push({
           ...ev,
-          beat: noteBeat,
-          loopBeat,
+          beat: b,
           dist,
+          section: sec?.name,
           label: ev.chord || ev.note || ev.hit || '•',
           melodic: !!ev.chord || !!ev.note,
         });
