@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy uploaded Title Case PNGs from assets/ into assets/instruments/{id}.png."""
+"""Copy uploaded instrument PNGs into assets/instruments/{id}.png for the game."""
 
 from pathlib import Path
 
@@ -9,8 +9,13 @@ except ImportError:
     Image = None
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "assets"
 DST = ROOT / "assets" / "instruments"
+
+# Prefer new upload folder; fall back to legacy assets/ root
+SRC_DIRS = [
+    ROOT / "Assets" / "Instruments",
+    ROOT / "assets",
+]
 
 UPLOAD_MAP = {
     "Trash Can Lid.png": "trash-lid.png",
@@ -40,7 +45,14 @@ UPLOAD_MAP = {
 }
 
 MAX_EDGE = 1024
-JPEG_QUALITY = 85
+
+
+def find_source(name: str) -> Path | None:
+    for src_dir in SRC_DIRS:
+        candidate = src_dir / name
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def has_transparency(img) -> bool:
@@ -71,14 +83,18 @@ def optimize_png(src: Path, dst: Path) -> None:
 def main() -> None:
     DST.mkdir(parents=True, exist_ok=True)
     synced = []
+    missing = []
     for src_name, dst_name in UPLOAD_MAP.items():
-        src = SRC / src_name
-        if not src.is_file():
+        src = find_source(src_name)
+        if not src:
+            missing.append(src_name)
             continue
         dst = DST / dst_name
         optimize_png(src, dst)
         synced.append(dst_name)
     print(f"Synced {len(synced)} instrument(s): {', '.join(synced)}")
+    if missing:
+        print(f"Missing uploads ({len(missing)}): {', '.join(missing)}")
 
 
 if __name__ == "__main__":
