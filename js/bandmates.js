@@ -84,12 +84,22 @@ function renderBandmate(id, size = 80) {
   const h = size * 1.35;
   const colors = typeof CharacterRig !== 'undefined' ? CharacterRig.bandmateColors(m) : m;
   const pose = typeof CharacterRig !== 'undefined' ? CharacterRig.poseFromRole(m.role) : 'idle';
-  const armsBack = typeof CharacterRig !== 'undefined'
-    ? CharacterRig.renderRiggedArms(colors, pose, 'back', { hideSticks: typeof InstrumentArt !== 'undefined' && m.instrumentId && InstrumentArt.shouldHideSticks(INSTRUMENTS[m.instrumentId]) })
-    : '';
-  const armsFront = typeof CharacterRig !== 'undefined'
-    ? CharacterRig.renderRiggedArms(colors, pose, 'front', { hideSticks: typeof InstrumentArt !== 'undefined' && m.instrumentId && InstrumentArt.shouldHideSticks(INSTRUMENTS[m.instrumentId]) })
-    : '';
+  const instObj = m.instrumentId && typeof INSTRUMENTS !== 'undefined' ? INSTRUMENTS[m.instrumentId] : null;
+  const hideSticks = instObj && typeof InstrumentArt !== 'undefined' && InstrumentArt.shouldHideSticks(instObj);
+  const rigOpts = { hideSticks };
+  function bandmateArms(layer) {
+    if (typeof CharacterRig === 'undefined') return '';
+    if (!instObj || typeof InstrumentGrips === 'undefined') {
+      if (layer === 'back') return '';
+      return CharacterRig.renderRiggedArms(colors, pose, 'front', rigOpts);
+    }
+    const grip = InstrumentGrips.getGrip(instObj);
+    const sides = InstrumentGrips.sidesForLayer(grip, layer);
+    if (!sides.length) return '';
+    return CharacterRig.renderRiggedArms(colors, pose, layer, { ...rigOpts, sides });
+  }
+  const armsBack = bandmateArms('back');
+  const armsFront = bandmateArms('front');
   const tufts = (cx, cy, spread) => Array.from({ length: 6 }, (_, i) => {
     const ang = (i / 6) * Math.PI * 2 - Math.PI / 2;
     const x = cx + Math.cos(ang) * spread;

@@ -85,8 +85,13 @@ const CharacterRig = (() => {
       </g>`;
   }
 
+  function renderArmSide(colors, pose, side, layer = 'front', options = {}) {
+    return armChain(side, colors, pose, layer, options);
+  }
+
   function renderRiggedArms(colors, pose, layer = 'front', options = {}) {
-    return armChain('L', colors, pose, layer, options) + armChain('R', colors, pose, layer, options);
+    const sides = options.sides || ['L', 'R'];
+    return sides.map((side) => armChain(side, colors, pose, layer, options)).join('');
   }
 
   function bennyColors() {
@@ -204,6 +209,7 @@ const CharacterRig = (() => {
     poseFromInstrument,
     poseFromRole,
     renderRiggedArms,
+    renderArmSide,
     computeArmAim,
     bennyColors,
     lizzyColors,
