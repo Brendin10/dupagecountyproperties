@@ -1409,7 +1409,7 @@ const AudioEngine = (() => {
   }
 
   function scheduleCrowdCheer() {
-    if (!crowdAmbience || crowdAmbience.booing) return;
+    if (!crowdAmbience || crowdAmbience.booing || crowdAmbience.introMode) return;
     const { tier, cheerMult } = crowdAmbience;
     const tn = tierNorm(tier);
     const mult = cheerMult || 1;
@@ -1495,13 +1495,22 @@ const AudioEngine = (() => {
     });
   }
 
-  function startCrowdAmbience(tier = 0) {
+  function scheduleIntroCrowdBed() {
+    if (!crowdAmbience || !crowdAmbience.introMode) return;
+    const { tier } = crowdAmbience;
+    playCrowdSample(tier, 0.42, { loud: true });
+    crowdAmbience.introTimeout = setTimeout(scheduleIntroCrowdBed, 2400);
+  }
+
+  function startCrowdAmbience(tier = 0, opts = {}) {
     stopCrowdAmbience();
     initMix();
+    const introMode = opts.intro === true;
+
     loadCheerSample().then(() => {
-      playCrowdSample(tier, 0.75);
+      playCrowdSample(tier, introMode ? 0.5 : 0.75);
     }).catch(() => {
-      playCrowdSample(tier, 0.75);
+      playCrowdSample(tier, introMode ? 0.5 : 0.75);
     });
     loadBooSample().catch(() => {});
 
@@ -1511,14 +1520,28 @@ const AudioEngine = (() => {
 
     crowdAmbience = {
       tier, booing: false, cheerMult: 1, booInterval, cheerTimeout: null,
+      introMode, introTimeout: null,
     };
-    crowdAmbience.cheerTimeout = setTimeout(scheduleCrowdCheer, 1800);
+
+    if (introMode) {
+      crowdAmbience.introTimeout = setTimeout(scheduleIntroCrowdBed, 1200);
+    }
+  }
+
+  function endCrowdIntro() {
+    if (!crowdAmbience || !crowdAmbience.introMode) return;
+    crowdAmbience.introMode = false;
+    if (crowdAmbience.introTimeout) {
+      clearTimeout(crowdAmbience.introTimeout);
+      crowdAmbience.introTimeout = null;
+    }
   }
 
   function stopCrowdAmbience() {
     if (!crowdAmbience) return;
     clearInterval(crowdAmbience.booInterval);
     if (crowdAmbience.cheerTimeout) clearTimeout(crowdAmbience.cheerTimeout);
+    if (crowdAmbience.introTimeout) clearTimeout(crowdAmbience.introTimeout);
     crowdAmbience = null;
   }
 
@@ -1561,7 +1584,7 @@ const AudioEngine = (() => {
     resume, getCtx, initMix, getMix, connectToMix,
     playCrash, playCheer, playCheerLoud, playCoin, playMiss, playTick, playHitBurst,
     playInstrument, playPartEvent, playSongPad, startSustain, stopSustain,
-    startCrowdAmbience, stopCrowdAmbience, setCrowdBooing, boostCrowdCheer, playBoo, playCrowdSample, loadCheerSample, loadBooSample, loadRewindSample, playRewindSfx,
+    startCrowdAmbience, stopCrowdAmbience, endCrowdIntro, setCrowdBooing, boostCrowdCheer, playBoo, playCrowdSample, loadCheerSample, loadBooSample, loadRewindSample, playRewindSfx,
     playLiveBass, playLiveShimmer, playLiveStrum, playDanceBeat, playDrumStyleBeat, playFourOnFloorKick,
     playKick, playSnare, playHihat, playCymbal, playShake,
     playChord, playGuitarChord, playBassNote, playKeysChord, playHornNote, playVocal,

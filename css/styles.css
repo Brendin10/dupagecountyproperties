@@ -1234,6 +1234,11 @@ body {
   50% { transform: translateY(-4px); }
 }
 
+.crowd-row.crowd-steady .crowd-person {
+  animation: none;
+  transform: translateY(-2px);
+}
+
 .stage-lights {
   position: absolute;
   top: 0;
