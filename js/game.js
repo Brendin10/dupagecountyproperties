@@ -995,6 +995,10 @@ const Game = (() => {
       clearTimeout(state.rhythmGraceTimeout);
       state.rhythmGraceTimeout = null;
     }
+    const performer = document.getElementById('performer');
+    if (performer && typeof CharacterRig !== 'undefined') {
+      CharacterRig.playInstrumentRelease(performer, getActiveInstrument());
+    }
     Metronome.stop();
     BandAudio.stop();
     AudioEngine.stopSustain?.();
