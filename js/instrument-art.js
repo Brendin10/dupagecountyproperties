@@ -5,7 +5,8 @@ const InstrumentArt = (() => {
   const ART_IDS = new Set([
     'trash-lid', 'tambourine', 'ukulele', 'electric-guitar', 'piano', 'keyboard',
     'organ', 'trumpet', 'trombone', 'saxophone', 'violin', 'flute', 'harmonica',
-    'synth-lead', 'triangle', 'xylophone',
+    'synth-lead', 'triangle', 'xylophone', 'accordion', 'bongo', 'clarinet',
+    'cowbell', 'drum-kit',
   ]);
 
   function hasArt(inst) {
@@ -33,6 +34,11 @@ const InstrumentArt = (() => {
     'synth-lead': { x: 44, y: 48, w: 112, h: 62, rot: 0 },
     triangle: { x: 82, y: 30, w: 36, h: 72, rot: 0 },
     xylophone: { x: 52, y: 48, w: 96, h: 58, rot: 0 },
+    accordion: { x: 48, y: 38, w: 104, h: 88, rot: 0 },
+    bongo: { x: 68, y: 42, w: 64, h: 72, rot: 0 },
+    clarinet: { x: 86, y: 24, w: 32, h: 92, rot: -12 },
+    cowbell: { x: 78, y: 32, w: 48, h: 62, rot: -20 },
+    'drum-kit': { x: 28, y: 52, w: 144, h: 96, rot: 0 },
   };
 
   function renderHeldImage(inst, anim) {
