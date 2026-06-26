@@ -82,8 +82,7 @@ const Game = (() => {
   let activeHold = null;
 
   const REWIND_SECONDS = 5;
-  const GIG_START_GRACE_SEC = 5;
-  const RHYTHM_WARMUP_SEC = 4;
+  const GIG_COUNTDOWN_SEC = 5;
   const SNAPSHOT_INTERVAL = 0.5;
   const SNAPSHOT_RETENTION = 12;
   let rewindSnapshots = [];
@@ -950,13 +949,12 @@ const Game = (() => {
 
     p.rhythmActive = true;
     p.rhythmStartAt = performance.now();
-    p.leadInBeat = (RHYTHM_WARMUP_SEC * bpm) / 60;
+    p.leadInBeat = (GIG_COUNTDOWN_SEC * bpm) / 60;
 
     BandAudio.start(bpm);
     Metronome.start(bpm, (beatIdx) => {
       BandAudio.onBeat(beatIdx);
     }, { silent: true });
-    setRhythmHint('Tap quick gems · hold long gems through the zone!');
   }
 
   function startPerformanceLoop() {
@@ -968,12 +966,11 @@ const Game = (() => {
     const venue = VENUES.find((v) => v.id === state.currentVenue);
 
     AudioEngine.initMix();
-    AudioEngine.startCrowdAmbience?.(venue?.tier ?? 0);
+    AudioEngine.startCrowdAmbience?.(venue?.tier ?? 0, { intro: true });
     BandAudio.setBand(state.bandMembers, song);
     BandAudio.setOnMemberPlay((member) => triggerBandmateAnimation(member));
 
-    p.rhythmActive = false;
-    p.rhythmStartAt = performance.now() + GIG_START_GRACE_SEC * 1000;
+    beginRhythmGameplay(bpm);
 
     const uiLoop = () => {
       if (!state.performance || state.screen !== 'perform') return;
@@ -981,20 +978,9 @@ const Game = (() => {
       state.perfUiRaf = requestAnimationFrame(uiLoop);
     };
     state.perfUiRaf = requestAnimationFrame(uiLoop);
-
-    if (state.rhythmGraceTimeout) clearTimeout(state.rhythmGraceTimeout);
-    state.rhythmGraceTimeout = setTimeout(() => {
-      state.rhythmGraceTimeout = null;
-      if (!state.performance || state.screen !== 'perform') return;
-      beginRhythmGameplay(bpm);
-    }, GIG_START_GRACE_SEC * 1000);
   }
 
   function stopPerformanceLoop() {
-    if (state.rhythmGraceTimeout) {
-      clearTimeout(state.rhythmGraceTimeout);
-      state.rhythmGraceTimeout = null;
-    }
     const performer = document.getElementById('performer');
     if (performer && typeof CharacterRig !== 'undefined') {
       CharacterRig.playInstrumentRelease(performer, getActiveInstrument());
@@ -1205,20 +1191,19 @@ const Game = (() => {
     const timer = document.getElementById('perf-timer');
     if (timer) timer.textContent = `⏱ ${p.timeLeft}s`;
 
-    if (!p.rhythmActive) {
-      const left = Math.max(0, Math.ceil((p.rhythmStartAt - performance.now()) / 1000));
-      setRhythmHint(left > 0 ? `Get ready… ${left}` : 'Go!', 'good');
-      const hitZone = document.getElementById('hit-zone');
-      if (hitZone) hitZone.classList.remove('ready', 'holding');
-      state._updatingPerfUi = false;
-      return;
-    }
-
     finalizeActiveHoldIfExpired();
 
-    if (elapsed < RHYTHM_WARMUP_SEC) {
-      const left = Math.max(1, Math.ceil(RHYTHM_WARMUP_SEC - elapsed));
+    const crowdRow = document.getElementById('crowd-row');
+    if (elapsed < GIG_COUNTDOWN_SEC) {
+      const left = Math.max(1, Math.ceil(GIG_COUNTDOWN_SEC - elapsed));
       setRhythmHint(`Get ready… ${left}`, 'good');
+      crowdRow?.classList.add('crowd-steady');
+    } else if (!p.countdownEnded) {
+      p.countdownEnded = true;
+      p.gigTimerStarted = true;
+      AudioEngine.endCrowdIntro?.();
+      crowdRow?.classList.remove('crowd-steady');
+      setRhythmHint('Tap quick gems · hold long gems through the zone!');
     }
 
     checkMissedNotes();
@@ -1370,6 +1355,8 @@ const Game = (() => {
       recruitRolls: 0,
       hitBeats: new Set(),
       missedBeats: new Set(),
+      gigTimerStarted: false,
+      countdownEnded: false,
     };
 
     activeHold = null;
@@ -1408,7 +1395,7 @@ const Game = (() => {
   function isRhythmScoringEnabled() {
     const p = state.performance;
     if (!p || !p.rhythmActive || !Metronome.running) return false;
-    return Metronome.getElapsed() >= RHYTHM_WARMUP_SEC;
+    return Metronome.getElapsed() >= GIG_COUNTDOWN_SEC;
   }
 
   function applyHitScore(rating, note, inst) {
@@ -1459,7 +1446,12 @@ const Game = (() => {
       RhythmLane.explodeGem({ beat: -1 }, rating, isMelodic);
     }
     p.combo += 1;
+    const wasOnFire = p.onFire;
     if (p.combo >= 10) p.onFire = true;
+    if (!wasOnFire && p.onFire) {
+      AudioEngine.playCheerLoud();
+      AudioEngine.boostCrowdCheer?.();
+    }
     updateFireState();
 
     const mult = rating === 'perfect' ? 1.5 : 1.0;
@@ -1467,12 +1459,6 @@ const Game = (() => {
     const crowdGain = (rating === 'perfect' ? 0.7 : 0.35) * mult + appeal * 0.03;
     p.crowd = Math.min(p.crowdCap, p.crowd + crowdGain);
     p.cheer = Math.min(p.cheerGoal * 1.5, p.cheer + (rating === 'perfect' ? 4 : 2));
-
-    if (p.cheer > p.cheerGoal * 0.5 && Math.random() < 0.12) AudioEngine.playCheer();
-    if (p.combo >= 5 && p.combo % 5 === 0) {
-      AudioEngine.playCheerLoud();
-      AudioEngine.boostCrowdCheer?.();
-    }
 
     const tip = (1 + p.crowd * 0.12) * p.tipMultiplier * mult * (0.85 + Math.random() * 0.3);
     p.sessionCash += tip;
@@ -1597,6 +1583,11 @@ const Game = (() => {
   function tickPerformance() {
     const p = state.performance;
     if (!p) return;
+
+    if (!p.gigTimerStarted) {
+      updatePerformanceUI();
+      return;
+    }
 
     p.timeLeft -= 1;
 

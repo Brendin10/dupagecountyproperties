@@ -1171,6 +1171,11 @@ body {
   animation-delay: var(--delay);
 }
 
+.crowd-row.crowd-steady .crowd-person {
+  animation: none;
+  transform: translateY(-2px);
+}
+
 @keyframes crowdBounce {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
