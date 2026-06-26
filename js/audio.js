@@ -1155,16 +1155,8 @@ const AudioEngine = (() => {
     src.start(now, offset, playLen);
   }
 
-  const CHEER_URLS = [
-    'audio/storegraphic-crowd-cheers-314919.mp3',
-    'audio/crowd-cheer.mp3',
-    'audio/crowd-cheer.wav',
-  ];
-  const BOO_URLS = [
-    'audio/dragon-studio-crowd-booing-494319.mp3',
-    'audio/crowd-boo.mp3',
-    'audio/crowd-boo.wav',
-  ];
+  const CHEER_URLS = ['audio/storegraphic-crowd-cheers-314919.mp3'];
+  const BOO_URLS = ['audio/dragon-studio-crowd-booing-494319.mp3'];
   let cheerBuffer = null;
   let cheerLoadPromise = null;
   let booBuffer = null;
