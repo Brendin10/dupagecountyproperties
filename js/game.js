@@ -1117,9 +1117,6 @@ const Game = (() => {
     const currentBeat = elapsed / beatDur;
     const late = isMelodic ? 0.24 : 0.2;
 
-    if (!p.rhythmActive) return;
-    if (!isRhythmScoringEnabled()) return;
-
     const leadInBeat = p.leadInBeat ?? 0;
 
     const part = song.parts[partKey] || [];
@@ -1197,7 +1194,7 @@ const Game = (() => {
     }
     updateRewindButtonState();
 
-    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic, p.hitBeats, p.missedBeats, activeHold ? noteKey(activeHold.note) : null, p.leadInBeat ?? 0);
+    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic, p.hitBeats, p.missedBeats, activeHold ? noteKey(activeHold.note) : null, p.leadInBeat ?? 0, activeHold?.note ?? null);
 
     const crowdPct = Math.min(100, (p.crowd / p.crowdCap) * 100);
     const cheerPct = Math.min(100, (p.cheer / p.cheerGoal) * 100);

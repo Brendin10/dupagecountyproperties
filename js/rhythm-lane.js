@@ -1,6 +1,14 @@
 const RhythmLane = (() => {
   const HIT_X = 18;
   const LOOKAHEAD = 2.8;
+  let lastHoldSparkAt = 0;
+
+  function holdSparklerMarkup(isMelodic) {
+    const sparks = Array.from({ length: 10 }, (_, i) =>
+      `<span class="hold-spark" style="--i:${i}"></span>`
+    ).join('');
+    return `<div class="hold-sparkler ${isMelodic ? 'melodic' : 'percussion'}" aria-hidden="true">${sparks}</div>`;
+  }
 
   function renderHtml(songName) {
     return `
@@ -37,10 +45,35 @@ const RhythmLane = (() => {
       isHeld ? 'holding' : '',
     ].filter(Boolean).join(' ');
     const shape = isHold ? '▬' : (note.melodic || isMelodic ? '◇' : '◆');
+    const sparkler = isHeld ? holdSparklerMarkup(note.melodic || isMelodic) : '';
     return `<div class="${cls}" style="left:${headPct}%;width:${widthPct}%" data-beat="${note.beat}" data-dur="${dur}" data-key="${key}">
       <span class="gem-shape">${shape}</span>
+      ${sparkler}
       <span class="gem-label">${note.label}</span>
     </div>`;
+  }
+
+  function spawnHoldSpark(xPct, isMelodic) {
+    const layer = document.getElementById('gem-fx-layer');
+    if (!layer) return;
+    const colors = isMelodic
+      ? ['#fff', '#ffd166', '#ffe08a', '#ff6b9d', '#ffb347']
+      : ['#fff', '#e8fcff', '#7ee8ff', '#6bcbff', '#ffe08a'];
+    const count = 2 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < count; i++) {
+      const spark = document.createElement('div');
+      spark.className = `hold-spark-particle ${isMelodic ? 'melodic' : 'percussion'}`;
+      const ang = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
+      const dist = 16 + Math.random() * 48;
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      spark.style.left = `${xPct + (Math.random() - 0.5) * 3}%`;
+      spark.style.setProperty('--dx', `${Math.cos(ang) * dist}px`);
+      spark.style.setProperty('--dy', `${Math.sin(ang) * dist}px`);
+      spark.style.setProperty('--dur', `${0.32 + Math.random() * 0.38}s`);
+      spark.style.setProperty('--spark-color', color);
+      layer.appendChild(spark);
+      setTimeout(() => spark.remove(), 720);
+    }
   }
 
   function spawnBurst(xPct, rating, isMelodic) {
@@ -84,11 +117,40 @@ const RhythmLane = (() => {
     setTimeout(() => gem.remove(), 300);
   }
 
-  function update(song, partKey, elapsed, bpm, isMelodic, hitBeats, missedBeats, holdingKey, leadInBeat = 0) {
+  function heldNoteEntry(holdNote, elapsed, bpm, isMelodic) {
+    const beatDur = 60 / bpm;
+    const currentBeat = elapsed / beatDur;
+    const dur = holdNote.dur || 1;
+    const endBeat = holdNote.beat + dur;
+    return {
+      ...holdNote,
+      beat: holdNote.beat,
+      dur,
+      endBeat,
+      dist: holdNote.beat - currentBeat,
+      active: currentBeat >= holdNote.beat && currentBeat < endBeat,
+      label: holdNote.chord || holdNote.note || holdNote.hit || '•',
+      melodic: !!holdNote.chord || !!holdNote.note || isMelodic,
+      isHold: true,
+    };
+  }
+
+  function noteKeyFor(note) {
+    return `${note.beat}:${note.chord || ''}:${note.note || ''}:${note.hit || ''}`;
+  }
+
+  function update(song, partKey, elapsed, bpm, isMelodic, hitBeats, missedBeats, holdingKey, leadInBeat = 0, heldNote = null) {
     const lane = document.getElementById('note-lane');
     if (!lane) return;
 
-    const notes = getUpcomingNotes(song, partKey, elapsed, bpm, LOOKAHEAD, hitBeats, missedBeats, leadInBeat);
+    let notes = getUpcomingNotes(song, partKey, elapsed, bpm, LOOKAHEAD, hitBeats, missedBeats, leadInBeat);
+    if (holdingKey && heldNote && noteKeyFor(heldNote) === holdingKey) {
+      const visible = notes.some((n) => noteKeyFor(n) === holdingKey);
+      if (!visible) {
+        notes.push(heldNoteEntry(heldNote, elapsed, bpm, isMelodic));
+        notes.sort((a, b) => a.beat - b.beat);
+      }
+    }
     const beatDur = 60 / bpm;
     const currentBeat = elapsed / beatDur;
 
@@ -107,7 +169,22 @@ const RhythmLane = (() => {
     if (hitZone) {
       const inWindow = notes.some((n) => n.active || Math.abs(n.beat - currentBeat) < (isMelodic ? 0.22 : 0.18));
       hitZone.classList.toggle('ready', inWindow);
-      if (!holdingKey) hitZone.classList.remove('holding');
+      hitZone.classList.toggle('holding', !!holdingKey);
+    }
+
+    if (holdingKey) {
+      const heldGem = lane.querySelector('.note-gem.holding');
+      const now = performance.now();
+      if (heldGem && now - lastHoldSparkAt > 48) {
+        lastHoldSparkAt = now;
+        const left = parseFloat(heldGem.style.left) || HIT_X;
+        const width = parseFloat(heldGem.style.width) || 12;
+        const sparkX = left + Math.random() * width * 0.85;
+        spawnHoldSpark(sparkX, isMelodic);
+        if (Math.random() < 0.45) spawnHoldSpark(left + Math.random() * width * 0.85, isMelodic);
+      }
+    } else {
+      lastHoldSparkAt = 0;
     }
 
     const sectionEl = document.getElementById('song-section-label');
