@@ -860,6 +860,60 @@ body {
   gap: 10px;
 }
 
+.shop-band-summary {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+
+.shop-band-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.shop-band-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.shop-band-slot.filled,
+.shop-band-slot.open {
+  justify-content: flex-start;
+}
+
+.shop-band-slot.locked,
+.shop-band-slot.locked-next {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  text-align: left;
+}
+
+.shop-band-slot.locked .shop-info,
+.shop-band-slot.locked-next .shop-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.shop-slot-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.shop-band-slot.locked {
+  opacity: 0.55;
+}
+
+.shop-band-slot .bandmate-chip {
+  width: 100%;
+}
+
 .shop-item {
   display: flex;
   align-items: center;

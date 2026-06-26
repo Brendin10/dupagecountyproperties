@@ -123,7 +123,7 @@ const Game = (() => {
   }
 
   function slotMax() {
-    return typeof MAX_BAND_SLOTS !== 'undefined' ? MAX_BAND_SLOTS : 30;
+    return typeof MAX_BAND_SLOTS !== 'undefined' ? MAX_BAND_SLOTS : 7;
   }
 
   function getSlotCosts() {
@@ -483,6 +483,65 @@ const Game = (() => {
     `;
   }
 
+  function renderShopBandSlots() {
+    const max = slotMax();
+    const slotCount = getBandSlotCount();
+    const costs = getSlotCosts();
+    const nextCost = nextBandSlotCost();
+    const atMax = slotCount >= max;
+    const members = state.bandMembers;
+
+    return Array.from({ length: max }, (_, idx) => {
+      const slotNum = idx + 1;
+      const member = members[idx];
+
+      if (member) {
+        return `
+          <div class="shop-band-slot brand-card filled">
+            <div class="bandmate-chip" title="${member.role}">
+              ${renderBandmateCharacter(member, 52)}
+              <span>${member.name}</span>
+            </div>
+            <span class="shop-slot-label">Slot ${slotNum}</span>
+          </div>`;
+      }
+
+      if (slotNum <= slotCount) {
+        return `
+          <div class="shop-band-slot brand-card open">
+            <div class="bandmate-chip empty-slot" title="Open slot — recruit during gigs">
+              <div class="empty-slot-icon">➕</div>
+              <span>Open</span>
+            </div>
+            <span class="shop-slot-label">Slot ${slotNum}</span>
+          </div>`;
+      }
+
+      if (slotNum === slotCount + 1 && !atMax && nextCost != null) {
+        return `
+          <div class="shop-band-slot brand-card locked-next">
+            <span class="brand-card-icon brand-card-icon-lg">🔒</span>
+            <div class="shop-info">
+              <strong class="brand-label">Slot ${slotNum}</strong>
+              <span>Unlock band member slot</span>
+            </div>
+            <button class="btn btn-buy" data-buy-slot="1" ${state.bandCash < nextCost ? 'disabled' : ''}>$${nextCost}</button>
+          </div>`;
+      }
+
+      const unlockCost = costs[slotNum - 1];
+      return `
+        <div class="shop-band-slot brand-card locked">
+          <span class="brand-card-icon">🔒</span>
+          <div class="shop-info">
+            <strong class="brand-label">Slot ${slotNum}</strong>
+            <span>${unlockCost != null ? `$${unlockCost} when unlocked` : 'Locked'}</span>
+          </div>
+          <span class="owned-badge">LOCKED</span>
+        </div>`;
+    }).join('');
+  }
+
   function renderShop() {
     const tabs = ['instruments', 'songs', 'clothes', 'makeup', 'accessories', 'band'];
     const tabButtons = tabs.map((t) => `
@@ -493,24 +552,14 @@ const Game = (() => {
 
     let content = '';
     if (state.shopTab === 'band') {
-      const nextCost = nextBandSlotCost();
       const openSlots = getOpenBandSlots();
       const slotCount = getBandSlotCount();
       const atMax = slotCount >= slotMax();
-      const canBuy = !atMax && nextCost != null;
       content = `
-        <div class="shop-list">
+        <div class="shop-list shop-band-list">
           ${state.shopNotice ? `<p class="shop-notice">${state.shopNotice}</p>` : ''}
-          <div class="shop-item brand-card">
-            <span class="brand-card-icon brand-card-icon-lg">👥</span>
-            <div class="shop-info">
-              <strong class="brand-label">Band Member Slot</strong>
-              <span>${state.bandMembers.length} bandmates · ${openSlots} open · ${slotCount} / ${slotMax()} slots</span>
-            </div>
-            ${canBuy
-              ? `<button class="btn btn-buy" data-buy-slot="1" ${state.bandCash < nextCost ? 'disabled' : ''}>$${nextCost}</button>`
-              : `<span class="owned-badge">${atMax ? 'MAX' : 'N/A'}</span>`}
-          </div>
+          <p class="shop-band-summary">${state.bandMembers.length} bandmates · ${openSlots} open · ${slotCount} / ${slotMax()} slots${atMax ? ' · MAX' : ''}</p>
+          <div class="shop-band-grid">${renderShopBandSlots()}</div>
         </div>
       `;
     } else {
@@ -1491,7 +1540,7 @@ const Game = (() => {
     p.peakCrowd = Math.max(p.peakCrowd, p.crowd);
     setRhythmHint(`${rating}!`, rating);
 
-    if (state.starMeter >= 20 && !state.pendingRecruit && p.recruitRolls < 2 && Math.random() < 0.08) {
+    if (state.starMeter >= 20 && canRecruitBandmate() && !state.pendingRecruit && p.recruitRolls < 2 && Math.random() < 0.08) {
       const recruit = RECRUIT_POOL[Math.floor(Math.random() * RECRUIT_POOL.length)];
       const recruitId = recruit.id || getBandmateId(recruit);
       if (!state.bandMembers.find((m) => getBandmateId(m) === recruitId)) {
