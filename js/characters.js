@@ -36,15 +36,24 @@ function charLayer(name, z, inner, extra = '') {
   return `<div class="char-layer layer-${name} ${extra}" style="z-index:${z}">${charSvg(inner)}</div>`;
 }
 
+function extractSvgInners(html) {
+  if (!html) return '';
+  const parts = [];
+  const re = /<svg[^>]*>([\s\S]*?)<\/svg>/g;
+  let match = re.exec(html);
+  while (match) {
+    parts.push(match[1]);
+    match = re.exec(html);
+  }
+  return parts.join('');
+}
+
 function layeredCharacter(id, size, layers, frontArmsHtml, instrumentHtml = '', wearHtml = '') {
   const h = size * 1.35;
 
   if (instrumentHtml && frontArmsHtml) {
-    const bodyParts = layers.map((layerHtml) => {
-      const match = layerHtml.match(/<svg[^>]*>([\s\S]*)<\/svg>/);
-      return match ? match[1] : '';
-    }).join('');
-    const wearInner = wearHtml ? (wearHtml.match(/<svg[^>]*>([\s\S]*)<\/svg>/) || [])[1] || wearHtml : '';
+    const bodyParts = layers.map((layerHtml) => extractSvgInners(layerHtml)).join('');
+    const wearInner = extractSvgInners(wearHtml);
     return `<div class="character-layered ${id}-layered play-unified" style="width:${size}px;height:${h}px" aria-label="${id}">
       <svg viewBox="0 0 200 270" class="char-part-svg char-unified-svg" xmlns="http://www.w3.org/2000/svg">
         ${bodyParts}${wearInner}

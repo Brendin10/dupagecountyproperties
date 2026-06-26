@@ -48,7 +48,7 @@ const CharacterRig = (() => {
     return `
       <g class="rig-arm rig-arm-${side} rig-layer-${layer} ${poseCls}" transform="translate(${sx},${shoulderY})${flip}">
         <g class="rig-upper-arm">
-          <ellipse cx="0" cy="8" rx="14" ry="16" fill="${fur}" stroke="${OUTLINE}" stroke-width="3"/>
+          <ellipse cx="${isLeft ? 8 : -8}" cy="10" rx="18" ry="15" fill="${fur}" stroke="${OUTLINE}" stroke-width="3"/>
         </g>
         <g class="rig-forearm" transform="translate(0,18)">
           <g class="rig-forearm-pose" style="transform-box:fill-box;transform-origin:0 0">
