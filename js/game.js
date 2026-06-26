@@ -1191,6 +1191,11 @@ const Game = (() => {
     const timer = document.getElementById('perf-timer');
     if (timer) timer.textContent = `⏱ ${p.timeLeft}s`;
 
+    if (!p.rhythmActive) {
+      state._updatingPerfUi = false;
+      return;
+    }
+
     finalizeActiveHoldIfExpired();
 
     const crowdRow = document.getElementById('crowd-row');
