@@ -706,13 +706,9 @@ const Game = (() => {
     if (titleIdleTimer) clearInterval(titleIdleTimer);
     const el = document.getElementById('title-idle-char');
     if (!el) return;
-    const inst = INSTRUMENTS['trash-lid'];
     titleIdleTimer = setInterval(() => {
       const charEl = el.querySelector('.character-layered');
       if (!charEl) return;
-      if (typeof CharacterRig !== 'undefined') {
-        CharacterRig.applyPoseFromInstrument(charEl, inst, 'hit');
-      }
       charEl.classList.remove('anim-cymbal');
       void charEl.offsetWidth;
       charEl.classList.add('anim-cymbal');

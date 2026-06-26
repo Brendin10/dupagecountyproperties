@@ -58,7 +58,7 @@ function layeredCharacter(id, size, layers, frontArmsHtml, instrumentHtml = '', 
       <svg viewBox="0 0 200 270" class="char-part-svg char-unified-svg" xmlns="http://www.w3.org/2000/svg">
         ${bodyParts}${wearInner}
         <g class="play-instrument">${instrumentHtml}</g>
-        <g class="rig-arms-front">${frontArmsHtml}</g>
+        <g class="play-arms-front">${frontArmsHtml}</g>
       </svg>
     </div>`;
   }
@@ -81,7 +81,36 @@ function rigArmsLayer(z, pose, layer, colors, options = {}) {
   return charLayer(`arms-${layer}`, z, inner, 'rigged-arms');
 }
 
+function staticFrontArms(id, inst) {
+  const colors = id === 'benny'
+    ? (typeof CharacterRig !== 'undefined' ? CharacterRig.bennyColors() : { fur: '#8E58FF', furLight: '#BC94FF', hand: '#D2B2FF' })
+    : (typeof CharacterRig !== 'undefined' ? CharacterRig.lizzyColors() : { fur: '#9458FF', furLight: '#C29AFF', hand: '#DAB6FF' });
+  const hold = inst?.hold || 'strum';
+  const O = OUTLINE;
+
+  if (hold === 'one-hand-up') {
+    return `
+      <ellipse cx="66" cy="152" rx="16" ry="18" fill="${colors.fur}" stroke="${O}" stroke-width="3"/>
+      <ellipse cx="134" cy="152" rx="16" ry="18" fill="${colors.fur}" stroke="${O}" stroke-width="3"/>
+      <ellipse cx="74" cy="166" rx="11" ry="10" fill="${colors.hand}" stroke="${O}" stroke-width="2"/>
+      <ellipse cx="126" cy="136" rx="11" ry="10" fill="${colors.hand}" stroke="${O}" stroke-width="2"/>`;
+  }
+  if (hold === 'keys' || hold === 'two-hand') {
+    return `
+      <ellipse cx="66" cy="154" rx="16" ry="18" fill="${colors.fur}" stroke="${O}" stroke-width="3"/>
+      <ellipse cx="134" cy="154" rx="16" ry="18" fill="${colors.fur}" stroke="${O}" stroke-width="3"/>
+      <ellipse cx="78" cy="170" rx="11" ry="10" fill="${colors.hand}" stroke="${O}" stroke-width="2"/>
+      <ellipse cx="122" cy="170" rx="11" ry="10" fill="${colors.hand}" stroke="${O}" stroke-width="2"/>`;
+  }
+  return `
+    <ellipse cx="64" cy="154" rx="16" ry="18" fill="${colors.fur}" stroke="${O}" stroke-width="3"/>
+    <ellipse cx="136" cy="154" rx="16" ry="18" fill="${colors.fur}" stroke="${O}" stroke-width="3"/>
+    <ellipse cx="82" cy="168" rx="11" ry="10" fill="${colors.hand}" stroke="${O}" stroke-width="2"/>
+    <ellipse cx="118" cy="162" rx="11" ry="10" fill="${colors.hand}" stroke="${O}" stroke-width="2"/>`;
+}
+
 function frontArmsForCharacter(id, pose, inst) {
+  if (inst) return staticFrontArms(id, inst);
   const colors = id === 'benny'
     ? (typeof CharacterRig !== 'undefined' ? CharacterRig.bennyColors() : { fur: '#8E58FF' })
     : (typeof CharacterRig !== 'undefined' ? CharacterRig.lizzyColors() : { fur: '#9458FF' });

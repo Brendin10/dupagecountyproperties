@@ -41,10 +41,10 @@ const InstrumentGrips = (() => {
 
   const OVERRIDES = {
     'trash-lid': {
-      gripL: { x: 100, y: 148 },
+      gripL: { x: 100, y: 142 },
       gripR: { x: 118, y: 132 },
-      art: { w: 92, h: 92, anchorX: 0.5, anchorY: 0.62 },
-      rot: -8,
+      art: { w: 110, h: 110, anchorX: 0.5, anchorY: 0.58 },
+      rot: -6,
     },
     tambourine: {
       gripR: { x: 118, y: 136 },
@@ -56,11 +56,11 @@ const InstrumentGrips = (() => {
       rot: -22,
     },
     'electric-guitar': {
-      art: { w: 112, h: 142, anchorX: 0.36, anchorY: 0.76 },
+      art: { w: 118, h: 152, anchorX: 0.36, anchorY: 0.76 },
       rot: -18,
     },
     'acoustic-guitar': {
-      art: { w: 108, h: 138, anchorX: 0.36, anchorY: 0.76 },
+      art: { w: 114, h: 148, anchorX: 0.36, anchorY: 0.76 },
       rot: -20,
     },
     'bass-guitar': {
