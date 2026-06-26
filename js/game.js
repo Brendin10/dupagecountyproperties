@@ -1129,7 +1129,7 @@ const Game = (() => {
 
       const dur = ev.dur || 1;
       const isHold = dur > 1.05;
-      const holdLate = isMelodic ? 0.38 : 0.32;
+      const holdLate = isMelodic ? 0.5 : 0.45;
       const missAfter = isHold ? ev.beat + dur + holdLate * 0.25 : ev.beat + late;
 
       if (ev.beat < leadInBeat) {
@@ -1492,8 +1492,8 @@ const Game = (() => {
     if (!note || rating === 'miss') {
       const tapLate = isMelodic ? 0.24 : 0.2;
       const tapEarly = isMelodic ? 0.14 : 0.12;
-      const holdLate = isMelodic ? 0.38 : 0.32;
-      const holdEarly = isMelodic ? 0.32 : 0.28;
+      const holdLate = isMelodic ? 0.5 : 0.45;
+      const holdEarly = isMelodic ? 0.42 : 0.38;
       const beatDur = 60 / p.bpm;
       const currentBeat = elapsed / beatDur;
       const hittable = notes.some((n) => {
