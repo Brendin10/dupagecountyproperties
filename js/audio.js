@@ -1123,9 +1123,113 @@ const AudioEngine = (() => {
   let booBuffer = null;
   let booLoadPromise = null;
   let crowdAmbience = null;
+  let useProceduralCrowd = false;
+
+  function noiseBuffer(ac, duration = 2) {
+    const len = Math.floor(ac.sampleRate * duration);
+    const buf = ac.createBuffer(1, len, ac.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+    return buf;
+  }
+
+  function synthCrowdCheer(ac, now, tier, vol, loud = false) {
+    const tn = tierNorm(tier);
+    const dur = loud ? 1.8 + tn * 1.4 : 0.9 + tn * 0.7;
+    const peak = vol * (loud ? 0.55 : 0.32);
+
+    const noise = ac.createBufferSource();
+    noise.buffer = noiseBuffer(ac, dur);
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 900 + tn * 600;
+    bp.Q.value = 0.7;
+    const hp = ac.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 280;
+    const ng = ac.createGain();
+    ng.gain.setValueAtTime(0, now);
+    ng.gain.linearRampToValueAtTime(peak * 0.7, now + 0.06);
+    ng.gain.setValueAtTime(peak * 0.55, now + dur * 0.55);
+    ng.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    noise.connect(bp);
+    bp.connect(hp);
+    hp.connect(ng);
+    connectToMix(ng, (Math.random() - 0.5) * 0.4, 'music');
+    noise.start(now);
+    noise.stop(now + dur + 0.05);
+
+    const voiceCount = loud ? 4 + Math.floor(tn * 4) : 2 + Math.floor(tn * 2);
+    for (let i = 0; i < voiceCount; i++) {
+      const t = now + i * 0.07 + Math.random() * 0.04;
+      const osc = ac.createOscillator();
+      osc.type = 'sawtooth';
+      const base = 180 + Math.random() * 220 + tn * 80;
+      osc.frequency.setValueAtTime(base, t);
+      osc.frequency.exponentialRampToValueAtTime(base * (1.1 + Math.random() * 0.35), t + 0.12);
+      osc.frequency.exponentialRampToValueAtTime(base * 0.85, t + dur * 0.8);
+      const lp = ac.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 1400 + tn * 400;
+      const vg = ac.createGain();
+      vg.gain.setValueAtTime(0, t);
+      vg.gain.linearRampToValueAtTime(peak * 0.18, t + 0.04);
+      vg.gain.exponentialRampToValueAtTime(0.001, t + 0.35 + Math.random() * 0.25);
+      osc.connect(lp);
+      lp.connect(vg);
+      connectToMix(vg, (Math.random() - 0.5) * 0.6, 'music');
+      osc.start(t);
+      osc.stop(t + 0.5);
+    }
+  }
+
+  function synthCrowdBoo(ac, now, tier, vol) {
+    const tn = tierNorm(tier);
+    const dur = 0.9 + tn * 0.5;
+    const peak = vol * 0.42;
+
+    const count = 3 + Math.floor(tn * 3);
+    for (let i = 0; i < count; i++) {
+      const t = now + i * 0.09;
+      const osc = ac.createOscillator();
+      osc.type = 'triangle';
+      const start = 320 + Math.random() * 80;
+      osc.frequency.setValueAtTime(start, t);
+      osc.frequency.exponentialRampToValueAtTime(90 + Math.random() * 40, t + dur);
+      const bp = ac.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 220;
+      bp.Q.value = 1.2;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(peak * 0.22, t + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(bp);
+      bp.connect(g);
+      connectToMix(g, (Math.random() - 0.5) * 0.5, 'music');
+      osc.start(t);
+      osc.stop(t + dur + 0.05);
+    }
+
+    const noise = ac.createBufferSource();
+    noise.buffer = noiseBuffer(ac, dur);
+    const lp = ac.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 500;
+    const ng = ac.createGain();
+    ng.gain.setValueAtTime(0, now);
+    ng.gain.linearRampToValueAtTime(peak * 0.25, now + 0.04);
+    ng.gain.exponentialRampToValueAtTime(0.001, now + dur);
+    noise.connect(lp);
+    lp.connect(ng);
+    connectToMix(ng, 0, 'music');
+    noise.start(now);
+    noise.stop(now + dur + 0.05);
+  }
 
   function loadCheerSample() {
     if (cheerBuffer) return Promise.resolve(cheerBuffer);
+    if (useProceduralCrowd) return Promise.reject(new Error('procedural crowd'));
     if (cheerLoadPromise) return cheerLoadPromise;
     initMix();
     const ac = getCtx();
@@ -1142,7 +1246,8 @@ const AudioEngine = (() => {
         return decoded;
       })
       .catch((err) => {
-        console.warn('Crowd cheer sample failed to load', err);
+        console.warn('Crowd cheer sample failed to load — using synth fallback', err);
+        useProceduralCrowd = true;
         cheerLoadPromise = null;
         throw err;
       });
@@ -1151,6 +1256,7 @@ const AudioEngine = (() => {
 
   function loadBooSample() {
     if (booBuffer) return Promise.resolve(booBuffer);
+    if (useProceduralCrowd) return Promise.reject(new Error('procedural crowd'));
     if (booLoadPromise) return booLoadPromise;
     initMix();
     const ac = getCtx();
@@ -1167,7 +1273,8 @@ const AudioEngine = (() => {
         return decoded;
       })
       .catch((err) => {
-        console.warn('Crowd boo sample failed to load', err);
+        console.warn('Crowd boo sample failed to load — using synth fallback', err);
+        useProceduralCrowd = true;
         booLoadPromise = null;
         throw err;
       });
@@ -1181,28 +1288,35 @@ const AudioEngine = (() => {
   function playCrowdSample(tier = 0, volMult = 1, opts = {}) {
     initMix();
     const ac = getCtx();
+    const loud = !!opts.loud;
+
+    if (useProceduralCrowd) {
+      const tn = tierNorm(tier);
+      const baseVol = loud ? 0.38 + tn * 0.28 : 0.14 + tn * 0.18;
+      synthCrowdCheer(ac, ac.currentTime, tier, baseVol * volMult, loud);
+      return;
+    }
 
     const play = () => {
       if (!cheerBuffer) return;
       const now = ac.currentTime;
       const tn = tierNorm(tier);
       const dur = cheerBuffer.duration;
-      const loud = !!opts.loud;
       const clipLen = loud
-        ? Math.min(3.5 + tn * 4, dur * 0.8)
-        : Math.min(0.5 + tn * 1.8, dur * 0.3);
+        ? Math.min(2.5 + tn * 2.5, dur * 0.6)
+        : Math.min(0.6 + tn * 1.2, dur * 0.25);
       const maxStart = Math.max(0, dur - clipLen - 0.05);
       const start = opts.start ?? Math.random() * maxStart;
-      const baseVol = loud ? 0.42 + tn * 0.38 : 0.08 + tn * 0.26;
+      const baseVol = loud ? 0.32 + tn * 0.28 : 0.1 + tn * 0.18;
       const vol = baseVol * volMult;
-      const pan = (Math.random() - 0.5) * (0.25 + tn * 0.75);
+      const pan = (Math.random() - 0.5) * (0.2 + tn * 0.5);
 
       const src = ac.createBufferSource();
       src.buffer = cheerBuffer;
       const g = ac.createGain();
       g.gain.setValueAtTime(0, now);
-      g.gain.linearRampToValueAtTime(vol, now + 0.025);
-      g.gain.setValueAtTime(vol * 0.92, now + clipLen * 0.65);
+      g.gain.linearRampToValueAtTime(vol, now + 0.03);
+      g.gain.setValueAtTime(vol * 0.9, now + clipLen * 0.65);
       g.gain.exponentialRampToValueAtTime(0.001, now + clipLen + 0.1);
       connectToMix(g, pan, 'music');
       src.connect(g);
@@ -1210,7 +1324,9 @@ const AudioEngine = (() => {
     };
 
     if (cheerBuffer) play();
-    else loadCheerSample().then(play).catch(() => {});
+    else loadCheerSample().then(play).catch(() => {
+      synthCrowdCheer(ac, ac.currentTime, tier, (loud ? 0.4 : 0.2) * volMult, loud);
+    });
   }
 
   function scheduleCrowdCheer() {
@@ -1220,18 +1336,13 @@ const AudioEngine = (() => {
     const mult = cheerMult || 1;
 
     playCrowdSample(tier, mult);
-    if (tn > 0.2 && Math.random() < 0.35 + tn * 0.45) {
+    if (tn > 0.45 && Math.random() < tn * 0.35) {
       setTimeout(() => {
-        if (crowdAmbience && !crowdAmbience.booing) playCrowdSample(tier, mult * 0.75);
-      }, 90 + Math.random() * 180);
-    }
-    if (tn > 0.55 && Math.random() < tn * 0.55) {
-      setTimeout(() => {
-        if (crowdAmbience && !crowdAmbience.booing) playCrowdSample(tier, mult * 0.6);
-      }, 220 + Math.random() * 200);
+        if (crowdAmbience && !crowdAmbience.booing) playCrowdSample(tier, mult * 0.65);
+      }, 180 + Math.random() * 220);
     }
 
-    const nextDelay = Math.max(900, 4200 - tier * 120) + Math.random() * 1800;
+    const nextDelay = Math.max(1400, 5200 - tier * 140) + Math.random() * 2200;
     crowdAmbience.cheerTimeout = setTimeout(scheduleCrowdCheer, nextDelay);
   }
 
@@ -1286,16 +1397,21 @@ const AudioEngine = (() => {
     const ac = getCtx();
     const tier = crowdAmbience?.tier ?? 3;
 
+    if (useProceduralCrowd) {
+      synthCrowdBoo(ac, ac.currentTime, tier, (0.35 + tierNorm(tier) * 0.3) * volMult);
+      return;
+    }
+
     const play = () => {
       if (!booBuffer) return;
       const now = ac.currentTime;
       const tn = tierNorm(tier);
       const dur = booBuffer.duration;
-      const clipLen = Math.min(1.4 + tn * 1.1, dur);
+      const clipLen = Math.min(1.2 + tn * 0.8, dur);
       const maxStart = Math.max(0, dur - clipLen - 0.02);
       const start = Math.random() * maxStart;
-      const vol = (0.32 + tn * 0.38) * volMult;
-      const pan = (Math.random() - 0.5) * (0.4 + tn * 0.5);
+      const vol = (0.28 + tn * 0.28) * volMult;
+      const pan = (Math.random() - 0.5) * (0.35 + tn * 0.4);
 
       const src = ac.createBufferSource();
       src.buffer = booBuffer;
@@ -1310,26 +1426,29 @@ const AudioEngine = (() => {
     };
 
     if (booBuffer) play();
-    else loadBooSample().then(play).catch(() => {});
+    else loadBooSample().then(play).catch(() => {
+      synthCrowdBoo(ac, ac.currentTime, tier, 0.4 * volMult);
+    });
   }
 
   function startCrowdAmbience(tier = 0) {
     stopCrowdAmbience();
     initMix();
     loadCheerSample().then(() => {
-      playCrowdSample(tier, 0.85);
-      if (tier > 2) setTimeout(() => playCrowdSample(tier, 0.7), 400);
-    }).catch(() => {});
+      playCrowdSample(tier, 0.75);
+    }).catch(() => {
+      playCrowdSample(tier, 0.75);
+    });
     loadBooSample().catch(() => {});
 
     const booInterval = setInterval(() => {
-      if (crowdAmbience?.booing) playBoo(0.85 + tierNorm(crowdAmbience.tier) * 0.25);
-    }, 900);
+      if (crowdAmbience?.booing) playBoo(0.7 + tierNorm(crowdAmbience.tier) * 0.2);
+    }, 1400);
 
     crowdAmbience = {
       tier, booing: false, cheerMult: 1, booInterval, cheerTimeout: null,
     };
-    crowdAmbience.cheerTimeout = setTimeout(scheduleCrowdCheer, 1200);
+    crowdAmbience.cheerTimeout = setTimeout(scheduleCrowdCheer, 1800);
   }
 
   function stopCrowdAmbience() {

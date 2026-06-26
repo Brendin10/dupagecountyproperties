@@ -163,14 +163,18 @@ const InstrumentGrips = (() => {
     };
   }
 
+  const ART_SCALE = 1.55;
+
   function mountTransform(grip) {
     const { gripL, art, rot } = grip;
-    const ax = art.anchorX * art.w;
-    const ay = art.anchorY * art.h;
+    const w = art.w * ART_SCALE;
+    const h = art.h * ART_SCALE;
+    const ax = art.anchorX * w;
+    const ay = art.anchorY * h;
     return {
       transform: `translate(${gripL.x},${gripL.y}) rotate(${rot}) translate(${-ax},${-ay})`,
-      w: art.w,
-      h: art.h,
+      w,
+      h,
     };
   }
 
