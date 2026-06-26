@@ -82,6 +82,7 @@ const Game = (() => {
   let activeHold = null;
 
   const REWIND_SECONDS = 5;
+  const REWIND_ANIM_MS = REWIND_SECONDS * 1000;
   const GIG_START_GRACE_SEC = 5;
   const RHYTHM_WARMUP_SEC = 4;
   const SNAPSHOT_INTERVAL = 0.5;
@@ -89,6 +90,8 @@ const Game = (() => {
   let rewindSnapshots = [];
   let lastSnapshotAt = -1;
   let rewindCooldown = false;
+  let rewindActive = false;
+  let rewindAnimRaf = null;
 
   const ROLE_ANIM = {
     Guitar: 'anim-strum',
@@ -1057,6 +1060,13 @@ const Game = (() => {
     rewindSnapshots = [];
     lastSnapshotAt = -1;
     rewindCooldown = false;
+    rewindActive = false;
+    if (rewindAnimRaf) cancelAnimationFrame(rewindAnimRaf);
+    rewindAnimRaf = null;
+    Metronome.setBeatSuspended?.(false);
+    document.querySelector('.perform-screen')?.classList.remove('rewinding');
+    document.getElementById('btn-rewind')?.classList.remove('rewinding');
+    document.getElementById('btn-play-note')?.classList.remove('rewind-disabled');
     if (state.perfUiRaf) cancelAnimationFrame(state.perfUiRaf);
     if (state.perfInterval) clearInterval(state.perfInterval);
     state.perfInterval = null;
@@ -1104,36 +1114,9 @@ const Game = (() => {
     return best;
   }
 
-  function updateRewindButtonState() {
-    const btn = document.getElementById('btn-rewind');
-    if (!btn) return;
+  function applyRewindSnapshot(snapshot) {
     const p = state.performance;
-    const canRewind = !!p
-      && state.screen === 'perform'
-      && !p.booed
-      && !rewindCooldown
-      && rewindSnapshots.length > 0
-      && Metronome.running;
-    btn.disabled = !canRewind;
-  }
-
-  function rewindPerformance() {
-    const p = state.performance;
-    if (!p || state.screen !== 'perform' || p.booed || rewindCooldown || !Metronome.running) return;
-
-    const currentElapsed = Metronome.getElapsed();
-    const targetElapsed = Math.max(0, currentElapsed - REWIND_SECONDS);
-    const snapshot = findRewindSnapshot(targetElapsed);
-    if (!snapshot) return;
-
-    rewindCooldown = true;
-    const btn = document.getElementById('btn-rewind');
-    if (btn) btn.disabled = true;
-
-    activeHold = null;
-    AudioEngine.stopSustain?.();
-    const zone = document.getElementById('hit-zone');
-    if (zone) zone.classList.remove('holding');
+    if (!p || !snapshot) return;
 
     p.timeLeft = snapshot.timeLeft;
     p.crowd = snapshot.crowd;
@@ -1155,20 +1138,119 @@ const Game = (() => {
     const beatDur = 60 / p.bpm;
     Metronome.seek(snapshot.elapsed);
     BandAudio.syncToBeat(Math.floor(snapshot.elapsed / beatDur));
+  }
+
+  function updateRewindButtonState() {
+    const btn = document.getElementById('btn-rewind');
+    if (!btn) return;
+    const p = state.performance;
+    const canRewind = !!p
+      && state.screen === 'perform'
+      && !p.booed
+      && !rewindCooldown
+      && !rewindActive
+      && rewindSnapshots.length > 0
+      && Metronome.running;
+    btn.disabled = !canRewind;
+  }
+
+  function rewindPerformance() {
+    const p = state.performance;
+    if (!p || state.screen !== 'perform' || p.booed || rewindCooldown || rewindActive || !Metronome.running) return;
+
+    const startElapsed = Metronome.getElapsed();
+    const targetElapsed = Math.max(0, startElapsed - REWIND_SECONDS);
+    const finalSnapshot = findRewindSnapshot(targetElapsed);
+    if (!finalSnapshot) return;
+
+    rewindActive = true;
+    rewindCooldown = true;
+
+    const rewindBtn = document.getElementById('btn-rewind');
+    const playBtn = document.getElementById('btn-play-note');
+    const performScreen = document.querySelector('.perform-screen');
+    if (rewindBtn) {
+      rewindBtn.disabled = true;
+      rewindBtn.classList.add('rewinding');
+    }
+    if (playBtn) playBtn.classList.add('rewind-disabled');
+    performScreen?.classList.add('rewinding');
+
+    activeHold = null;
+    AudioEngine.stopSustain?.();
+    const zone = document.getElementById('hit-zone');
+    if (zone) zone.classList.remove('holding');
 
     const floaters = document.getElementById('floaters');
     if (floaters) floaters.innerHTML = '';
 
-    AudioEngine.setCrowdBooing?.(p.missStreak >= 3);
-    updateFireState();
-    updateHud();
-    updatePerformanceUI();
-    persist();
+    AudioEngine.playRewindSfx?.();
+    Metronome.setBeatSuspended?.(true);
 
-    setTimeout(() => {
-      rewindCooldown = false;
-      updateRewindButtonState();
-    }, 1000);
+    const inst = getActiveInstrument();
+    const song = getActiveSong();
+    const partKey = getPlayerPartKey(inst);
+    const isMelodic = inst.type === 'melodic';
+    const animStart = performance.now();
+
+    const finishRewind = () => {
+      if (rewindAnimRaf) cancelAnimationFrame(rewindAnimRaf);
+      rewindAnimRaf = null;
+
+      applyRewindSnapshot(finalSnapshot);
+      AudioEngine.setCrowdBooing?.(p.missStreak >= 3);
+      updateFireState();
+      updateHud();
+      updatePerformanceUI();
+      persist();
+
+      Metronome.setBeatSuspended?.(false);
+      rewindActive = false;
+      performScreen?.classList.remove('rewinding');
+      rewindBtn?.classList.remove('rewinding');
+      playBtn?.classList.remove('rewind-disabled');
+
+      setTimeout(() => {
+        rewindCooldown = false;
+        updateRewindButtonState();
+      }, 1000);
+    };
+
+    const scrubFrame = (now) => {
+      if (!state.performance || state.screen !== 'perform') {
+        rewindActive = false;
+        Metronome.setBeatSuspended?.(false);
+        return;
+      }
+
+      const progress = Math.min(1, (now - animStart) / REWIND_ANIM_MS);
+      const eased = 1 - (1 - progress) ** 2;
+      const scrubElapsed = startElapsed + (targetElapsed - startElapsed) * eased;
+
+      Metronome.seek(scrubElapsed);
+
+      const displaySnap = findRewindSnapshot(scrubElapsed) || finalSnapshot;
+      RhythmLane.update(
+        song,
+        partKey,
+        scrubElapsed,
+        p.bpm,
+        isMelodic,
+        new Set(displaySnap.hitBeats),
+        new Set(displaySnap.missedBeats || []),
+        null,
+        p.leadInBeat ?? 0,
+        null,
+      );
+
+      if (progress < 1) {
+        rewindAnimRaf = requestAnimationFrame(scrubFrame);
+      } else {
+        finishRewind();
+      }
+    };
+
+    rewindAnimRaf = requestAnimationFrame(scrubFrame);
   }
 
   function finalizeActiveHoldIfExpired() {
@@ -1193,7 +1275,7 @@ const Game = (() => {
 
   function checkMissedNotes() {
     const p = state.performance;
-    if (!p || p.booed || !isRhythmScoringEnabled()) return;
+    if (!p || p.booed || rewindActive || !isRhythmScoringEnabled()) return;
 
     const inst = getActiveInstrument();
     const song = getActiveSong();
@@ -1259,6 +1341,11 @@ const Game = (() => {
       setRhythmHint(left > 0 ? `Get ready… ${left}` : 'Go!', 'good');
       const hitZone = document.getElementById('hit-zone');
       if (hitZone) hitZone.classList.remove('ready', 'holding');
+      state._updatingPerfUi = false;
+      return;
+    }
+
+    if (rewindActive) {
       state._updatingPerfUi = false;
       return;
     }
@@ -1386,6 +1473,7 @@ const Game = (() => {
     const preload = Promise.all([
       AudioEngine.loadCheerSample?.().catch(() => null),
       AudioEngine.loadBooSample?.().catch(() => null),
+      AudioEngine.loadRewindSample?.().catch(() => null),
       typeof AudioSamples !== 'undefined' ? AudioSamples.loadInstrumentSamples(inst.subtype) : null,
     ]);
 
@@ -1425,6 +1513,7 @@ const Game = (() => {
     rewindSnapshots = [];
     lastSnapshotAt = -1;
     rewindCooldown = false;
+    rewindActive = false;
     stopPerformanceLoop();
     state.perfInterval = setInterval(tickPerformance, 1000);
     setScreen('perform');
@@ -1566,7 +1655,7 @@ const Game = (() => {
 
   function onNotePress() {
     const p = state.performance;
-    if (!p || !p.rhythmActive || activeHold) return;
+    if (!p || !p.rhythmActive || activeHold || rewindActive) return;
     if (!isRhythmScoringEnabled()) return;
 
     const inst = getActiveInstrument();
@@ -1616,7 +1705,7 @@ const Game = (() => {
 
   function onNoteRelease() {
     const p = state.performance;
-    if (!p || !activeHold) return;
+    if (!p || !activeHold || rewindActive) return;
 
     const { note, inst, pressElapsed } = activeHold;
     const elapsed = Metronome.getElapsed();
@@ -1645,7 +1734,7 @@ const Game = (() => {
 
   function tickPerformance() {
     const p = state.performance;
-    if (!p) return;
+    if (!p || rewindActive) return;
 
     p.timeLeft -= 1;
 

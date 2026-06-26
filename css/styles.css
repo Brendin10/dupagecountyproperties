@@ -879,6 +879,10 @@ body {
   gap: 8px;
   padding: 12px;
   text-align: center;
+  background: var(--brand-bg);
+  border-radius: 12px;
+  border: 2px solid var(--brand-purple);
+  box-shadow: 0 0 12px var(--brand-purple-glow);
 }
 
 .shop-band-slot.filled,
@@ -1433,6 +1437,30 @@ body {
 .rewind-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.rewind-btn.rewinding {
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.rewind-btn.rewinding span:first-child {
+  display: inline-block;
+  animation: rewindSpin 0.6s linear infinite;
+}
+
+@keyframes rewindSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+
+.perform-screen.rewinding .play-btn.rewind-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.perform-screen.rewinding .note-lane {
+  filter: sepia(0.15) brightness(0.92);
 }
 
 .play-controls .play-btn {
