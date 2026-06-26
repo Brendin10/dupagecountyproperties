@@ -1633,6 +1633,71 @@ body {
   transform: translateX(-50%);
   z-index: 3;
   pointer-events: none;
+  overflow: hidden;
+}
+
+.hit-zone-sparkler {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.hit-zone-sparkler:not(.active) {
+  display: none;
+}
+
+.hit-zone-sparkler .hold-spark {
+  position: absolute;
+  top: 55%;
+  left: calc(15% + var(--i) * 7%);
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 6px #fff, 0 0 10px currentColor;
+  animation: hold-spark-pop 0.55s ease-out infinite;
+  animation-delay: calc(var(--i) * -0.07s);
+}
+
+.hit-zone-sparkler.melodic .hold-spark {
+  color: #ffb347;
+  background: #ffe08a;
+}
+
+.hit-zone-sparkler.percussion .hold-spark {
+  color: #7ee8ff;
+  background: #d4f7ff;
+}
+
+.hit-zone-sparkler .hold-spark:nth-child(odd) {
+  animation-name: hold-spark-pop-alt;
+}
+
+.hit-zone-sparkler .hold-spark-particle {
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: var(--spark-color, #fff);
+  box-shadow:
+    0 0 4px #fff,
+    0 0 8px var(--spark-color, #fff),
+    0 0 14px var(--spark-color, #fff);
+  animation: holdSparkFly var(--dur, 0.45s) ease-out forwards;
+  pointer-events: none;
+}
+
+.hit-zone-sparkler .hold-spark-particle.melodic {
+  box-shadow: 0 0 6px #fff, 0 0 12px #ffb347, 0 0 18px #ff6b9d;
+}
+
+.hit-zone-sparkler .hold-spark-particle.percussion {
+  box-shadow: 0 0 6px #fff, 0 0 12px #7ee8ff, 0 0 18px #6bcbff;
 }
 
 .hit-zone-core {
@@ -1734,101 +1799,16 @@ body {
 }
 
 .note-gem.hold.holding {
-  z-index: 4;
-  filter: drop-shadow(0 0 10px #fff) drop-shadow(0 0 18px currentColor);
-  animation: hold-sparkler-shake 0.14s ease-in-out infinite alternate;
-}
-
-.note-gem.hold.holding .gem-shape {
-  color: #fff;
-  filter: drop-shadow(0 0 8px #fff) drop-shadow(0 0 16px currentColor) brightness(1.85);
-  animation: hold-sparkler-flicker 0.1s steps(2, end) infinite;
-  text-shadow:
-    0 0 6px #fff,
-    0 0 14px currentColor,
-    0 0 24px currentColor,
-    0 0 36px #fff;
-}
-
-.note-gem.hold.holding.melodic .gem-shape {
-  color: #fff8dc;
-  text-shadow:
-    0 0 8px #fff,
-    0 0 16px #ffd166,
-    0 0 28px #ff6b9d,
-    0 0 40px #ffb347;
-}
-
-.note-gem.hold.holding.percussion .gem-shape {
-  color: #f0fdff;
-  text-shadow:
-    0 0 8px #fff,
-    0 0 16px #7ee8ff,
-    0 0 28px #6bcbff,
-    0 0 40px #d4f7ff;
-}
-
-.note-gem.hold.holding::after {
-  opacity: 1;
-  height: 12px;
-  background: linear-gradient(90deg, #fff 0%, currentColor 18%, #fff 42%, currentColor 68%, rgba(255, 255, 255, 0.5) 100%);
-  background-size: 200% 100%;
-  box-shadow:
-    0 0 10px #fff,
-    0 0 20px currentColor,
-    0 0 32px currentColor;
-  animation: hold-sparkler-trail 0.35s linear infinite;
-}
-
-.hold-sparkler {
-  position: absolute;
-  inset: -8px -4px;
-  pointer-events: none;
-  overflow: visible;
   z-index: 2;
 }
 
-.hold-spark {
-  position: absolute;
-  top: 50%;
-  left: calc(8% + var(--i) * 8.5%);
-  width: 3px;
-  height: 3px;
-  margin: -1.5px 0 0 -1.5px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 6px #fff, 0 0 10px currentColor;
-  animation: hold-spark-pop 0.55s ease-out infinite;
-  animation-delay: calc(var(--i) * -0.07s);
+.note-gem.hold.holding .gem-shape {
+  filter: brightness(1.15);
 }
 
-.hold-sparkler.melodic .hold-spark {
-  color: #ffb347;
-  background: #ffe08a;
-}
-
-.hold-sparkler.percussion .hold-spark {
-  color: #7ee8ff;
-  background: #d4f7ff;
-}
-
-.hold-spark:nth-child(odd) {
-  animation-name: hold-spark-pop-alt;
-}
-
-@keyframes hold-sparkler-shake {
-  from { transform: translate(0, -50%) rotate(-0.4deg); }
-  to { transform: translate(0, -50%) rotate(0.4deg); }
-}
-
-@keyframes hold-sparkler-flicker {
-  0%, 100% { opacity: 1; filter: drop-shadow(0 0 8px #fff) brightness(1.9); }
-  50% { opacity: 0.88; filter: drop-shadow(0 0 14px #fff) brightness(2.2); }
-}
-
-@keyframes hold-sparkler-trail {
-  0% { background-position: 0% 50%; filter: brightness(1.4); }
-  100% { background-position: 200% 50%; filter: brightness(1.9); }
+.note-gem.hold.holding::after {
+  opacity: 0.45;
+  animation: none;
 }
 
 @keyframes hold-spark-pop {
@@ -1884,7 +1864,27 @@ body {
   color: #7ee8ff;
 }
 
-.hit-zone.holding .hit-zone-core {
+.hit-zone.holding.melodic .hit-zone-core {
+  border-color: #ffb347;
+  background: rgba(255, 179, 71, 0.28);
+  box-shadow:
+    0 0 14px rgba(255, 255, 255, 0.55),
+    0 0 26px rgba(255, 179, 71, 0.7),
+    0 0 38px rgba(255, 107, 157, 0.35);
+  animation: hold-pulse 0.35s ease-in-out infinite alternate;
+}
+
+.hit-zone.holding.percussion .hit-zone-core {
+  border-color: #7ee8ff;
+  background: rgba(126, 232, 255, 0.22);
+  box-shadow:
+    0 0 14px rgba(255, 255, 255, 0.55),
+    0 0 26px rgba(107, 203, 255, 0.65),
+    0 0 38px rgba(126, 232, 255, 0.4);
+  animation: hold-pulse 0.35s ease-in-out infinite alternate;
+}
+
+.hit-zone.holding:not(.melodic):not(.percussion) .hit-zone-core {
   border-color: #ffe08a;
   background: rgba(255, 224, 138, 0.3);
   box-shadow:
@@ -1894,9 +1894,26 @@ body {
   animation: hold-pulse 0.35s ease-in-out infinite alternate;
 }
 
+.hit-zone.holding.melodic .hit-zone-pulse {
+  animation: hold-zone-sparkle-melodic 0.25s steps(2, end) infinite;
+}
+
+.hit-zone.holding.percussion .hit-zone-pulse {
+  animation: hold-zone-sparkle-percussion 0.25s steps(2, end) infinite;
+}
+
 .hit-zone.holding .hit-zone-pulse {
   opacity: 1;
-  animation: hold-zone-sparkle 0.25s steps(2, end) infinite;
+}
+
+@keyframes hold-zone-sparkle-melodic {
+  0%, 100% { box-shadow: 0 0 12px #fff, 0 0 24px #ffb347; transform: scale(1); }
+  50% { box-shadow: 0 0 20px #fff, 0 0 36px #ffd166; transform: scale(1.06); }
+}
+
+@keyframes hold-zone-sparkle-percussion {
+  0%, 100% { box-shadow: 0 0 12px #fff, 0 0 24px #7ee8ff; transform: scale(1); }
+  50% { box-shadow: 0 0 20px #fff, 0 0 36px #6bcbff; transform: scale(1.06); }
 }
 
 @keyframes hold-zone-sparkle {
@@ -2204,39 +2221,6 @@ body {
 @keyframes particleBurst {
   0% { transform: translate(0, 0) scale(1); opacity: 1; }
   100% { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; }
-}
-
-.hold-spark-particle {
-  position: absolute;
-  top: 50%;
-  width: 5px;
-  height: 5px;
-  margin: -2.5px 0 0 -2.5px;
-  border-radius: 50%;
-  background: var(--spark-color, #fff);
-  box-shadow:
-    0 0 4px #fff,
-    0 0 8px var(--spark-color, #fff),
-    0 0 14px var(--spark-color, #fff);
-  animation: holdSparkFly var(--dur, 0.45s) ease-out forwards;
-  pointer-events: none;
-}
-
-.hold-spark-particle::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: inherit;
-  background: linear-gradient(135deg, #fff 0%, transparent 70%);
-  opacity: 0.8;
-}
-
-.hold-spark-particle.melodic {
-  box-shadow: 0 0 6px #fff, 0 0 12px #ffb347, 0 0 18px #ff6b9d;
-}
-
-.hold-spark-particle.percussion {
-  box-shadow: 0 0 6px #fff, 0 0 12px #7ee8ff, 0 0 18px #6bcbff;
 }
 
 @keyframes holdSparkFly {

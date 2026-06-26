@@ -2,15 +2,47 @@ const RhythmLane = (() => {
   const HIT_X = 18;
   const LOOKAHEAD = 2.8;
   let lastHoldSparkAt = 0;
+  let sparklerPopulated = false;
 
-  function holdSparklerMarkup(isMelodic) {
+  function hitZoneSparklerMarkup(isMelodic) {
     const sparks = Array.from({ length: 10 }, (_, i) =>
       `<span class="hold-spark" style="--i:${i}"></span>`
     ).join('');
-    return `<div class="hold-sparkler ${isMelodic ? 'melodic' : 'percussion'}" aria-hidden="true">${sparks}</div>`;
+    return sparks;
+  }
+
+  function ensureHitZoneSparkler(isMelodic) {
+    const layer = document.getElementById('hit-zone-sparkler');
+    if (!layer) return;
+    const tone = isMelodic ? 'melodic' : 'percussion';
+    if (sparklerPopulated && layer.dataset.tone === tone) return;
+    layer.innerHTML = hitZoneSparklerMarkup(isMelodic);
+    layer.dataset.tone = tone;
+    layer.classList.toggle('melodic', isMelodic);
+    layer.classList.toggle('percussion', !isMelodic);
+    sparklerPopulated = true;
+  }
+
+  function setHitZoneSparklerActive(holding, isMelodic) {
+    const hitZone = document.getElementById('hit-zone');
+    const layer = document.getElementById('hit-zone-sparkler');
+    if (!hitZone || !layer) return;
+
+    hitZone.classList.toggle('melodic', !!holding && isMelodic);
+    hitZone.classList.toggle('percussion', !!holding && !isMelodic);
+
+    if (holding) {
+      ensureHitZoneSparkler(isMelodic);
+      layer.classList.add('active');
+    } else {
+      layer.classList.remove('active');
+      layer.innerHTML = '';
+      sparklerPopulated = false;
+    }
   }
 
   function renderHtml(songName) {
+    sparklerPopulated = false;
     return `
       <div class="rhythm-highway" id="rhythm-highway">
         <div class="highway-glow"></div>
@@ -19,6 +51,7 @@ const RhythmLane = (() => {
           <div class="hit-zone" id="hit-zone">
             <div class="hit-zone-core"></div>
             <div class="hit-zone-pulse" id="hit-zone-pulse"></div>
+            <div class="hit-zone-sparkler" id="hit-zone-sparkler" aria-hidden="true"></div>
           </div>
           <div class="note-lane" id="note-lane"></div>
           <div class="gem-fx-layer" id="gem-fx-layer"></div>
@@ -45,34 +78,33 @@ const RhythmLane = (() => {
       isHeld ? 'holding' : '',
     ].filter(Boolean).join(' ');
     const shape = isHold ? '▬' : (note.melodic || isMelodic ? '◇' : '◆');
-    const sparkler = isHeld ? holdSparklerMarkup(note.melodic || isMelodic) : '';
     return `<div class="${cls}" style="left:${headPct}%;width:${widthPct}%" data-beat="${note.beat}" data-dur="${dur}" data-key="${key}">
       <span class="gem-shape">${shape}</span>
-      ${sparkler}
       <span class="gem-label">${note.label}</span>
     </div>`;
   }
 
-  function spawnHoldSpark(xPct, isMelodic) {
-    const layer = document.getElementById('gem-fx-layer');
-    if (!layer) return;
+  function spawnHoldSpark(isMelodic) {
+    const layer = document.getElementById('hit-zone-sparkler');
+    if (!layer || !layer.classList.contains('active')) return;
     const colors = isMelodic
       ? ['#fff', '#ffd166', '#ffe08a', '#ff6b9d', '#ffb347']
       : ['#fff', '#e8fcff', '#7ee8ff', '#6bcbff', '#ffe08a'];
-    const count = 2 + Math.floor(Math.random() * 3);
+    const count = 2 + Math.floor(Math.random() * 2);
     for (let i = 0; i < count; i++) {
       const spark = document.createElement('div');
       spark.className = `hold-spark-particle ${isMelodic ? 'melodic' : 'percussion'}`;
-      const ang = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
-      const dist = 16 + Math.random() * 48;
+      const ang = -Math.PI / 2 + (Math.random() - 0.5) * 1.2;
+      const dist = 10 + Math.random() * 22;
       const color = colors[Math.floor(Math.random() * colors.length)];
-      spark.style.left = `${xPct + (Math.random() - 0.5) * 3}%`;
+      const offsetPx = (Math.random() - 0.5) * 16;
+      spark.style.left = `calc(50% + ${offsetPx}px)`;
       spark.style.setProperty('--dx', `${Math.cos(ang) * dist}px`);
       spark.style.setProperty('--dy', `${Math.sin(ang) * dist}px`);
-      spark.style.setProperty('--dur', `${0.32 + Math.random() * 0.38}s`);
+      spark.style.setProperty('--dur', `${0.28 + Math.random() * 0.32}s`);
       spark.style.setProperty('--spark-color', color);
       layer.appendChild(spark);
-      setTimeout(() => spark.remove(), 720);
+      setTimeout(() => spark.remove(), 620);
     }
   }
 
@@ -172,16 +204,14 @@ const RhythmLane = (() => {
       hitZone.classList.toggle('holding', !!holdingKey);
     }
 
+    setHitZoneSparklerActive(!!holdingKey, isMelodic);
+
     if (holdingKey) {
-      const heldGem = lane.querySelector('.note-gem.holding');
       const now = performance.now();
-      if (heldGem && now - lastHoldSparkAt > 48) {
+      if (now - lastHoldSparkAt > 48) {
         lastHoldSparkAt = now;
-        const left = parseFloat(heldGem.style.left) || HIT_X;
-        const width = parseFloat(heldGem.style.width) || 12;
-        const sparkX = left + Math.random() * width * 0.85;
-        spawnHoldSpark(sparkX, isMelodic);
-        if (Math.random() < 0.45) spawnHoldSpark(left + Math.random() * width * 0.85, isMelodic);
+        spawnHoldSpark(isMelodic);
+        if (Math.random() < 0.45) spawnHoldSpark(isMelodic);
       }
     } else {
       lastHoldSparkAt = 0;
