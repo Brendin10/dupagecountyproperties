@@ -23,18 +23,20 @@ const RhythmLane = (() => {
       </div>`;
   }
 
-  function noteEl(note, headPct, isMelodic) {
+  function noteEl(note, headPct, isMelodic, holdingKey) {
     const dur = note.dur || 1;
     const widthPct = Math.max(4, (dur / LOOKAHEAD) * (88 - HIT_X));
     const isHold = note.isHold || dur > 1.05;
+    const key = `${note.beat}:${note.chord || ''}:${note.note || ''}:${note.hit || ''}`;
+    const isHeld = holdingKey && holdingKey === key;
     const cls = [
       'note-gem',
       note.melodic || isMelodic ? 'melodic' : 'percussion',
       isHold ? 'hold' : 'tap',
       note.active ? 'active' : '',
+      isHeld ? 'holding' : '',
     ].filter(Boolean).join(' ');
     const shape = isHold ? '▬' : (note.melodic || isMelodic ? '◇' : '◆');
-    const key = `${note.beat}:${note.chord || ''}:${note.note || ''}:${note.hit || ''}`;
     return `<div class="${cls}" style="left:${headPct}%;width:${widthPct}%" data-beat="${note.beat}" data-dur="${dur}" data-key="${key}">
       <span class="gem-shape">${shape}</span>
       <span class="gem-label">${note.label}</span>
@@ -82,7 +84,7 @@ const RhythmLane = (() => {
     setTimeout(() => gem.remove(), 300);
   }
 
-  function update(song, partKey, elapsed, bpm, isMelodic, hitBeats, missedBeats) {
+  function update(song, partKey, elapsed, bpm, isMelodic, hitBeats, missedBeats, holdingKey) {
     const lane = document.getElementById('note-lane');
     if (!lane) return;
 
@@ -92,7 +94,7 @@ const RhythmLane = (() => {
 
     lane.innerHTML = notes.map((n) => {
       const pct = HIT_X + (n.dist / LOOKAHEAD) * (88 - HIT_X);
-      return noteEl(n, Math.min(92, Math.max(HIT_X - 2, pct)), isMelodic);
+      return noteEl(n, Math.min(92, Math.max(HIT_X - 2, pct)), isMelodic, holdingKey);
     }).join('');
 
     const pulse = document.getElementById('hit-zone-pulse');
@@ -105,7 +107,7 @@ const RhythmLane = (() => {
     if (hitZone) {
       const inWindow = notes.some((n) => n.active || Math.abs(n.beat - currentBeat) < (isMelodic ? 0.22 : 0.18));
       hitZone.classList.toggle('ready', inWindow);
-      hitZone.classList.toggle('holding', notes.some((n) => n.active && n.isHold));
+      if (!holdingKey) hitZone.classList.remove('holding');
     }
 
     const sectionEl = document.getElementById('song-section-label');

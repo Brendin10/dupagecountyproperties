@@ -1102,14 +1102,17 @@ const Game = (() => {
       const key = noteKey(ev);
       if (p.hitBeats.has(key) || p.missedBeats.has(key)) continue;
 
+      const dur = ev.dur || 1;
+      const isHold = dur > 1.05;
       const activeHoldKey = activeHold ? noteKey(activeHold.note) : null;
       if (activeHoldKey === key) continue;
 
-      const missAfter = ev.beat + late;
+      const holdLate = isMelodic ? 0.38 : 0.32;
+      const missAfter = isHold ? ev.beat + dur + holdLate * 0.25 : ev.beat + late;
       if (currentBeat <= missAfter) continue;
 
       if (!earliestMiss || ev.beat < earliestMiss.beat) {
-        earliestMiss = { ...ev, key, isHold: (ev.dur || 1) > 1.05, dur: ev.dur || 1 };
+        earliestMiss = { ...ev, key, isHold, dur };
       }
     }
 
@@ -1145,7 +1148,7 @@ const Game = (() => {
     const timer = document.getElementById('perf-timer');
     if (timer) timer.textContent = `⏱ ${p.timeLeft}s`;
 
-    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic, p.hitBeats, p.missedBeats);
+    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic, p.hitBeats, p.missedBeats, activeHold ? noteKey(activeHold.note) : null);
 
     const crowdPct = Math.min(100, (p.crowd / p.crowdCap) * 100);
     const cheerPct = Math.min(100, (p.cheer / p.cheerGoal) * 100);
@@ -1428,16 +1431,20 @@ const Game = (() => {
     const notes = getUpcomingNotes(song, partKey, elapsed, p.bpm, RhythmLane.LOOKAHEAD, p.hitBeats, p.missedBeats);
     const { rating, note, phase } = rateNotePress(notes, elapsed, p.bpm, isMelodic, p.hitBeats);
 
-    if (phase === 'hold-continue') return;
-
     if (!note || rating === 'miss') {
-      const late = isMelodic ? 0.24 : 0.2;
-      const early = isMelodic ? 0.14 : 0.12;
+      const tapLate = isMelodic ? 0.24 : 0.2;
+      const tapEarly = isMelodic ? 0.14 : 0.12;
+      const holdLate = isMelodic ? 0.38 : 0.32;
+      const holdEarly = isMelodic ? 0.32 : 0.28;
       const beatDur = 60 / p.bpm;
       const currentBeat = elapsed / beatDur;
       const hittable = notes.some((n) => {
         const dist = n.beat - currentBeat;
-        return dist >= -late && dist <= early;
+        if (n.isHold) {
+          const inBody = currentBeat >= n.beat && currentBeat < n.endBeat;
+          return dist >= -holdLate && dist <= holdEarly || inBody;
+        }
+        return dist >= -tapLate && dist <= tapEarly;
       });
       if (hittable) applyHitScore('miss', null, inst);
       return;
@@ -1452,7 +1459,8 @@ const Game = (() => {
       AudioEngine.startSustain?.(inst, note);
       const zone = document.getElementById('hit-zone');
       if (zone) zone.classList.add('holding');
-      triggerPlayAnimation(inst, 'good');
+      triggerPlayAnimation(inst, rating);
+      setRhythmHint('hold through the gem!', 'good');
       return;
     }
 

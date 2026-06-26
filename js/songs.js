@@ -239,30 +239,57 @@ function getUpcomingNotes(song, partKey, elapsed, bpm, lookAhead, hitBeats, miss
 function rateNotePress(notes, elapsed, bpm, isMelodic, hitBeats) {
   const beatDur = 60 / bpm;
   const currentBeat = elapsed / beatDur;
-  const late = isMelodic ? 0.24 : 0.2;
-  const early = isMelodic ? 0.14 : 0.12;
-  const perfect = isMelodic ? 0.1 : 0.08;
+  const tapLate = isMelodic ? 0.24 : 0.2;
+  const tapEarly = isMelodic ? 0.14 : 0.12;
+  const holdLate = isMelodic ? 0.38 : 0.32;
+  const holdEarly = isMelodic ? 0.32 : 0.28;
+  const perfect = isMelodic ? 0.12 : 0.1;
   let best = null;
   let bestDist = Infinity;
+  let bestPhase = 'press';
+
   for (const n of notes) {
     const key = noteKey(n);
     if (hitBeats?.has(key)) continue;
-    if (n.active && n.isHold) return { rating: 'perfect', note: n, phase: 'hold-continue' };
+
     const dist = n.beat - currentBeat;
-    if (dist > early || dist < -late) continue;
+
+    if (n.isHold) {
+      const inBody = currentBeat >= n.beat && currentBeat < n.endBeat;
+      const inStartWindow = dist >= -holdLate && dist <= holdEarly;
+      const inBodyGrace = inBody && (currentBeat - n.beat) <= Math.max(holdLate, (n.dur || 1) * 0.45);
+      if (!inStartWindow && !inBodyGrace) continue;
+      const startDist = inBody ? currentBeat - n.beat : Math.abs(dist);
+      if (startDist < bestDist) {
+        bestDist = startDist;
+        best = n;
+        bestPhase = 'hold-start';
+      }
+      continue;
+    }
+
+    if (dist > tapEarly || dist < -tapLate) continue;
     const d = Math.abs(dist);
-    if (d < bestDist) { bestDist = d; best = n; }
+    if (d < bestDist) {
+      bestDist = d;
+      best = n;
+      bestPhase = 'tap';
+    }
   }
-  if (!best || bestDist > late) return { rating: 'miss', note: null, phase: 'press' };
-  return { rating: bestDist <= perfect ? 'perfect' : 'good', note: best, phase: best.isHold ? 'hold-start' : 'tap' };
+
+  if (!best) return { rating: 'miss', note: null, phase: 'press' };
+  const window = best.isHold ? holdLate : tapLate;
+  if (bestDist > window) return { rating: 'miss', note: null, phase: 'press' };
+  const rating = bestDist <= perfect ? 'perfect' : 'good';
+  return { rating, note: best, phase: bestPhase };
 }
 
 function rateHoldRelease(activeNote, elapsed, bpm) {
   if (!activeNote) return { rating: 'miss', note: null };
   const held = elapsed / (60 / bpm) - activeNote.beat;
   const required = activeNote.dur || 1;
-  if (held >= required * 0.88) return { rating: 'perfect', note: activeNote };
-  if (held >= required * 0.62) return { rating: 'good', note: activeNote };
+  if (held >= required * 0.75) return { rating: 'perfect', note: activeNote };
+  if (held >= required * 0.5) return { rating: 'good', note: activeNote };
   return { rating: 'miss', note: activeNote };
 }
 
