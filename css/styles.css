@@ -372,6 +372,11 @@ body {
   filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.32));
 }
 
+.char-layer.layer-arms-front {
+  transform: translateY(-1px);
+  z-index: 15 !important;
+}
+
 .char-layer.layer-instrument {
   filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.32));
   transform: translateY(-2px);

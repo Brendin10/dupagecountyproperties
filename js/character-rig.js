@@ -38,7 +38,7 @@ const CharacterRig = (() => {
     const furLight = colors.furLight || '#BC94FF';
     const hand = colors.hand || '#D2B2FF';
     const poseCls = `rig-pose-${pose}`;
-    const flip = isLeft ? '' : ' scale(-1,1) translate(-200,0)';
+    const flip = isLeft ? '' : ' scale(-1,1)';
 
     const stick = pose === 'drums' && !options.hideSticks
       ? `<line class="rig-stick" x1="${isLeft ? 28 : 172}" y1="188" x2="${isLeft ? 18 : 182}" y2="168" stroke="#8B7355" stroke-width="3" stroke-linecap="round"/>
