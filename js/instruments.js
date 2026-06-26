@@ -25,15 +25,17 @@ const INSTRUMENTS = {
   'synth-lead': { id: 'synth-lead', name: 'Synth Lead', emoji: '🎛️', type: 'melodic', subtype: 'synth', hold: 'keys', progression: ['Em', 'C', 'G', 'D'], cost: 340, crowdBonus: 14 },
 };
 
-const INSTRUMENT_SHOP_ITEMS = Object.values(INSTRUMENTS).map((i) => ({
-  id: i.id,
-  name: i.name,
-  emoji: i.emoji,
-  cost: i.cost ?? 100,
-  crowdBonus: i.crowdBonus ?? 5,
-  owned: !!i.starter,
-  starter: !!i.starter,
-}));
+const INSTRUMENT_SHOP_ITEMS = Object.values(INSTRUMENTS)
+  .sort((a, b) => (a.starter ? -1 : b.starter ? 1 : (a.cost ?? 0) - (b.cost ?? 0)))
+  .map((i) => ({
+    id: i.id,
+    name: i.name,
+    emoji: i.emoji,
+    cost: i.cost ?? 100,
+    crowdBonus: i.crowdBonus ?? 5,
+    owned: !!i.starter,
+    starter: !!i.starter,
+  }));
 
 function getEquippedInstrument(state) {
   const id = state.equippedInstrument

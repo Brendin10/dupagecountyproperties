@@ -478,7 +478,7 @@ const Game = (() => {
     const tabs = ['instruments', 'songs', 'clothes', 'makeup', 'accessories', 'band'];
     const tabButtons = tabs.map((t) => `
       <button class="shop-tab ${state.shopTab === t ? 'active' : ''}" data-tab="${t}">
-        ${t === 'band' ? '👥 Band Slots' : t === 'songs' ? '🎵 Songs' : t.charAt(0).toUpperCase() + t.slice(1)}
+        ${t === 'band' ? '👥 Band Slots' : t === 'songs' ? '🎵 Songs' : t === 'instruments' ? `🎸 Instruments (${SHOP_ITEMS.instruments.length})` : t.charAt(0).toUpperCase() + t.slice(1)}
       </button>
     `).join('');
 

@@ -3,7 +3,8 @@ const InstrumentArt = (() => {
   const ART_BASE = 'assets/instruments/';
 
   const ART_IDS = new Set([
-    'trash-lid', 'tambourine', 'ukulele', 'electric-guitar', 'piano', 'keyboard',
+    'trash-lid', 'tambourine', 'ukulele', 'electric-guitar', 'acoustic-guitar',
+    'piano', 'keyboard',
     'organ', 'trumpet', 'trombone', 'saxophone', 'violin', 'flute', 'harmonica',
     'synth-lead', 'triangle', 'xylophone', 'accordion', 'bongo', 'clarinet',
     'cowbell', 'drum-kit',
@@ -22,6 +23,9 @@ const InstrumentArt = (() => {
     tambourine: { x: 78, y: 32, w: 48, h: 62, rot: 0 },
     ukulele: { x: 70, y: 30, w: 60, h: 78, rot: -22 },
     'electric-guitar': { x: 62, y: 22, w: 76, h: 98, rot: -18 },
+    'acoustic-guitar': { x: 64, y: 24, w: 74, h: 96, rot: -20 },
+    'bass-guitar': { x: 60, y: 26, w: 78, h: 94, rot: -16 },
+    banjo: { x: 72, y: 32, w: 58, h: 76, rot: -18 },
     piano: { x: 38, y: 48, w: 124, h: 72, rot: 0 },
     keyboard: { x: 42, y: 52, w: 116, h: 58, rot: 0 },
     organ: { x: 48, y: 30, w: 104, h: 88, rot: 0 },
