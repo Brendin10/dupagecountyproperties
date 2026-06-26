@@ -83,6 +83,7 @@ const Game = (() => {
 
   const REWIND_SECONDS = 5;
   const GIG_START_GRACE_SEC = 5;
+  const RHYTHM_WARMUP_SEC = 4;
   const SNAPSHOT_INTERVAL = 0.5;
   const SNAPSHOT_RETENTION = 12;
   let rewindSnapshots = [];
@@ -915,12 +916,13 @@ const Game = (() => {
 
     p.rhythmActive = true;
     p.rhythmStartAt = performance.now();
+    p.leadInBeat = (RHYTHM_WARMUP_SEC * bpm) / 60;
 
     BandAudio.start(bpm);
     Metronome.start(bpm, (beatIdx) => {
       BandAudio.onBeat(beatIdx);
     }, { silent: true });
-    setRhythmHint('Tap quick gems · hold long gems through the zone!', null);
+    setRhythmHint('Tap quick gems · hold long gems through the zone!');
   }
 
   function startPerformanceLoop() {
@@ -1116,6 +1118,9 @@ const Game = (() => {
     const late = isMelodic ? 0.24 : 0.2;
 
     if (!p.rhythmActive) return;
+    if (elapsed < RHYTHM_WARMUP_SEC) return;
+
+    const leadInBeat = p.leadInBeat ?? 0;
 
     const part = song.parts[partKey] || [];
     if (!p.missedBeats) p.missedBeats = new Set();
@@ -1127,11 +1132,17 @@ const Game = (() => {
 
       const dur = ev.dur || 1;
       const isHold = dur > 1.05;
+      const holdLate = isMelodic ? 0.38 : 0.32;
+      const missAfter = isHold ? ev.beat + dur + holdLate * 0.25 : ev.beat + late;
+
+      if (ev.beat < leadInBeat) {
+        if (currentBeat > missAfter) p.missedBeats.add(key);
+        continue;
+      }
+
       const activeHoldKey = activeHold ? noteKey(activeHold.note) : null;
       if (activeHoldKey === key) continue;
 
-      const holdLate = isMelodic ? 0.38 : 0.32;
-      const missAfter = isHold ? ev.beat + dur + holdLate * 0.25 : ev.beat + late;
       if (currentBeat <= missAfter) continue;
 
       if (!earliestMiss || ev.beat < earliestMiss.beat) {
@@ -1170,6 +1181,11 @@ const Game = (() => {
       return;
     }
 
+    if (elapsed < RHYTHM_WARMUP_SEC) {
+      const left = Math.max(1, Math.ceil(RHYTHM_WARMUP_SEC - elapsed));
+      setRhythmHint(`Get ready… ${left}`, 'good');
+    }
+
     checkMissedNotes();
     if (!state.performance || state.screen !== 'perform') {
       state._updatingPerfUi = false;
@@ -1181,7 +1197,7 @@ const Game = (() => {
     }
     updateRewindButtonState();
 
-    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic, p.hitBeats, p.missedBeats, activeHold ? noteKey(activeHold.note) : null);
+    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic, p.hitBeats, p.missedBeats, activeHold ? noteKey(activeHold.note) : null, p.leadInBeat ?? 0);
 
     const crowdPct = Math.min(100, (p.crowd / p.crowdCap) * 100);
     const cheerPct = Math.min(100, (p.cheer / p.cheerGoal) * 100);
@@ -1253,6 +1269,10 @@ const Game = (() => {
   function setRhythmHint(text, rating) {
     const el = document.getElementById('rhythm-hint');
     if (!el) return;
+    if (!rating || !text.includes(rating)) {
+      el.textContent = text;
+      return;
+    }
     el.innerHTML = text.replace(rating, `<span class="rating-${rating}">${rating.toUpperCase()}</span>`);
   }
 
@@ -1456,12 +1476,14 @@ const Game = (() => {
     const p = state.performance;
     if (!p || !p.rhythmActive || activeHold) return;
 
+    const elapsed = Metronome.getElapsed();
+    if (elapsed < RHYTHM_WARMUP_SEC) return;
+
     const inst = getActiveInstrument();
     const song = getActiveSong();
     const partKey = getPlayerPartKey(inst);
-    const elapsed = Metronome.getElapsed();
     const isMelodic = inst.type === 'melodic';
-    const notes = getUpcomingNotes(song, partKey, elapsed, p.bpm, RhythmLane.LOOKAHEAD, p.hitBeats, p.missedBeats);
+    const notes = getUpcomingNotes(song, partKey, elapsed, p.bpm, RhythmLane.LOOKAHEAD, p.hitBeats, p.missedBeats, p.leadInBeat ?? 0);
     const { rating, note, phase } = rateNotePress(notes, elapsed, p.bpm, isMelodic, p.hitBeats);
 
     if (!note || rating === 'miss') {

@@ -84,11 +84,11 @@ const RhythmLane = (() => {
     setTimeout(() => gem.remove(), 300);
   }
 
-  function update(song, partKey, elapsed, bpm, isMelodic, hitBeats, missedBeats, holdingKey) {
+  function update(song, partKey, elapsed, bpm, isMelodic, hitBeats, missedBeats, holdingKey, leadInBeat = 0) {
     const lane = document.getElementById('note-lane');
     if (!lane) return;
 
-    const notes = getUpcomingNotes(song, partKey, elapsed, bpm, LOOKAHEAD, hitBeats, missedBeats);
+    const notes = getUpcomingNotes(song, partKey, elapsed, bpm, LOOKAHEAD, hitBeats, missedBeats, leadInBeat);
     const beatDur = 60 / bpm;
     const currentBeat = elapsed / beatDur;
 

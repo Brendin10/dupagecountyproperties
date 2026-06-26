@@ -216,13 +216,14 @@ function getPartEvents(song, partKey, beat) {
 
 function eventLabel(ev) { return ev.chord || ev.note || ev.hit || '•'; }
 
-function getUpcomingNotes(song, partKey, elapsed, bpm, lookAhead, hitBeats, missedBeats) {
+function getUpcomingNotes(song, partKey, elapsed, bpm, lookAhead, hitBeats, missedBeats, leadInBeat = 0) {
   const la = lookAhead ?? 3;
   const beatDur = 60 / bpm;
   const part = song.parts[partKey] || [];
   const currentBeat = elapsed / beatDur;
   const notes = [];
   for (const ev of part) {
+    if (ev.beat < leadInBeat) continue;
     const key = noteKey(ev);
     if (hitBeats?.has(key) || missedBeats?.has(key)) continue;
     const dur = ev.dur || 1;
