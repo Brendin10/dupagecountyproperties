@@ -1377,6 +1377,7 @@ body {
   box-shadow: 0 6px 24px rgba(255, 209, 102, 0.4);
   transition: transform 0.1s;
   color: #3d2817;
+  touch-action: manipulation;
 }
 
 .play-btn:hover {
@@ -1384,7 +1385,7 @@ body {
 }
 
 .play-btn:active {
-  transform: scale(0.96);
+  filter: brightness(0.92);
 }
 
 .instrument-emoji {
