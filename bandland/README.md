@@ -26,3 +26,7 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 - **Band members** — recruited as your star power grows; requires purchased band slots
 
 No build step required — vanilla HTML, CSS, and JavaScript.
+
+## Audio Samples
+
+Instrument and crowd audio uses hybrid playback: short WAV samples in `audio/instruments/` plus procedural Web Audio synthesis as fallback. Samples are procedurally generated in-repo (CC0) via `scripts/generate-instrument-samples.mjs`. Crowd cheer/boo clips live in `audio/`.

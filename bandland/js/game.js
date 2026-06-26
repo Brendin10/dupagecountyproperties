@@ -22,6 +22,7 @@ const Game = (() => {
     equippedSong: 'street-jam',
     equippedWear: { clothes: null, makeup: null, accessories: null },
     shopNotice: null,
+    gigIntroRunning: false,
   };
 
   let parallaxCleanup = null;
@@ -257,6 +258,9 @@ const Game = (() => {
 
   function renderTitle() {
     const hasSave = SaveManager.hasSave();
+    const idleChar = state.character
+      ? renderCharacter(state.character, 140, { instrument: INSTRUMENTS['trash-lid'] })
+      : renderCharacter('benny', 140, { instrument: INSTRUMENTS['trash-lid'] });
     return `
       <section class="screen title-screen">
         <div class="title-bg"></div>
@@ -264,6 +268,7 @@ const Game = (() => {
           <p class="eyebrow">Welcome to</p>
           <h1 class="game-title">BAND<span>LAND</span></h1>
           <p class="subtitle">From trash can lids to sold-out shows.</p>
+          <div class="title-idle-character" id="title-idle-char">${idleChar}</div>
           <div class="title-actions">
             ${hasSave ? '<button class="btn btn-primary btn-lg" id="btn-continue">Continue</button>' : ''}
             <button class="btn ${hasSave ? 'btn-secondary' : 'btn-primary'} btn-lg" id="btn-start">Start Your Journey</button>
@@ -322,7 +327,7 @@ const Game = (() => {
               <span class="lid-icon">🔘</span>
               <span class="lid-label">Metal Lid</span>
             </button>
-            <div class="story-character small">${char.render(100)}</div>
+            <div class="story-character small">${renderCharacter(state.character, 100, { instrument: INSTRUMENTS['trash-lid'] })}</div>
           </div>
           <div class="story-text">
             <h2>Found It!</h2>
@@ -399,13 +404,21 @@ const Game = (() => {
       </div>
     `;
 
+    const inst = getActiveInstrument();
+    const song = getActiveSong();
+
     return `
       <section class="screen hub-screen">
         <div class="hub-layout">
           <aside class="hub-sidebar">
-            <div class="hub-character">${renderCharacter(state.character, 120, { instrument: getActiveInstrument(), equippedWear: state.equippedWear })}</div>
+            <div class="hub-character">${renderCharacter(state.character, 120, { instrument: inst, equippedWear: state.equippedWear })}</div>
             <p class="hub-name">${char.name}</p>
             <p class="hub-appeal">Crowd Appeal: <strong>+${appeal}</strong></p>
+            <div class="hub-loadout">
+              <h4>Gig Loadout</h4>
+              <div class="loadout-row"><span>🎸</span> ${inst.name}</div>
+              <div class="loadout-row"><span>${song.emoji}</span> ${song.name}</div>
+            </div>
             ${inventorySections}
             ${bandSection}
           </aside>
@@ -419,7 +432,10 @@ const Game = (() => {
             <div class="venue-grid">${venueCards}</div>
 
             <div class="hub-actions">
-              <button class="btn btn-primary btn-lg" id="btn-perform">🎵 Play Gig</button>
+              <button class="btn btn-primary btn-lg" id="btn-perform">
+                <span class="gig-loadout-preview">${typeof renderShopInstrumentPreview === 'function' ? renderShopInstrumentPreview(inst, 36) : inst.emoji}</span>
+                <span class="gig-loadout-text">Play Gig<br><small>${inst.name} · ${song.name}</small></span>
+              </button>
               <button class="btn btn-secondary" id="btn-shop">🛍️ Shop</button>
             </div>
           </div>
@@ -489,9 +505,13 @@ const Game = (() => {
         <div class="shop-list">
           ${items.map((item) => {
             const owned = state.inventories[state.shopTab].includes(item.id);
+            const instObj = state.shopTab === 'instruments' ? INSTRUMENTS[item.id] : null;
+            const preview = instObj && typeof renderShopInstrumentPreview === 'function'
+              ? renderShopInstrumentPreview(instObj, 52)
+              : `<span class="shop-emoji">${item.emoji}</span>`;
             return `
-              <div class="shop-item ${owned ? 'owned' : ''}">
-                <span class="shop-emoji">${item.emoji}</span>
+              <div class="shop-item ${owned ? 'owned' : ''}" ${instObj ? `data-preview-inst="${item.id}"` : ''}>
+                <button type="button" class="shop-preview-btn" data-preview-inst="${instObj ? item.id : ''}" title="Tap to preview sound">${preview}</button>
                 <div class="shop-info">
                   <strong>${item.name}</strong>
                   <span>+${item.crowdBonus} crowd appeal</span>
@@ -551,7 +571,7 @@ const Game = (() => {
     ).join('');
 
     return `
-      <section class="screen perform-screen ${venue.bg}">
+      <section class="screen perform-screen ${venue.bg} stage-mounting">
         ${renderVenueBackdrop(venue.id)}
         <div class="perform-content">
         <div class="perform-header">
@@ -649,6 +669,28 @@ const Game = (() => {
         : document.querySelector('.perform-screen');
       if (parallaxRoot) parallaxCleanup = initVenueParallax(parallaxRoot);
     }
+    if (state.screen === 'title') {
+      startTitleIdleAnimation();
+    }
+  }
+
+  let titleIdleTimer = null;
+
+  function startTitleIdleAnimation() {
+    if (titleIdleTimer) clearInterval(titleIdleTimer);
+    const el = document.getElementById('title-idle-char');
+    if (!el) return;
+    titleIdleTimer = setInterval(() => {
+      const charEl = el.querySelector('.character-layered');
+      if (!charEl) return;
+      if (typeof CharacterRig !== 'undefined') {
+        CharacterRig.applyPose(charEl, 'strum', 'hit');
+      }
+      charEl.classList.remove('anim-strum');
+      void charEl.offsetWidth;
+      charEl.classList.add('anim-strum');
+      AudioEngine.playInstrument?.(INSTRUMENTS['trash-lid']);
+    }, 2400);
   }
 
   function bindEvents() {
@@ -686,6 +728,10 @@ const Game = (() => {
 
     $('#btn-tap-lid')?.addEventListener('click', () => {
       AudioEngine.playCrash();
+      const charEl = document.querySelector('.lid-scene .character-layered');
+      if (charEl && typeof CharacterRig !== 'undefined') {
+        CharacterRig.applyPose(charEl, 'brass', 'hit');
+      }
       const hint = $('#lid-hint');
       if (hint) hint.textContent = 'Perfect! That crash/cymbal sound is GOLD.';
       setTimeout(() => {
@@ -751,6 +797,7 @@ const Game = (() => {
         if (!id) return;
         if (cat === 'instruments' && state.inventories.instruments.includes(id)) {
           state.equippedInstrument = id;
+          AudioEngine.playInstrument?.(INSTRUMENTS[id]);
           persist();
           render();
           return;
@@ -767,6 +814,16 @@ const Game = (() => {
           persist();
           render();
         }
+      });
+    });
+
+    $$('.shop-preview-btn[data-preview-inst]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.previewInst;
+        if (!id || !INSTRUMENTS[id]) return;
+        AudioEngine.resume();
+        AudioEngine.playInstrument(INSTRUMENTS[id]);
       });
     });
 
@@ -883,6 +940,9 @@ const Game = (() => {
     el.classList.remove(...ALL_ANIM_CLASSES);
     void el.offsetWidth;
     el.classList.add(anim);
+    if (typeof CharacterRig !== 'undefined') {
+      CharacterRig.applyPoseFromRole(el, member.role, 'hit');
+    }
   }
 
   function triggerPlayAnimation(inst, rating) {
@@ -894,6 +954,9 @@ const Game = (() => {
     if (rating !== 'miss') {
       performer.classList.add(anim);
       performer.classList.add('hit-flash');
+      if (typeof CharacterRig !== 'undefined') {
+        CharacterRig.applyPoseFromInstrument(performer, inst, 'hit');
+      }
     }
     const held = performer.querySelector('.held-instrument');
     if (held) {
@@ -906,6 +969,10 @@ const Game = (() => {
           tambourine: 'inst-play-shake',
         }[inst.id] || (inst.type === 'melodic' ? 'inst-play-melodic' : 'inst-play-percussion');
         held.classList.add(instAnim);
+        if (inst.id === 'drum-kit' && typeof InstrumentArt !== 'undefined') {
+          const hitType = rating === 'perfect' ? 'cymbal' : 'snare';
+          InstrumentArt.triggerDrumHit(held, hitType);
+        }
       }
     }
   }
@@ -916,7 +983,38 @@ const Game = (() => {
     el.innerHTML = text.replace(rating, `<span class="rating-${rating}">${rating.toUpperCase()}</span>`);
   }
 
-  function startPerformance() {
+  function setCurtainState(phase, message = '') {
+    const curtain = document.getElementById('stage-curtain');
+    const status = document.getElementById('curtain-status');
+    if (!curtain) return;
+    curtain.classList.remove('curtain-idle', 'curtain-closing', 'curtain-loading', 'curtain-opening', 'curtain-done');
+    curtain.classList.add(`curtain-${phase}`);
+    curtain.setAttribute('aria-hidden', phase === 'idle' || phase === 'done' ? 'true' : 'false');
+    if (status) status.textContent = message;
+  }
+
+  function waitMs(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function runGigIntroSequence() {
+    const btn = document.getElementById('btn-perform');
+    if (btn) btn.disabled = true;
+
+    setCurtainState('closing');
+    AudioEngine.resume();
+
+    const inst = getActiveInstrument();
+    const preload = Promise.all([
+      AudioEngine.loadCheerSample?.().catch(() => null),
+      AudioEngine.loadBooSample?.().catch(() => null),
+      typeof AudioSamples !== 'undefined' ? AudioSamples.loadInstrumentSamples(inst.subtype) : null,
+    ]);
+
+    await waitMs(600);
+    setCurtainState('loading', 'Tuning up…');
+    await preload;
+
     const venue = VENUES.find((v) => v.id === state.currentVenue);
     const appeal = crowdAppeal();
     const crowdCap = venue.crowdCap + Math.floor(appeal * 0.5);
@@ -945,11 +1043,33 @@ const Game = (() => {
     };
 
     activeHold = null;
-
     stopPerformanceLoop();
     state.perfInterval = setInterval(tickPerformance, 1000);
     setScreen('perform');
+
+    await waitMs(80);
+    setCurtainState('opening');
+    const performContent = document.querySelector('.perform-content');
+    if (performContent) {
+      performContent.classList.add('stage-reveal');
+      document.querySelector('.perform-screen')?.classList.remove('stage-mounting');
+    }
+
+    await waitMs(800);
+    setCurtainState('done');
     startPerformanceLoop();
+
+    if (btn) btn.disabled = false;
+    await waitMs(300);
+    setCurtainState('idle');
+  }
+
+  function startPerformance() {
+    if (state.gigIntroRunning) return;
+    state.gigIntroRunning = true;
+    runGigIntroSequence().finally(() => {
+      state.gigIntroRunning = false;
+    });
   }
 
   function applyHitScore(rating, note, inst) {
