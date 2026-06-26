@@ -47,14 +47,18 @@ const CharacterRig = (() => {
 
     return `
       <g class="rig-arm rig-arm-${side} rig-layer-${layer} ${poseCls}" transform="translate(${sx},${shoulderY})${flip}">
-        <g class="rig-upper-arm" style="transform-origin:0 0">
+        <g class="rig-upper-arm">
           <ellipse cx="0" cy="8" rx="14" ry="16" fill="${fur}" stroke="${OUTLINE}" stroke-width="3"/>
         </g>
-        <g class="rig-forearm" style="transform-origin:0 18px" transform="translate(0,18)">
-          <ellipse cx="0" cy="14" rx="11" ry="13" fill="${furLight}" stroke="${OUTLINE}" stroke-width="2.5"/>
+        <g class="rig-forearm" transform="translate(0,18)">
+          <g class="rig-forearm-pose" style="transform-box:fill-box;transform-origin:0 0">
+            <ellipse cx="0" cy="14" rx="11" ry="13" fill="${furLight}" stroke="${OUTLINE}" stroke-width="2.5"/>
+          </g>
         </g>
-        <g class="rig-hand" style="transform-origin:0 0" transform="translate(0,32)">
-          <ellipse cx="0" cy="6" rx="9" ry="8" fill="${hand}" stroke="${OUTLINE}" stroke-width="2"/>
+        <g class="rig-hand" transform="translate(0,32)">
+          <g class="rig-hand-pose" style="transform-box:fill-box;transform-origin:0 0">
+            <ellipse cx="0" cy="6" rx="9" ry="8" fill="${hand}" stroke="${OUTLINE}" stroke-width="2"/>
+          </g>
         </g>
         ${stick}
       </g>`;

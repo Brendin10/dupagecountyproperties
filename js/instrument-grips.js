@@ -32,10 +32,10 @@ const InstrumentGrips = (() => {
 
   const OVERRIDES = {
     'trash-lid': {
-      gripL: { x: 118, y: 148 },
-      gripR: { x: 132, y: 138 },
-      art: { w: 58, h: 58, anchorX: 0.5, anchorY: 0.55 },
-      rot: -14,
+      gripL: { x: 108, y: 152 },
+      gripR: { x: 122, y: 142 },
+      art: { w: 58, h: 58, anchorX: 0.5, anchorY: 0.62 },
+      rot: -10,
     },
     tambourine: {
       gripR: { x: 122, y: 142 },
@@ -163,7 +163,7 @@ const InstrumentGrips = (() => {
     };
   }
 
-  const ART_SCALE = 1.55;
+  const ART_SCALE = 1.35;
 
   function mountTransform(grip) {
     const { gripL, art, rot } = grip;

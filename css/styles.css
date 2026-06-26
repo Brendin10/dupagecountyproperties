@@ -362,11 +362,13 @@ body {
 }
 
 .char-layer.layer-arms-front {
+  transform: translateY(-1px);
   z-index: 15 !important;
 }
 
 .char-layer.layer-instrument {
   filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.32));
+  transform: translateY(-2px);
   z-index: 13 !important;
 }
 
@@ -1808,14 +1810,13 @@ body {
   65% { transform: translateY(-2px) rotate(4deg); }
 }
 
-/* Stage lighting rig — scales with venue tier, sits behind performers */
+/* Stage lighting rig — behind performers, colored EDM effects */
 .stage-lighting-rig {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 1;
   overflow: hidden;
-  mix-blend-mode: screen;
 }
 
 .stage-light-haze {
@@ -2225,93 +2226,87 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Character limb rig */
-.rig-arm .rig-upper-arm,
-.rig-arm .rig-forearm,
-.rig-arm .rig-hand {
+/* Character limb rig — rotate inner pose groups only; SVG handles limb offsets */
+.rig-arm .rig-forearm-pose,
+.rig-arm .rig-hand-pose {
   transition: transform 0.08s ease-out;
 }
 
-.rig-pose-strum .rig-arm-R.rig-hit .rig-forearm {
+.rig-pose-strum .rig-arm-R.rig-hit .rig-forearm-pose {
   animation: rigStrumR 0.28s ease;
 }
 
-.rig-pose-strum .rig-arm-L.rig-hit-alt .rig-forearm {
+.rig-pose-strum .rig-arm-L.rig-hit-alt .rig-forearm-pose {
   animation: rigStrumL 0.28s ease;
 }
 
-.rig-pose-drums .rig-arm-L.rig-hit .rig-forearm,
+.rig-pose-drums .rig-arm-L.rig-hit .rig-forearm-pose,
 .rig-pose-drums .rig-arm-L.rig-hit .rig-stick {
   animation: rigDrumHitL 0.22s ease;
 }
 
-.rig-pose-drums .rig-arm-R.rig-hit-alt .rig-forearm,
+.rig-pose-drums .rig-arm-R.rig-hit-alt .rig-forearm-pose,
 .rig-pose-drums .rig-arm-R.rig-hit-alt .rig-stick {
   animation: rigDrumHitR 0.22s ease;
 }
 
-.rig-pose-keys .rig-arm-L.rig-hit .rig-hand,
-.rig-pose-keys .rig-arm-R.rig-hit-alt .rig-hand {
+.rig-pose-keys .rig-arm-L.rig-hit .rig-hand-pose,
+.rig-pose-keys .rig-arm-R.rig-hit-alt .rig-hand-pose {
   animation: rigKeyPress 0.2s ease;
 }
 
-.rig-pose-brass .rig-arm-R.rig-hit-alt .rig-hand {
+.rig-pose-brass .rig-arm-R.rig-hit-alt .rig-hand-pose {
   animation: rigBrassToot 0.24s ease;
 }
 
-/* Resting arm poses — preserve SVG translate chain so limbs stay on shoulders */
-.rig-pose-strum .rig-arm-L .rig-forearm {
-  transform: translate(0, 18px) rotate(22deg);
+/* Resting arm poses — hands reach toward instrument grips */
+.rig-pose-strum .rig-arm-L .rig-forearm-pose {
+  transform: rotate(38deg);
 }
 
-.rig-pose-strum .rig-arm-R .rig-forearm {
-  transform: translate(0, 18px) rotate(-26deg);
+.rig-pose-strum .rig-arm-R .rig-forearm-pose {
+  transform: rotate(-44deg);
 }
 
-.rig-pose-strum .rig-arm-L .rig-hand {
-  transform: translate(0, 32px) rotate(6deg);
+.rig-pose-strum .rig-arm-L .rig-hand-pose {
+  transform: rotate(8deg);
 }
 
-.rig-pose-strum .rig-arm-R .rig-hand {
-  transform: translate(0, 32px) rotate(-4deg);
+.rig-pose-strum .rig-arm-R .rig-hand-pose {
+  transform: rotate(-6deg);
 }
 
-.rig-pose-keys .rig-arm-L .rig-forearm {
-  transform: translate(0, 18px) rotate(16deg);
+.rig-pose-keys .rig-arm-L .rig-forearm-pose {
+  transform: rotate(26deg);
 }
 
-.rig-pose-keys .rig-arm-R .rig-forearm {
-  transform: translate(0, 18px) rotate(-16deg);
+.rig-pose-keys .rig-arm-R .rig-forearm-pose {
+  transform: rotate(-26deg);
 }
 
-.rig-pose-keys .rig-arm-L .rig-hand,
-.rig-pose-keys .rig-arm-R .rig-hand {
-  transform: translate(0, 32px) rotate(0deg);
+.rig-pose-keys .rig-arm-L .rig-hand-pose,
+.rig-pose-keys .rig-arm-R .rig-hand-pose {
+  transform: rotate(0deg);
 }
 
-.rig-pose-drums .rig-arm-L .rig-forearm {
-  transform: translate(0, 18px) rotate(14deg);
+.rig-pose-drums .rig-arm-L .rig-forearm-pose {
+  transform: rotate(20deg);
 }
 
-.rig-pose-drums .rig-arm-R .rig-forearm {
-  transform: translate(0, 18px) rotate(-14deg);
+.rig-pose-drums .rig-arm-R .rig-forearm-pose {
+  transform: rotate(-20deg);
 }
 
-.rig-pose-drums .rig-arm-L .rig-hand,
-.rig-pose-drums .rig-arm-R .rig-hand {
-  transform: translate(0, 32px) rotate(0deg);
+.rig-pose-brass .rig-arm-L .rig-forearm-pose {
+  transform: rotate(16deg);
 }
 
-.rig-pose-brass .rig-arm-L .rig-forearm {
-  transform: translate(0, 18px) rotate(12deg);
+.rig-pose-brass .rig-arm-R .rig-forearm-pose {
+  transform: rotate(-36deg);
 }
 
-.rig-pose-brass .rig-arm-R .rig-forearm {
-  transform: translate(0, 18px) rotate(-24deg);
-}
-
-.rig-pose-brass .rig-arm-R .rig-hand {
-  transform: translate(0, 32px) rotate(-8deg);
+.rig-pose-brass .rig-arm-R .rig-hand-pose {
+  transform: rotate(-12deg);
 }
 
 .rig-stick.rig-stick-hit {
@@ -2319,35 +2314,35 @@ body {
 }
 
 @keyframes rigStrumR {
-  0%, 100% { transform: translate(0, 18px) rotate(-26deg); }
-  40% { transform: translate(0, 18px) rotate(-42deg); }
-  70% { transform: translate(0, 18px) rotate(-16deg); }
+  0%, 100% { transform: rotate(-44deg); }
+  40% { transform: rotate(-58deg); }
+  70% { transform: rotate(-30deg); }
 }
 
 @keyframes rigStrumL {
-  0%, 100% { transform: translate(0, 18px) rotate(22deg); }
-  40% { transform: translate(0, 18px) rotate(34deg); }
-  70% { transform: translate(0, 18px) rotate(14deg); }
+  0%, 100% { transform: rotate(38deg); }
+  40% { transform: rotate(52deg); }
+  70% { transform: rotate(28deg); }
 }
 
 @keyframes rigDrumHitL {
-  0%, 100% { transform: translate(0, 18px) rotate(14deg); }
-  35% { transform: translate(0, 22px) rotate(36deg); }
+  0%, 100% { transform: rotate(20deg); }
+  35% { transform: rotate(42deg); }
 }
 
 @keyframes rigDrumHitR {
-  0%, 100% { transform: translate(0, 18px) rotate(-14deg); }
-  35% { transform: translate(0, 22px) rotate(-36deg); }
+  0%, 100% { transform: rotate(-20deg); }
+  35% { transform: rotate(-42deg); }
 }
 
 @keyframes rigKeyPress {
-  0%, 100% { transform: translate(0, 32px); }
-  50% { transform: translate(0, 38px); }
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(6px); }
 }
 
 @keyframes rigBrassToot {
-  0%, 100% { transform: translate(0, 32px) rotate(-8deg); }
-  50% { transform: translate(0, 35px) rotate(-14deg); }
+  0%, 100% { transform: rotate(-12deg); }
+  50% { transform: rotate(-20deg) translateY(3px); }
 }
 
 @keyframes rigStickHit {

@@ -1136,7 +1136,7 @@ const AudioEngine = (() => {
   function synthCrowdCheer(ac, now, tier, vol, loud = false) {
     const tn = tierNorm(tier);
     const dur = loud ? 1.8 + tn * 1.4 : 0.9 + tn * 0.7;
-    const peak = vol * (loud ? 0.55 : 0.32);
+    const peak = vol * (loud ? 0.72 : 0.45);
 
     const noise = ac.createBufferSource();
     noise.buffer = noiseBuffer(ac, dur);
@@ -1292,7 +1292,7 @@ const AudioEngine = (() => {
 
     if (useProceduralCrowd) {
       const tn = tierNorm(tier);
-      const baseVol = loud ? 0.38 + tn * 0.28 : 0.14 + tn * 0.18;
+      const baseVol = loud ? 0.48 + tn * 0.32 : 0.22 + tn * 0.22;
       synthCrowdCheer(ac, ac.currentTime, tier, baseVol * volMult, loud);
       return;
     }
