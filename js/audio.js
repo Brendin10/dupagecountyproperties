@@ -945,7 +945,6 @@ const AudioEngine = (() => {
         if (beat === 1 || beat === 3) playSnare(ac, now, 0.3 * v);
         playLiveBass(ac, now, chord, 0.38 * v);
         if (isChorus || isVerse) playSynth(ac, now, chord, 0.1 * v, beatIdx % 2 === 0);
-        if (beatIdx % 8 === 0) playLiveStrum(ac, now, chord, 0.1 * v);
         if (beatIdx % 16 === 0) playSongPad(ac, now, chord, 0.12 * v);
         break;
       case 'disco':

@@ -689,7 +689,6 @@ const Game = (() => {
       charEl.classList.remove('anim-strum');
       void charEl.offsetWidth;
       charEl.classList.add('anim-strum');
-      AudioEngine.playInstrument?.(INSTRUMENTS['trash-lid']);
     }, 2400);
   }
 

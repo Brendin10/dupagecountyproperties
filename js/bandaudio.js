@@ -10,7 +10,6 @@ const BandAudio = (() => {
     { key: 'drum-kit', role: 'Drums', scale: 0.12 },
     { key: 'Bass', role: 'Bass', scale: 0.1 },
     { key: 'Keys', role: 'Keys', scale: 0.08 },
-    { key: 'Guitar', role: 'Guitar', scale: 0.08 },
   ];
 
   function setBand(bandMembers, songObj) {
