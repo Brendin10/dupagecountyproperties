@@ -87,20 +87,20 @@ function staticFrontArms(id, inst) {
     : (typeof CharacterRig !== 'undefined' ? CharacterRig.lizzyColors() : { fur: '#9458FF', furLight: '#C29AFF', hand: '#DAB6FF' });
   const hold = inst?.hold || 'strum';
   const O = OUTLINE;
+  const arm = (d, hx, hy) => `
+    <path d="${d}" fill="none" stroke="${colors.furLight}" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+    <ellipse cx="${hx}" cy="${hy}" rx="10" ry="9" fill="${colors.hand}" stroke="${O}" stroke-width="2.5"/>`;
 
   if (hold === 'one-hand-up') {
-    return `
-      <ellipse cx="74" cy="166" rx="12" ry="11" fill="${colors.hand}" stroke="${O}" stroke-width="2.5"/>
-      <ellipse cx="126" cy="134" rx="12" ry="11" fill="${colors.hand}" stroke="${O}" stroke-width="2.5"/>`;
+    return arm('M70 154 Q72 162 76 168', 76, 168)
+      + arm('M130 154 Q128 144 122 136', 122, 136);
   }
   if (hold === 'keys' || hold === 'two-hand') {
-    return `
-      <ellipse cx="78" cy="170" rx="12" ry="11" fill="${colors.hand}" stroke="${O}" stroke-width="2.5"/>
-      <ellipse cx="122" cy="170" rx="12" ry="11" fill="${colors.hand}" stroke="${O}" stroke-width="2.5"/>`;
+    return arm('M70 154 Q74 164 78 172', 78, 172)
+      + arm('M130 154 Q126 164 122 172', 122, 172);
   }
-  return `
-    <ellipse cx="82" cy="168" rx="12" ry="11" fill="${colors.hand}" stroke="${O}" stroke-width="2.5"/>
-    <ellipse cx="118" cy="162" rx="12" ry="11" fill="${colors.hand}" stroke="${O}" stroke-width="2.5"/>`;
+  return arm('M68 154 Q76 162 84 168', 84, 168)
+    + arm('M132 154 Q124 160 118 162', 118, 162);
 }
 
 function frontArmsForCharacter(id, pose, inst) {
