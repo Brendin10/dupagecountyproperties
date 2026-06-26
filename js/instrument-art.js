@@ -36,7 +36,7 @@ const InstrumentArt = (() => {
     const w = grip?.art?.w ?? 70;
     const h = grip?.art?.h ?? 75;
     const mount = grip
-      ? InstrumentGrips.mountTransform(grip)
+      ? InstrumentGrips.mountTransform(grip, inst.id)
       : { transform: 'translate(70,35)', w, h };
     const playCls = anim ? ` ${anim}` : '';
     const uid = inst.id.replace(/[^a-z0-9-]/gi, '');

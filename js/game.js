@@ -259,8 +259,8 @@ const Game = (() => {
   function renderTitle() {
     const hasSave = SaveManager.hasSave();
     const idleChar = state.character
-      ? renderCharacter(state.character, 140, { instrument: INSTRUMENTS['trash-lid'] })
-      : renderCharacter('benny', 140, { instrument: INSTRUMENTS['trash-lid'] });
+      ? renderCharacter(state.character, 180, { instrument: INSTRUMENTS['trash-lid'] })
+      : renderCharacter('benny', 180, { instrument: INSTRUMENTS['trash-lid'] });
     return `
       <section class="screen title-screen">
         <div class="title-bg"></div>
@@ -559,7 +559,7 @@ const Game = (() => {
     return `
       <div class="stage-lineup">
         <div class="lineup-side left">${leftHtml}</div>
-        <div class="lineup-slot lead" id="performer">${renderCharacter(state.character, 130, { instrument: inst, equippedWear: state.equippedWear })}</div>
+        <div class="lineup-slot lead" id="performer">${renderCharacter(state.character, 150, { instrument: inst, equippedWear: state.equippedWear })}</div>
         <div class="lineup-side right">${rightHtml}</div>
       </div>`;
   }
@@ -706,15 +706,16 @@ const Game = (() => {
     if (titleIdleTimer) clearInterval(titleIdleTimer);
     const el = document.getElementById('title-idle-char');
     if (!el) return;
+    const inst = INSTRUMENTS['trash-lid'];
     titleIdleTimer = setInterval(() => {
       const charEl = el.querySelector('.character-layered');
       if (!charEl) return;
       if (typeof CharacterRig !== 'undefined') {
-        CharacterRig.applyPose(charEl, 'strum', 'hit');
+        CharacterRig.applyPoseFromInstrument(charEl, inst, 'hit');
       }
-      charEl.classList.remove('anim-strum');
+      charEl.classList.remove('anim-cymbal');
       void charEl.offsetWidth;
-      charEl.classList.add('anim-strum');
+      charEl.classList.add('anim-cymbal');
     }, 2400);
   }
 
