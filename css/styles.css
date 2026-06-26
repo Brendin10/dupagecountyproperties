@@ -361,9 +361,15 @@ body {
   transform: translateY(-2px);
 }
 
-.char-layer.layer-arms-front {
-  transform: translateY(-1px);
-  z-index: 15 !important;
+.character-layered.play-unified .char-unified-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.character-layered.play-unified .play-instrument {
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.32));
 }
 
 .char-layer.layer-instrument {
