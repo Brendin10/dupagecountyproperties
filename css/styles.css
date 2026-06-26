@@ -1319,6 +1319,48 @@ body {
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4));
 }
 
+.play-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.rewind-btn {
+  background: linear-gradient(135deg, #4a2d7a, #2d1b4e);
+  border: 2px solid rgba(155, 107, 255, 0.5);
+  border-radius: 16px;
+  padding: 16px 18px;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 16px rgba(74, 45, 122, 0.45);
+  transition: transform 0.1s, opacity 0.15s;
+  color: #e8d5ff;
+  flex-shrink: 0;
+}
+
+.rewind-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+.rewind-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.rewind-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.play-controls .play-btn {
+  margin-top: 0;
+}
+
 .play-btn {
   margin-top: 8px;
   background: linear-gradient(135deg, var(--gold), #ffb347);
@@ -1335,6 +1377,7 @@ body {
   box-shadow: 0 6px 24px rgba(255, 209, 102, 0.4);
   transition: transform 0.1s;
   color: #3d2817;
+  touch-action: manipulation;
 }
 
 .play-btn:hover {
@@ -1342,7 +1385,7 @@ body {
 }
 
 .play-btn:active {
-  transform: scale(0.96);
+  filter: brightness(0.92);
 }
 
 .instrument-emoji {

@@ -81,6 +81,13 @@ const Game = (() => {
 
   let activeHold = null;
 
+  const REWIND_SECONDS = 5;
+  const SNAPSHOT_INTERVAL = 0.5;
+  const SNAPSHOT_RETENTION = 12;
+  let rewindSnapshots = [];
+  let lastSnapshotAt = -1;
+  let rewindCooldown = false;
+
   const ROLE_ANIM = {
     Guitar: 'anim-strum',
     Drums: 'anim-drums',
@@ -593,10 +600,16 @@ const Game = (() => {
             ${renderStageLineup(inst)}
             <div class="performer-stack">
               ${RhythmLane.renderHtml(song.name)}
-              <button class="play-btn" id="btn-play-note">
-                <span class="instrument-emoji">${inst.emoji}</span>
-                <span>PLAY ${inst.name.toUpperCase()}!</span>
-              </button>
+              <div class="play-controls">
+                <button type="button" class="rewind-btn" id="btn-rewind" title="Rewind 5 seconds" disabled>
+                  <span aria-hidden="true">⏪</span>
+                  <span>5s</span>
+                </button>
+                <button class="play-btn" id="btn-play-note">
+                  <span class="instrument-emoji">${inst.emoji}</span>
+                  <span>PLAY ${inst.name.toUpperCase()}!</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -849,11 +862,19 @@ const Game = (() => {
       });
     });
 
-    $('#btn-play-note')?.addEventListener('mousedown', (e) => { e.preventDefault(); onNotePress(); });
-    $('#btn-play-note')?.addEventListener('mouseup', onNoteRelease);
-    $('#btn-play-note')?.addEventListener('mouseleave', onNoteRelease);
-    $('#btn-play-note')?.addEventListener('touchstart', (e) => { e.preventDefault(); onNotePress(); }, { passive: false });
-    $('#btn-play-note')?.addEventListener('touchend', onNoteRelease);
+    const playBtn = $('#btn-play-note');
+    playBtn?.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      playBtn.setPointerCapture(e.pointerId);
+      onNotePress();
+    });
+    playBtn?.addEventListener('pointerup', (e) => {
+      playBtn.releasePointerCapture?.(e.pointerId);
+      onNoteRelease();
+    });
+    playBtn?.addEventListener('pointercancel', onNoteRelease);
+
+    $('#btn-rewind')?.addEventListener('click', rewindPerformance);
 
     $('#tune-inst-select')?.addEventListener('change', (e) => {
       state.tuneInstId = e.target.value;
@@ -920,25 +941,211 @@ const Game = (() => {
     AudioEngine.stopCrowdAmbience?.();
     AudioEngine.setCrowdBooing?.(false);
     activeHold = null;
+    rewindSnapshots = [];
+    lastSnapshotAt = -1;
+    rewindCooldown = false;
     if (state.perfUiRaf) cancelAnimationFrame(state.perfUiRaf);
     if (state.perfInterval) clearInterval(state.perfInterval);
     state.perfInterval = null;
     state.perfUiRaf = null;
   }
 
-  function updatePerformanceUI() {
+  function captureRewindSnapshot(elapsed) {
     const p = state.performance;
     if (!p) return;
+
+    rewindSnapshots.push({
+      elapsed,
+      timeLeft: p.timeLeft,
+      crowd: p.crowd,
+      cheer: p.cheer,
+      sessionCash: p.sessionCash,
+      sessionStars: p.sessionStars,
+      peakCrowd: p.peakCrowd,
+      combo: p.combo,
+      missStreak: p.missStreak,
+      onFire: p.onFire,
+      booed: p.booed,
+      recruitRolls: p.recruitRolls,
+      hitBeats: [...p.hitBeats],
+      missedBeats: [...(p.missedBeats || [])],
+      bandCash: state.bandCash,
+      starMeter: state.starMeter,
+      pendingRecruit: state.pendingRecruit,
+    });
+
+    const cutoff = elapsed - SNAPSHOT_RETENTION;
+    while (rewindSnapshots.length && rewindSnapshots[0].elapsed < cutoff) {
+      rewindSnapshots.shift();
+    }
+    lastSnapshotAt = elapsed;
+  }
+
+  function findRewindSnapshot(targetElapsed) {
+    if (!rewindSnapshots.length) return null;
+    let best = rewindSnapshots[0];
+    for (const snap of rewindSnapshots) {
+      if (snap.elapsed <= targetElapsed) best = snap;
+      else break;
+    }
+    return best;
+  }
+
+  function updateRewindButtonState() {
+    const btn = document.getElementById('btn-rewind');
+    if (!btn) return;
+    const p = state.performance;
+    const canRewind = !!p
+      && state.screen === 'perform'
+      && !p.booed
+      && !rewindCooldown
+      && rewindSnapshots.length > 0
+      && Metronome.running;
+    btn.disabled = !canRewind;
+  }
+
+  function rewindPerformance() {
+    const p = state.performance;
+    if (!p || state.screen !== 'perform' || p.booed || rewindCooldown || !Metronome.running) return;
+
+    const currentElapsed = Metronome.getElapsed();
+    const targetElapsed = Math.max(0, currentElapsed - REWIND_SECONDS);
+    const snapshot = findRewindSnapshot(targetElapsed);
+    if (!snapshot) return;
+
+    rewindCooldown = true;
+    const btn = document.getElementById('btn-rewind');
+    if (btn) btn.disabled = true;
+
+    activeHold = null;
+    AudioEngine.stopSustain?.();
+    const zone = document.getElementById('hit-zone');
+    if (zone) zone.classList.remove('holding');
+
+    p.timeLeft = snapshot.timeLeft;
+    p.crowd = snapshot.crowd;
+    p.cheer = snapshot.cheer;
+    p.sessionCash = snapshot.sessionCash;
+    p.sessionStars = snapshot.sessionStars;
+    p.peakCrowd = snapshot.peakCrowd;
+    p.combo = snapshot.combo;
+    p.missStreak = snapshot.missStreak;
+    p.onFire = snapshot.onFire;
+    p.booed = snapshot.booed;
+    p.recruitRolls = snapshot.recruitRolls;
+    p.hitBeats = new Set(snapshot.hitBeats);
+    p.missedBeats = new Set(snapshot.missedBeats || []);
+    state.bandCash = snapshot.bandCash;
+    state.starMeter = snapshot.starMeter;
+    state.pendingRecruit = snapshot.pendingRecruit;
+
+    const beatDur = 60 / p.bpm;
+    Metronome.seek(snapshot.elapsed);
+    BandAudio.syncToBeat(Math.floor(snapshot.elapsed / beatDur));
+
+    const floaters = document.getElementById('floaters');
+    if (floaters) floaters.innerHTML = '';
+
+    AudioEngine.setCrowdBooing?.(p.missStreak >= 3);
+    updateFireState();
+    updateHud();
+    updatePerformanceUI();
+    persist();
+
+    setTimeout(() => {
+      rewindCooldown = false;
+      updateRewindButtonState();
+    }, 1000);
+  }
+
+  function finalizeActiveHoldIfExpired() {
+    const p = state.performance;
+    if (!p || !activeHold) return;
+
+    const elapsed = Metronome.getElapsed();
+    const beatDur = 60 / p.bpm;
+    const currentBeat = elapsed / beatDur;
+    const { note, inst } = activeHold;
+    const endBeat = note.beat + (note.dur || 1);
+
+    if (currentBeat < endBeat) return;
+
+    const { rating } = rateHoldRelease(note, elapsed, p.bpm);
+    activeHold = null;
+    AudioEngine.stopSustain?.();
+    const zone = document.getElementById('hit-zone');
+    if (zone) zone.classList.remove('holding');
+    applyHitScore(rating, note, inst);
+  }
+
+  function checkMissedNotes() {
+    const p = state.performance;
+    if (!p || p.booed || !Metronome.running) return;
+
+    const inst = getActiveInstrument();
+    const song = getActiveSong();
+    const partKey = getPlayerPartKey(inst);
+    const isMelodic = inst.type === 'melodic';
+    const elapsed = Metronome.getElapsed();
+    const beatDur = 60 / p.bpm;
+    const currentBeat = elapsed / beatDur;
+    const late = isMelodic ? 0.24 : 0.2;
+
+    // Brief grace at gig start so the first gem can reach the hit zone
+    if (elapsed < beatDur * 0.75) return;
+
+    const part = song.parts[partKey] || [];
+    if (!p.missedBeats) p.missedBeats = new Set();
+
+    let earliestMiss = null;
+    for (const ev of part) {
+      const key = noteKey(ev);
+      if (p.hitBeats.has(key) || p.missedBeats.has(key)) continue;
+
+      const activeHoldKey = activeHold ? noteKey(activeHold.note) : null;
+      if (activeHoldKey === key) continue;
+
+      const missAfter = ev.beat + late;
+      if (currentBeat <= missAfter) continue;
+
+      if (!earliestMiss || ev.beat < earliestMiss.beat) {
+        earliestMiss = { ...ev, key, isHold: (ev.dur || 1) > 1.05, dur: ev.dur || 1 };
+      }
+    }
+
+    if (!earliestMiss) return;
+
+    p.missedBeats.add(earliestMiss.key);
+    applyHitScore('miss', earliestMiss, inst);
+  }
+
+  function updatePerformanceUI() {
+    const p = state.performance;
+    if (!p || state._updatingPerfUi) return;
+    state._updatingPerfUi = true;
+
     const inst = getActiveInstrument();
     const song = getActiveSong();
     const partKey = getPlayerPartKey(inst);
     const isMelodic = inst.type === 'melodic';
     const elapsed = Metronome.getElapsed();
 
+    finalizeActiveHoldIfExpired();
+    checkMissedNotes();
+    if (!state.performance || state.screen !== 'perform') {
+      state._updatingPerfUi = false;
+      return;
+    }
+
+    if (elapsed - lastSnapshotAt >= SNAPSHOT_INTERVAL) {
+      captureRewindSnapshot(elapsed);
+    }
+    updateRewindButtonState();
+
     const timer = document.getElementById('perf-timer');
     if (timer) timer.textContent = `⏱ ${p.timeLeft}s`;
 
-    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic);
+    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic, p.hitBeats, p.missedBeats);
 
     const crowdPct = Math.min(100, (p.crowd / p.crowdCap) * 100);
     const cheerPct = Math.min(100, (p.cheer / p.cheerGoal) * 100);
@@ -959,6 +1166,7 @@ const Game = (() => {
       else comboEl.textContent = p.combo > 1 ? `COMBO ×${p.combo}` : '';
     }
     updateFireState();
+    state._updatingPerfUi = false;
   }
 
   function triggerBandmateAnimation(member) {
@@ -1069,9 +1277,13 @@ const Game = (() => {
       newUnlock: null,
       recruitRolls: 0,
       hitBeats: new Set(),
+      missedBeats: new Set(),
     };
 
     activeHold = null;
+    rewindSnapshots = [];
+    lastSnapshotAt = -1;
+    rewindCooldown = false;
     stopPerformanceLoop();
     state.perfInterval = setInterval(tickPerformance, 1000);
     setScreen('perform');
@@ -1132,7 +1344,6 @@ const Game = (() => {
       setRhythmHint(isMelodic ? 'miss — hit the gem in the zone!' : 'miss — hit the beat gem!', 'miss');
       spawnFloater(`-${starLoss.toFixed(1)} ★`, 'miss');
       updateHud();
-      updatePerformanceUI();
       return;
     }
 
@@ -1214,13 +1425,21 @@ const Game = (() => {
     const partKey = getPlayerPartKey(inst);
     const elapsed = Metronome.getElapsed();
     const isMelodic = inst.type === 'melodic';
-    const notes = getUpcomingNotes(song, partKey, elapsed, p.bpm, RhythmLane.LOOKAHEAD);
-    const { rating, note, phase } = rateNotePress(notes, elapsed, p.bpm, isMelodic);
+    const notes = getUpcomingNotes(song, partKey, elapsed, p.bpm, RhythmLane.LOOKAHEAD, p.hitBeats, p.missedBeats);
+    const { rating, note, phase } = rateNotePress(notes, elapsed, p.bpm, isMelodic, p.hitBeats);
 
     if (phase === 'hold-continue') return;
 
     if (!note || rating === 'miss') {
-      applyHitScore('miss', null, inst);
+      const late = isMelodic ? 0.24 : 0.2;
+      const early = isMelodic ? 0.14 : 0.12;
+      const beatDur = 60 / p.bpm;
+      const currentBeat = elapsed / beatDur;
+      const hittable = notes.some((n) => {
+        const dist = n.beat - currentBeat;
+        return dist >= -late && dist <= early;
+      });
+      if (hittable) applyHitScore('miss', null, inst);
       return;
     }
 

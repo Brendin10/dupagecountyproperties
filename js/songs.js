@@ -216,14 +216,15 @@ function getPartEvents(song, partKey, beat) {
 
 function eventLabel(ev) { return ev.chord || ev.note || ev.hit || '•'; }
 
-function getUpcomingNotes(song, partKey, elapsed, bpm, lookAhead) {
+function getUpcomingNotes(song, partKey, elapsed, bpm, lookAhead, hitBeats, missedBeats) {
   const la = lookAhead ?? 3;
   const beatDur = 60 / bpm;
-  const total = song.totalBeats || 16;
   const part = song.parts[partKey] || [];
   const currentBeat = elapsed / beatDur;
   const notes = [];
   for (const ev of part) {
+    const key = noteKey(ev);
+    if (hitBeats?.has(key) || missedBeats?.has(key)) continue;
     const dur = ev.dur || 1;
     const endBeat = ev.beat + dur;
     const dist = ev.beat - currentBeat;
@@ -235,19 +236,24 @@ function getUpcomingNotes(song, partKey, elapsed, bpm, lookAhead) {
   return notes.sort((a, b) => a.beat - b.beat);
 }
 
-function rateNotePress(notes, elapsed, bpm, isMelodic) {
+function rateNotePress(notes, elapsed, bpm, isMelodic, hitBeats) {
   const beatDur = 60 / bpm;
   const currentBeat = elapsed / beatDur;
-  const window = isMelodic ? 0.24 : 0.2;
+  const late = isMelodic ? 0.24 : 0.2;
+  const early = isMelodic ? 0.14 : 0.12;
   const perfect = isMelodic ? 0.1 : 0.08;
   let best = null;
   let bestDist = Infinity;
   for (const n of notes) {
+    const key = noteKey(n);
+    if (hitBeats?.has(key)) continue;
     if (n.active && n.isHold) return { rating: 'perfect', note: n, phase: 'hold-continue' };
-    const d = Math.abs(n.beat - currentBeat);
+    const dist = n.beat - currentBeat;
+    if (dist > early || dist < -late) continue;
+    const d = Math.abs(dist);
     if (d < bestDist) { bestDist = d; best = n; }
   }
-  if (!best || bestDist > window) return { rating: 'miss', note: null, phase: 'press' };
+  if (!best || bestDist > late) return { rating: 'miss', note: null, phase: 'press' };
   return { rating: bestDist <= perfect ? 'perfect' : 'good', note: best, phase: best.isHold ? 'hold-start' : 'tap' };
 }
 
@@ -260,7 +266,7 @@ function rateHoldRelease(activeNote, elapsed, bpm) {
   return { rating: 'miss', note: activeNote };
 }
 
-function rateNoteHit(notes, elapsed, bpm, isMelodic) { return rateNotePress(notes, elapsed, bpm, isMelodic); }
+function rateNoteHit(notes, elapsed, bpm, isMelodic, hitBeats) { return rateNotePress(notes, elapsed, bpm, isMelodic, hitBeats); }
 function noteKey(note) { return `${note.beat}:${note.chord || ''}:${note.note || ''}:${note.hit || ''}`; }
 
 function ensureSongInstrumentParts() {
