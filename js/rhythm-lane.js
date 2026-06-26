@@ -84,18 +84,18 @@ const RhythmLane = (() => {
     </div>`;
   }
 
-  function spawnHoldSpark(isMelodic) {
+  function spawnHoldSpark(isMelodic, hotStreak = false) {
     const layer = document.getElementById('hit-zone-sparkler');
     if (!layer || !layer.classList.contains('active')) return;
     const colors = isMelodic
       ? ['#fff', '#ffd166', '#ffe08a', '#ff6b9d', '#ffb347']
       : ['#fff', '#e8fcff', '#7ee8ff', '#6bcbff', '#ffe08a'];
-    const count = 2 + Math.floor(Math.random() * 2);
+    const count = (hotStreak ? 4 : 2) + Math.floor(Math.random() * (hotStreak ? 3 : 2));
     for (let i = 0; i < count; i++) {
       const spark = document.createElement('div');
-      spark.className = `hold-spark-particle ${isMelodic ? 'melodic' : 'percussion'}`;
-      const ang = -Math.PI / 2 + (Math.random() - 0.5) * 1.2;
-      const dist = 10 + Math.random() * 22;
+      spark.className = `hold-spark-particle ${isMelodic ? 'melodic' : 'percussion'}${hotStreak ? ' spark-hot' : ''}`;
+      const ang = -Math.PI / 2 + (Math.random() - 0.5) * (hotStreak ? 1.5 : 1.2);
+      const dist = (10 + Math.random() * 22) * (hotStreak ? 1.35 : 1);
       const color = colors[Math.floor(Math.random() * colors.length)];
       const offsetPx = (Math.random() - 0.5) * 16;
       spark.style.left = `calc(50% + ${offsetPx}px)`;
@@ -108,17 +108,20 @@ const RhythmLane = (() => {
     }
   }
 
-  function spawnBurst(xPct, rating, isMelodic) {
+  function spawnBurst(xPct, rating, isMelodic, hotStreak = false) {
     const layer = document.getElementById('gem-fx-layer');
     if (!layer) return;
     const colors = rating === 'perfect'
       ? ['#ffd166', '#fff', '#ff6b9d']
       : isMelodic ? ['#ff6b9d', '#ffb347', '#fff'] : ['#6bcbff', '#7ee8ff', '#fff'];
-    for (let i = 0; i < 10; i++) {
+    const particleCount = hotStreak ? 18 : 10;
+    const distScale = hotStreak ? 1.35 : 1;
+    const hotCls = hotStreak ? ' burst-hot' : '';
+    for (let i = 0; i < particleCount; i++) {
       const p = document.createElement('div');
-      p.className = `gem-particle burst-${rating}`;
-      const ang = (i / 10) * Math.PI * 2;
-      const dist = 28 + Math.random() * 36;
+      p.className = `gem-particle burst-${rating}${hotCls}`;
+      const ang = (i / particleCount) * Math.PI * 2;
+      const dist = (28 + Math.random() * 36) * distScale;
       p.style.left = `${xPct}%`;
       p.style.setProperty('--dx', `${Math.cos(ang) * dist}px`);
       p.style.setProperty('--dy', `${Math.sin(ang) * dist}px`);
@@ -127,25 +130,25 @@ const RhythmLane = (() => {
       setTimeout(() => p.remove(), 520);
     }
     const ring = document.createElement('div');
-    ring.className = `gem-burst-ring burst-${rating}`;
+    ring.className = `gem-burst-ring burst-${rating}${hotCls}`;
     ring.style.left = `${xPct}%`;
     layer.appendChild(ring);
-    setTimeout(() => ring.remove(), 480);
+    setTimeout(() => ring.remove(), hotStreak ? 550 : 480);
   }
 
-  function explodeGem(note, rating, isMelodic) {
+  function explodeGem(note, rating, isMelodic, hotStreak = false) {
     if (!note) return;
     const lane = document.getElementById('note-lane');
     if (!lane) return;
     const key = `${note.beat}:${note.chord || ''}:${note.note || ''}:${note.hit || ''}`;
     const gem = lane.querySelector(`[data-key="${key}"]`) || lane.querySelector(`[data-beat="${note.beat}"]`);
     if (!gem) {
-      spawnBurst(HIT_X, rating, isMelodic);
+      spawnBurst(HIT_X, rating, isMelodic, hotStreak);
       return;
     }
     const xPct = parseFloat(gem.style.left) || HIT_X;
     gem.classList.add('gem-exploding', `burst-${rating}`);
-    spawnBurst(xPct, rating, isMelodic);
+    spawnBurst(xPct, rating, isMelodic, hotStreak);
     setTimeout(() => gem.remove(), 300);
   }
 
@@ -171,7 +174,7 @@ const RhythmLane = (() => {
     return `${note.beat}:${note.chord || ''}:${note.note || ''}:${note.hit || ''}`;
   }
 
-  function update(song, partKey, elapsed, bpm, isMelodic, hitBeats, missedBeats, holdingKey, leadInBeat = 0, heldNote = null) {
+  function update(song, partKey, elapsed, bpm, isMelodic, hitBeats, missedBeats, holdingKey, leadInBeat = 0, heldNote = null, onFire = false) {
     const lane = document.getElementById('note-lane');
     if (!lane) return;
 
@@ -208,10 +211,10 @@ const RhythmLane = (() => {
 
     if (holdingKey) {
       const now = performance.now();
-      if (now - lastHoldSparkAt > 48) {
+      if (now - lastHoldSparkAt > (onFire ? 36 : 48)) {
         lastHoldSparkAt = now;
-        spawnHoldSpark(isMelodic);
-        if (Math.random() < 0.45) spawnHoldSpark(isMelodic);
+        spawnHoldSpark(isMelodic, onFire);
+        if (Math.random() < (onFire ? 0.75 : 0.45)) spawnHoldSpark(isMelodic, onFire);
       }
     } else {
       lastHoldSparkAt = 0;
@@ -224,17 +227,18 @@ const RhythmLane = (() => {
     }
   }
 
-  function flashHit(rating) {
+  function flashHit(rating, hotStreak = false) {
     const zone = document.getElementById('hit-zone');
     if (!zone) return;
-    zone.classList.remove('flash-perfect', 'flash-good', 'flash-miss');
+    zone.classList.remove('flash-perfect', 'flash-good', 'flash-miss', 'flash-hot');
     void zone.offsetWidth;
     zone.classList.add(`flash-${rating}`);
+    if (hotStreak) zone.classList.add('flash-hot');
     zone.classList.add('hit-pop');
     setTimeout(() => {
       zone.classList.remove(`flash-${rating}`);
-      zone.classList.remove('hit-pop');
-    }, 280);
+      zone.classList.remove('hit-pop', 'flash-hot');
+    }, hotStreak ? 320 : 280);
   }
 
   return { renderHtml, update, flashHit, explodeGem, HIT_X, LOOKAHEAD };

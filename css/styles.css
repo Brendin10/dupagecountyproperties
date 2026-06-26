@@ -1476,6 +1476,11 @@ body {
 .floater.miss { color: #ff6b6b; }
 .floater.perfect { color: var(--gold); }
 .floater.good { color: var(--green); }
+.floater.hot-streak {
+  font-size: 1.45rem;
+  text-shadow: 0 0 12px #ff9933, 0 0 4px rgba(255, 180, 60, 0.8);
+  animation: floatUpHot 1s ease forwards;
+}
 
 @keyframes floatUp {
   0% { opacity: 1; transform: translateY(0); }
@@ -2250,10 +2255,43 @@ body {
 
 .gem-burst-ring.burst-perfect { border-color: var(--gold); box-shadow: 0 0 16px var(--gold); }
 .gem-burst-ring.burst-good { border-color: var(--green); box-shadow: 0 0 12px var(--green); }
+.gem-burst-ring.burst-hot {
+  animation: burstRingHot 0.55s ease-out forwards;
+  box-shadow: 0 0 24px #ff9933;
+}
+
+.gem-particle.burst-hot {
+  width: 7px;
+  height: 7px;
+}
 
 @keyframes burstRing {
   0% { transform: scale(0.5); opacity: 1; }
   100% { transform: scale(4); opacity: 0; }
+}
+
+@keyframes burstRingHot {
+  0% { transform: scale(0.5); opacity: 1; }
+  100% { transform: scale(4.8); opacity: 0; }
+}
+
+.hit-zone.flash-hot .hit-zone-core {
+  box-shadow: 0 0 32px var(--gold), 0 0 16px #ff9933;
+}
+
+.hit-zone.flash-hot.hit-pop .hit-zone-core {
+  animation: zonePopHot 0.32s ease;
+}
+
+@keyframes zonePopHot {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+
+.band-on-fire #performer.hit-flash::after {
+  box-shadow: 0 0 32px rgba(255, 140, 0, 0.9), 0 0 18px rgba(255, 215, 0, 0.75);
+  background: rgba(255, 160, 40, 0.12);
 }
 
 .hit-zone.hit-pop .hit-zone-core {

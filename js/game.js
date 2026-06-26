@@ -84,11 +84,21 @@ const Game = (() => {
   const REWIND_SECONDS = 5;
   const GIG_START_GRACE_SEC = 5;
   const RHYTHM_WARMUP_SEC = 4;
+  const HOT_STREAK_COMBO = 10;
+  const HOT_STREAK_MULT = 1.5;
   const SNAPSHOT_INTERVAL = 0.5;
   const SNAPSHOT_RETENTION = 12;
   let rewindSnapshots = [];
   let lastSnapshotAt = -1;
   let rewindCooldown = false;
+
+  function isHotStreak(p) {
+    return !!p?.onFire;
+  }
+
+  function hotStreakMult(p) {
+    return isHotStreak(p) ? HOT_STREAK_MULT : 1;
+  }
 
   const ROLE_ANIM = {
     Guitar: 'anim-strum',
@@ -1232,7 +1242,7 @@ const Game = (() => {
     }
     updateRewindButtonState();
 
-    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic, p.hitBeats, p.missedBeats, activeHold ? noteKey(activeHold.note) : null, p.leadInBeat ?? 0, activeHold?.note ?? null);
+    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic, p.hitBeats, p.missedBeats, activeHold ? noteKey(activeHold.note) : null, p.leadInBeat ?? 0, activeHold?.note ?? null, p.onFire);
 
     const crowdPct = Math.min(100, (p.crowd / p.crowdCap) * 100);
     const cheerPct = Math.min(100, (p.cheer / p.cheerGoal) * 100);
@@ -1248,7 +1258,7 @@ const Game = (() => {
     if (cashEl) cashEl.textContent = `+${Math.floor(p.sessionCash)} BandCash this gig`;
     const comboEl = document.getElementById('combo-display');
     if (comboEl) {
-      if (p.onFire) comboEl.textContent = `🔥 ON FIRE ×${p.combo}`;
+      if (p.onFire) comboEl.textContent = `🔥 HOT STREAK ×${p.combo}`;
       else if (p.missStreak >= 3) comboEl.textContent = `BOOED ×${p.missStreak}`;
       else comboEl.textContent = p.combo > 1 ? `COMBO ×${p.combo}` : '';
     }
@@ -1417,9 +1427,9 @@ const Game = (() => {
     if (rating === 'miss' && !isRhythmScoringEnabled()) return;
 
     triggerPlayAnimation(inst, rating);
-    RhythmLane.flashHit(rating);
 
     if (rating === 'miss') {
+      RhythmLane.flashHit(rating, false);
       AudioEngine.playMiss();
       AudioEngine.stopSustain?.();
       p.combo = 0;
@@ -1450,43 +1460,47 @@ const Game = (() => {
     AudioEngine.setCrowdBooing?.(false);
 
     const isMelodic = inst.type === 'melodic';
-    AudioEngine.playHitBurst?.(rating);
-    if (note) {
-      AudioEngine.playPartEvent(note, inst, rating === 'perfect' ? 0.48 : 0.38);
-      RhythmLane.explodeGem(note, rating, isMelodic);
-    } else {
-      AudioEngine.playInstrument(inst);
-      RhythmLane.explodeGem({ beat: -1 }, rating, isMelodic);
-    }
     p.combo += 1;
-    if (p.combo >= 10) p.onFire = true;
-    updateFireState();
-
-    const mult = rating === 'perfect' ? 1.5 : 1.0;
-    const appeal = crowdAppeal();
-    const crowdGain = (rating === 'perfect' ? 0.7 : 0.35) * mult + appeal * 0.03;
-    p.crowd = Math.min(p.crowdCap, p.crowd + crowdGain);
-    p.cheer = Math.min(p.cheerGoal * 1.5, p.cheer + (rating === 'perfect' ? 4 : 2));
-
-    if (p.cheer > p.cheerGoal * 0.5 && Math.random() < 0.12) AudioEngine.playCheer();
-    if (p.combo >= 5 && p.combo % 5 === 0) {
+    const wasOnFire = p.onFire;
+    if (p.combo >= HOT_STREAK_COMBO) p.onFire = true;
+    if (!wasOnFire && p.onFire) {
       AudioEngine.playCheerLoud();
       AudioEngine.boostCrowdCheer?.();
     }
+    updateFireState();
 
-    const tip = (1 + p.crowd * 0.12) * p.tipMultiplier * mult * (0.85 + Math.random() * 0.3);
+    const hot = isHotStreak(p);
+    const streak = hotStreakMult(p);
+    AudioEngine.playHitBurst?.(rating, streak);
+    if (note) {
+      AudioEngine.playPartEvent(note, inst, (rating === 'perfect' ? 0.48 : 0.38) * streak);
+      RhythmLane.explodeGem(note, rating, isMelodic, hot);
+    } else {
+      AudioEngine.playInstrument(inst);
+      RhythmLane.explodeGem({ beat: -1 }, rating, isMelodic, hot);
+    }
+    RhythmLane.flashHit(rating, hot);
+
+    const mult = rating === 'perfect' ? 1.5 : 1.0;
+    const appeal = crowdAppeal();
+    const crowdGain = ((rating === 'perfect' ? 0.7 : 0.35) * mult + appeal * 0.03) * streak;
+    p.crowd = Math.min(p.crowdCap, p.crowd + crowdGain);
+    p.cheer = Math.min(p.cheerGoal * 1.5, p.cheer + (rating === 'perfect' ? 4 : 2) * streak);
+
+    const tip = (1 + p.crowd * 0.12) * p.tipMultiplier * mult * (0.85 + Math.random() * 0.3) * streak;
     p.sessionCash += tip;
     state.bandCash += tip;
 
-    const starGain = (0.12 + p.crowd * 0.02) * mult;
+    const starGain = (0.12 + p.crowd * 0.02) * mult * streak;
     p.sessionStars += starGain;
     state.starMeter += starGain;
 
     if (tip >= 2) {
       AudioEngine.playCoin();
-      spawnFloater(`+$${Math.floor(tip)}`, 'cash');
+      const tipLabel = hot ? `+$${Math.floor(tip)} ×${HOT_STREAK_MULT}` : `+$${Math.floor(tip)}`;
+      spawnFloater(tipLabel, 'cash', { hot });
     }
-    spawnFloater(rating.toUpperCase(), rating);
+    spawnFloater(rating.toUpperCase(), rating, { hot });
 
     p.peakCrowd = Math.max(p.peakCrowd, p.crowd);
     setRhythmHint(`${rating}!`, rating);
@@ -1583,11 +1597,11 @@ const Game = (() => {
     onNotePress();
   }
 
-  function spawnFloater(text, type) {
+  function spawnFloater(text, type, opts = {}) {
     const container = document.getElementById('floaters');
     if (!container) return;
     const el = document.createElement('div');
-    el.className = `floater ${type}`;
+    el.className = `floater ${type}${opts.hot ? ' hot-streak' : ''}`;
     el.textContent = text;
     el.style.left = `${40 + Math.random() * 20}%`;
     container.appendChild(el);
