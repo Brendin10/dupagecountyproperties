@@ -1157,10 +1157,13 @@ const AudioEngine = (() => {
 
   const CHEER_URLS = ['audio/storegraphic-crowd-cheers-314919.mp3'];
   const BOO_URLS = ['audio/dragon-studio-crowd-booing-494319.mp3'];
+  const REWIND_URLS = ['audio/deandre_aaron-dj-turntable-rewind-429858.mp3'];
   let cheerBuffer = null;
   let cheerLoadPromise = null;
   let booBuffer = null;
   let booLoadPromise = null;
+  let rewindBuffer = null;
+  let rewindLoadPromise = null;
   let crowdAmbience = null;
   let useProceduralCheer = false;
   let useProceduralBoo = false;
@@ -1328,6 +1331,45 @@ const AudioEngine = (() => {
         throw err;
       });
     return booLoadPromise;
+  }
+
+  function loadRewindSample() {
+    if (rewindBuffer) return Promise.resolve(rewindBuffer);
+    if (rewindLoadPromise) return rewindLoadPromise;
+    rewindLoadPromise = fetchDecodeSample(REWIND_URLS)
+      .then((decoded) => {
+        rewindBuffer = decoded;
+        return decoded;
+      })
+      .catch((err) => {
+        console.warn('Rewind SFX failed to load', err);
+        rewindLoadPromise = null;
+        throw err;
+      });
+    return rewindLoadPromise;
+  }
+
+  function playRewindSfx(vol = 0.85) {
+    initMix();
+    const ac = getCtx();
+
+    const play = () => {
+      if (!rewindBuffer) return;
+      const now = ac.currentTime;
+      const src = ac.createBufferSource();
+      src.buffer = rewindBuffer;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(vol, now + 0.02);
+      g.gain.setValueAtTime(vol * 0.95, now + rewindBuffer.duration * 0.75);
+      g.gain.exponentialRampToValueAtTime(0.001, now + rewindBuffer.duration + 0.05);
+      connectToMix(g, 0, 'music');
+      src.connect(g);
+      src.start(now);
+    };
+
+    if (rewindBuffer) play();
+    else loadRewindSample().then(play).catch(() => {});
   }
 
   function tierNorm(tier) {
@@ -1519,7 +1561,7 @@ const AudioEngine = (() => {
     resume, getCtx, initMix, getMix, connectToMix,
     playCrash, playCheer, playCheerLoud, playCoin, playMiss, playTick, playHitBurst,
     playInstrument, playPartEvent, playSongPad, startSustain, stopSustain,
-    startCrowdAmbience, stopCrowdAmbience, setCrowdBooing, boostCrowdCheer, playBoo, playCrowdSample, loadCheerSample, loadBooSample,
+    startCrowdAmbience, stopCrowdAmbience, setCrowdBooing, boostCrowdCheer, playBoo, playCrowdSample, loadCheerSample, loadBooSample, loadRewindSample, playRewindSfx,
     playLiveBass, playLiveShimmer, playLiveStrum, playDanceBeat, playDrumStyleBeat, playFourOnFloorKick,
     playKick, playSnare, playHihat, playCymbal, playShake,
     playChord, playGuitarChord, playBassNote, playKeysChord, playHornNote, playVocal,
