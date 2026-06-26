@@ -1425,10 +1425,10 @@ const AudioEngine = (() => {
     crowdAmbience.cheerTimeout = setTimeout(scheduleCrowdCheer, nextDelay);
   }
 
-  function playHitBurst(rating = 'good') {
+  function playHitBurst(rating = 'good', volMult = 1) {
     const ac = getCtx();
     const now = ac.currentTime;
-    const peak = rating === 'perfect' ? 0.42 : 0.28;
+    const peak = (rating === 'perfect' ? 0.42 : 0.28) * volMult;
 
     playKick(ac, now, peak * 0.85);
     playSnare(ac, now, peak * 0.55);
