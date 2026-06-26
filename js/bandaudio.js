@@ -51,7 +51,8 @@ const BandAudio = (() => {
 
   function playDanceBacking(ac, now, beatIdx, sec, chord, intensity) {
     const danceStyle = song?.meta?.danceStyle || 'funk-house';
-    AudioEngine.playDanceBeat(ac, now, beatIdx, danceStyle, chord, sec?.id, intensity);
+    const drumStyle = song?.meta?.drumStyle || 'rock';
+    AudioEngine.playDanceBeat(ac, now, beatIdx, danceStyle, chord, sec?.id, intensity, drumStyle);
   }
 
   function playGhostParts(ac, now, beatIdx, intensity) {

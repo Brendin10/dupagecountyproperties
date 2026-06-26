@@ -777,41 +777,83 @@ const AudioEngine = (() => {
     });
   }
 
+  function playDrumStyleBeat(ac, now, beatIdx, drumStyle, intensity = 1) {
+    const b = beatIdx % 4;
+    const v = intensity;
+    if (drumStyle === 'ska') {
+      if (b === 0) playKick(ac, now, 0.55 * v);
+      if (b === 2) playSnare(ac, now, 0.38 * v);
+      if (b % 2 === 1) playHihat(ac, now, 0.14 * v);
+    } else if (drumStyle === 'swing') {
+      if (b === 0) playKick(ac, now, 0.55 * v);
+      if (b === 2) playSnare(ac, now, 0.38 * v);
+      if (b === 3) playHihat(ac, now, 0.14 * v);
+    } else if (drumStyle === 'latin') {
+      if (b === 0) playKick(ac, now, 0.55 * v);
+      if (b === 1) playSnare(ac, now, 0.36 * v);
+      if (b % 2 === 0) playHihat(ac, now, 0.13 * v);
+    } else if (drumStyle === 'drive') {
+      if (b === 0) playKick(ac, now, 0.62 * v);
+      if (b === 2) playSnare(ac, now, 0.4 * v);
+      if (intensity > 0.7 && b % 2 === 1) playHihat(ac, now, 0.14 * v);
+    } else {
+      if (b === 0) playKick(ac, now, 0.58 * v);
+      if (b === 2) playSnare(ac, now, 0.38 * v);
+      if (intensity > 0.5 && b % 2 === 1) playHihat(ac, now, 0.13 * v);
+    }
+    if (typeof AudioSamples !== 'undefined') {
+      const hit = b === 0 ? { hit: 'kick' } : b === 2 ? { hit: 'snare' } : b % 2 === 1 ? { hit: 'hihat' } : null;
+      if (hit) AudioSamples.playInstrumentSample('drums', hit, 0.22 * v);
+    }
+  }
+
   function playPartEvent(event, roleOrInst, volScale = 1) {
     const ac = getCtx();
     const now = ac.currentTime;
     const v = volScale;
     const subtype = resolveSubtype(roleOrInst);
     const instId = typeof roleOrInst === 'object' ? roleOrInst.id : roleOrInst;
+    const sampleVol = v * 0.65;
 
     if (event.chord) {
-      playMelodicBySubtype(ac, now, subtype, event.chord, v, instId);
+      if (typeof AudioSamples !== 'undefined') {
+        AudioSamples.playInstrumentSample(subtype, event, sampleVol);
+      }
+      playMelodicBySubtype(ac, now, subtype, event.chord, v * 0.22, instId);
       return;
     }
     if (event.note) {
+      if (typeof AudioSamples !== 'undefined') {
+        AudioSamples.playInstrumentSample(subtype, event, sampleVol * 0.8);
+      }
       if (subtype === 'bass' || roleOrInst === 'Bass') {
         playBassNote(ac, now, event.note, 0.28 * v);
       } else if (subtype === 'brass' || subtype === 'sax' || subtype === 'flute' || roleOrInst === 'Horns') {
-        playMelodicBySubtype(ac, now, subtype === 'generic' ? 'brass' : subtype, event.note, v, instId);
+        playMelodicBySubtype(ac, now, subtype === 'generic' ? 'brass' : subtype, event.note, v * 0.25, instId);
       } else {
-        playMelodicBySubtype(ac, now, subtype, event.note, v, instId);
+        playMelodicBySubtype(ac, now, subtype, event.note, v * 0.25, instId);
       }
       return;
     }
     if (event.hit) {
+      let samplePlayed = false;
+      if (typeof AudioSamples !== 'undefined') {
+        samplePlayed = AudioSamples.playInstrumentSample(subtype, event, sampleVol);
+      }
+      const accent = samplePlayed ? 0.35 : 1;
       switch (event.hit) {
-        case 'kick': playKick(ac, now, 0.52 * v); break;
-        case 'snare': playSnare(ac, now, 0.38 * v); break;
-        case 'hihat': playHihat(ac, now, 0.14 * v); break;
+        case 'kick': playKick(ac, now, 0.52 * v * accent); break;
+        case 'snare': playSnare(ac, now, 0.38 * v * accent); break;
+        case 'hihat': playHihat(ac, now, 0.14 * v * accent); break;
         case 'cymbal':
-          if (subtype === 'bell') playBellHit(ac, now, 0.22 * v);
-          else if (subtype === 'triangle') playTriangleHit(ac, now, 0.18 * v);
-          else playCymbal(ac, now, 0.3 * v);
+          if (subtype === 'bell') playBellHit(ac, now, 0.22 * v * accent);
+          else if (subtype === 'triangle') playTriangleHit(ac, now, 0.18 * v * accent);
+          else playCymbal(ac, now, 0.3 * v * accent);
           break;
-        case 'shake': playShake(ac, now, 0.22 * v); break;
+        case 'shake': playShake(ac, now, 0.22 * v * accent); break;
         case 'ooh':
         case 'ah': playVocal(ac, now, event.hit); break;
-        default: playSnare(ac, now, 0.24 * v);
+        default: playSnare(ac, now, 0.24 * v * accent);
       }
     }
   }
@@ -821,6 +863,17 @@ const AudioEngine = (() => {
     const now = ac.currentTime;
     if (!instrument) { playCymbal(ac, now, 0.45); return; }
     const c = chord || instrument.progression?.[0] || 'C';
+    const event = instrument.type === 'percussion'
+      ? { hit: instrument.subtype === 'drums' ? 'snare' : instrument.subtype === 'shake' ? 'shake' : 'cymbal' }
+      : { chord: c };
+    if (typeof AudioSamples !== 'undefined') {
+      const played = AudioSamples.playInstrumentSample(instrument.subtype, event, 0.58);
+      if (played) {
+        if (instrument.type === 'percussion') return;
+        playMelodicBySubtype(ac, now, instrument.subtype, c, 0.18, instrument.id);
+        return;
+      }
+    }
     if (instrument.type === 'percussion') {
       switch (instrument.subtype) {
         case 'cymbal': playCymbal(ac, now, 0.3); break;
@@ -864,13 +917,13 @@ const AudioEngine = (() => {
     click.stop(now + 0.05);
   }
 
-  function playDanceBeat(ac, now, beatIdx, danceStyle, chord, secId, intensity = 1) {
+  function playDanceBeat(ac, now, beatIdx, danceStyle, chord, secId, intensity = 1, drumStyle = 'rock') {
     const v = intensity;
     const beat = beatIdx % 4;
     const isChorus = secId === 'chorus';
     const isVerse = secId === 'verse';
 
-    playFourOnFloorKick(ac, now, 0.72 * v);
+    playDrumStyleBeat(ac, now, beatIdx, drumStyle, v);
 
     switch (danceStyle) {
       case 'funk-house':
@@ -1323,11 +1376,11 @@ const AudioEngine = (() => {
   }
 
   return {
-    resume, getCtx, initMix, getMix,
+    resume, getCtx, initMix, getMix, connectToMix,
     playCrash, playCheer, playCheerLoud, playCoin, playMiss, playTick, playHitBurst,
     playInstrument, playPartEvent, playSongPad, startSustain, stopSustain,
     startCrowdAmbience, stopCrowdAmbience, setCrowdBooing, boostCrowdCheer, playBoo, playCrowdSample, loadCheerSample, loadBooSample,
-    playLiveBass, playLiveShimmer, playLiveStrum, playDanceBeat, playFourOnFloorKick,
+    playLiveBass, playLiveShimmer, playLiveStrum, playDanceBeat, playDrumStyleBeat, playFourOnFloorKick,
     playKick, playSnare, playHihat, playCymbal, playShake,
     playChord, playGuitarChord, playBassNote, playKeysChord, playHornNote, playVocal,
     playUkulele, playElectricGuitar, playPiano,

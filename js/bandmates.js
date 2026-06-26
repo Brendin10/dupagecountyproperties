@@ -8,6 +8,7 @@ const BANDMATES = {
     belly: '#FFD4B0',
     accent: '#2D5A27',
     hold: 'guitar',
+    instrumentId: 'electric-guitar',
   },
   boom: {
     id: 'boom',
@@ -18,6 +19,7 @@ const BANDMATES = {
     belly: '#B8F5F3',
     accent: '#1A6B68',
     hold: 'drums',
+    instrumentId: 'drum-kit',
   },
   melody: {
     id: 'melody',
@@ -28,6 +30,7 @@ const BANDMATES = {
     belly: '#D0DAFF',
     accent: '#2A4080',
     hold: 'keys',
+    instrumentId: 'keyboard',
   },
   vox: {
     id: 'vox',
@@ -38,6 +41,7 @@ const BANDMATES = {
     belly: '#FFD0E0',
     accent: '#8B2040',
     hold: 'mic',
+    instrumentId: null,
   },
   slap: {
     id: 'slap',
@@ -48,6 +52,7 @@ const BANDMATES = {
     belly: '#D4F0C0',
     accent: '#2A6020',
     hold: 'bass',
+    instrumentId: 'bass-guitar',
   },
   ziggy: {
     id: 'ziggy',
@@ -58,19 +63,18 @@ const BANDMATES = {
     belly: '#FFF3CC',
     accent: '#B8860B',
     hold: 'horn',
+    instrumentId: 'trumpet',
   },
 };
 
-function renderBandmateHold(type) {
-  const holds = {
-    guitar: `<g transform="translate(118,148) rotate(-20)"><rect x="-4" y="-30" width="8" height="45" rx="3" fill="#5a3818" stroke="${OUTLINE}" stroke-width="2"/><ellipse cx="0" cy="18" rx="16" ry="12" fill="#8B0000" stroke="${OUTLINE}" stroke-width="2"/></g>`,
-    drums: `<g transform="translate(95,155)"><ellipse cx="0" cy="0" rx="18" ry="10" fill="#a0522d" stroke="${OUTLINE}" stroke-width="2"/><rect x="-3" y="-25" width="6" height="28" fill="#888" stroke="${OUTLINE}" stroke-width="1"/></g>`,
-    keys: `<g transform="translate(100,150)"><rect x="-22" y="-8" width="44" height="22" rx="3" fill="#222" stroke="${OUTLINE}" stroke-width="2"/>${[0,1,2,3,4].map(i => `<rect x="${-18+i*8}" y="-4" width="6" height="14" fill="#f5f5f5"/>`).join('')}</g>`,
-    mic: `<g transform="translate(120,130)"><rect x="-3" y="0" width="6" height="35" fill="#555" stroke="${OUTLINE}" stroke-width="1"/><ellipse cx="0" cy="0" rx="10" ry="14" fill="#888" stroke="${OUTLINE}" stroke-width="2"/></g>`,
-    bass: `<g transform="translate(115,150) rotate(-15)"><rect x="-5" y="-35" width="10" height="55" rx="3" fill="#1a1a2e" stroke="${OUTLINE}" stroke-width="2"/><ellipse cx="0" cy="22" rx="18" ry="13" fill="#2a2a4a" stroke="${OUTLINE}" stroke-width="2"/></g>`,
-    horn: `<g transform="translate(118,138) rotate(-30)"><path d="M0,0 Q20,-5 35,10 L30,18 Q15,8 0,12 Z" fill="#d4a017" stroke="${OUTLINE}" stroke-width="2"/></g>`,
-  };
-  return holds[type] || '';
+function bandmateInstrumentSvg(m) {
+  if (m.instrumentId && typeof INSTRUMENTS !== 'undefined' && typeof InstrumentArt !== 'undefined') {
+    return InstrumentArt.renderHeld(INSTRUMENTS[m.instrumentId], 'idle');
+  }
+  if (m.hold === 'mic') {
+    return `<g transform="translate(120,130)"><rect x="-3" y="0" width="6" height="35" fill="#555" stroke="${OUTLINE}" stroke-width="1"/><ellipse cx="0" cy="0" rx="10" ry="14" fill="#888" stroke="${OUTLINE}" stroke-width="2"/></g>`;
+  }
+  return '';
 }
 
 function renderBandmate(id, size = 80) {
@@ -78,14 +82,23 @@ function renderBandmate(id, size = 80) {
   if (!m) return '';
   const w = size;
   const h = size * 1.35;
+  const colors = typeof CharacterRig !== 'undefined' ? CharacterRig.bandmateColors(m) : m;
+  const pose = typeof CharacterRig !== 'undefined' ? CharacterRig.poseFromRole(m.role) : 'idle';
+  const armsBack = typeof CharacterRig !== 'undefined'
+    ? CharacterRig.renderRiggedArms(colors, pose, 'back')
+    : '';
+  const armsFront = typeof CharacterRig !== 'undefined'
+    ? CharacterRig.renderRiggedArms(colors, pose, 'front')
+    : '';
   const tufts = (cx, cy, spread) => Array.from({ length: 6 }, (_, i) => {
     const ang = (i / 6) * Math.PI * 2 - Math.PI / 2;
     const x = cx + Math.cos(ang) * spread;
     const y = cy + Math.sin(ang) * (spread * 0.6);
     return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.5" fill="${m.furLight}" stroke="${OUTLINE}" stroke-width="1.5"/>`;
   }).join('');
+  const inst = bandmateInstrumentSvg(m);
   return `
-    <svg viewBox="0 0 200 270" width="${w}" height="${h}" class="bandmate-svg" aria-label="${m.name}">
+    <svg viewBox="0 0 200 270" width="${w}" height="${h}" class="bandmate-svg rigged-bandmate" data-pose="${pose}" aria-label="${m.name}">
       <ellipse cx="100" cy="252" rx="42" ry="8" fill="rgba(0,0,0,0.15)"/>
       <rect x="62" y="210" width="22" height="28" rx="10" fill="${m.accent}" stroke="${OUTLINE}" stroke-width="2"/>
       <rect x="116" y="210" width="22" height="28" rx="10" fill="${m.accent}" stroke="${OUTLINE}" stroke-width="2"/>
@@ -93,10 +106,7 @@ function renderBandmate(id, size = 80) {
       <ellipse cx="100" cy="166" rx="40" ry="34" fill="${m.furLight}"/>
       <ellipse cx="100" cy="172" rx="26" ry="20" fill="${m.belly}"/>
       ${tufts(100, 160, 30)}
-      <ellipse cx="44" cy="160" rx="15" ry="17" fill="${m.fur}" stroke="${OUTLINE}" stroke-width="2"/>
-      <ellipse cx="156" cy="160" rx="15" ry="17" fill="${m.fur}" stroke="${OUTLINE}" stroke-width="2"/>
-      <ellipse cx="36" cy="176" rx="8" ry="8" fill="${m.furLight}" stroke="${OUTLINE}" stroke-width="1"/>
-      <ellipse cx="164" cy="176" rx="8" ry="8" fill="${m.furLight}" stroke="${OUTLINE}" stroke-width="1"/>
+      <g class="rig-arms-back">${armsBack}</g>
       <ellipse cx="100" cy="88" rx="48" ry="46" fill="${m.fur}" stroke="${OUTLINE}" stroke-width="3"/>
       <ellipse cx="100" cy="92" rx="38" ry="36" fill="${m.furLight}"/>
       ${tufts(100, 56, 26)}
@@ -115,7 +125,8 @@ function renderBandmate(id, size = 80) {
       <path d="M84 108 Q100 114 116 108" fill="white" stroke="${OUTLINE}" stroke-width="1.5"/>
       <circle cx="68" cy="96" r="8" fill="#FF8EC8" opacity="0.5"/>
       <circle cx="132" cy="96" r="8" fill="#FF8EC8" opacity="0.5"/>
-      ${renderBandmateHold(m.hold)}
+      <g class="rig-arms-front">${armsFront}</g>
+      <g class="bandmate-instrument">${inst}</g>
     </svg>`;
 }
 

@@ -42,85 +42,21 @@ function getEquippedInstrument(state) {
   return INSTRUMENTS[id] || INSTRUMENTS['trash-lid'];
 }
 
-function instLayer(cls, content) {
-  return `<g class="inst-layer ${cls}">${content}</g>`;
-}
-
-function genericInstrumentSvg(inst) {
-  const palette = {
-    piano: '#1a1a2e', synth: '#2d1b69', organ: '#3d2010', brass: '#d4a017',
-    sax: '#c47a20', bow: '#8B4513', flute: '#c0e8ff', clarinet: '#1a1a1a',
-    banjo: '#deb887', bass: '#2a2a2a', acoustic: '#a06830', harmonica: '#ccc',
-    accordion: '#c0392b', mallet: '#6bcbff', bell: '#d4a017', bongo: '#8B4513',
-    triangle: '#ffd166', ukulele: '#a06830', electric: '#8B0000',
-  };
-  const fill = palette[inst.subtype] || '#666';
-  const anim = '';
-  return `<g class="held-instrument held-generic instrument-layered ${anim}" transform="translate(112,148) rotate(-15)">
-    ${instLayer('inst-shadow', `<ellipse cx="0" cy="18" rx="22" ry="7" fill="rgba(0,0,0,0.22)"/>`)}
-    ${instLayer('inst-body', `
-      <rect x="-22" y="-8" width="44" height="38" rx="8" fill="${fill}" stroke="${OUTLINE}" stroke-width="3"/>
-      <rect x="-18" y="-4" width="36" height="28" rx="5" fill="${fill}" opacity="0.7"/>
-      <text x="0" y="14" text-anchor="middle" font-size="18">${inst.emoji}</text>`)}
-  </g>`;
-}
-
 function renderHeldInstrumentInner(inst, pose = 'idle') {
   if (!inst) return '';
-  const anim = pose !== 'idle' ? `inst-${pose}` : '';
-  const shapes = {
-    'trash-lid': `
-      <g class="held-instrument held-cymbal instrument-layered ${anim}" transform="translate(118,148) rotate(-18)">
-        ${instLayer('inst-shadow', `<ellipse cx="4" cy="6" rx="30" ry="8" fill="rgba(0,0,0,0.25)"/>`)}
-        ${instLayer('inst-rim', `<ellipse cx="0" cy="0" rx="30" ry="30" fill="#a8a8a8" stroke="${OUTLINE}" stroke-width="3"/><ellipse cx="0" cy="-2" rx="28" ry="28" fill="#c8c8c8"/>`)}
-        ${instLayer('inst-face', `<ellipse cx="0" cy="2" rx="22" ry="22" fill="#e8e8e8"/>`)}
-        ${instLayer('inst-handle', `<rect x="-4" y="22" width="8" height="18" rx="3" fill="#888" stroke="${OUTLINE}" stroke-width="2"/>`)}
-      </g>`,
-    tambourine: `
-      <g class="held-instrument held-tambourine instrument-layered ${anim}" transform="translate(122,142)">
-        ${instLayer('inst-shadow', `<ellipse cx="2" cy="8" rx="26" ry="7" fill="rgba(0,0,0,0.22)"/>`)}
-        ${instLayer('inst-frame', `<circle cx="0" cy="0" r="24" fill="#b8860b" stroke="${OUTLINE}" stroke-width="3"/><circle cx="0" cy="0" r="20" fill="#d4a017"/>`)}
-        ${instLayer('inst-jingles', `
-          <circle cx="-14" cy="-10" r="2.5" fill="#ccc"/>
-          <circle cx="12" cy="-8" r="2.5" fill="#ccc"/>
-          <circle cx="-8" cy="12" r="2.5" fill="#ccc"/>
-          <circle cx="10" cy="10" r="2.5" fill="#ccc"/>`)}
-      </g>`,
-    'drum-kit': `
-      <g class="held-instrument held-drums instrument-layered ${anim}">
-        ${instLayer('inst-shadow', `<ellipse cx="100" cy="178" rx="90" ry="12" fill="rgba(0,0,0,0.2)"/>`)}
-        ${instLayer('inst-snare', `<ellipse cx="62" cy="172" rx="18" ry="12" fill="#8B4513" stroke="${OUTLINE}" stroke-width="2"/><ellipse cx="62" cy="168" rx="16" ry="10" fill="#c8c8c8"/>`)}
-        ${instLayer('inst-cymbal', `<ellipse cx="100" cy="148" rx="20" ry="14" fill="#c8c8c8" stroke="${OUTLINE}" stroke-width="2"/>`)}
-      </g>`,
-    ukulele: `
-      <g class="held-instrument held-ukulele instrument-layered ${anim}" transform="translate(100,158) rotate(-25)">
-        ${instLayer('inst-shadow', `<ellipse cx="4" cy="28" rx="24" ry="8" fill="rgba(0,0,0,0.22)"/>`)}
-        ${instLayer('inst-body', `<ellipse cx="0" cy="20" rx="22" ry="16" fill="#a06830" stroke="${OUTLINE}" stroke-width="3"/><circle cx="0" cy="20" r="7" fill="#3a2010" stroke="${OUTLINE}" stroke-width="2"/>`)}
-        ${instLayer('inst-neck', `<rect x="-5" y="-32" width="10" height="52" rx="3" fill="#6B4423" stroke="${OUTLINE}" stroke-width="2"/>`)}
-        ${instLayer('inst-strings', `
-          <line x1="-3" y1="-28" x2="-3" y2="32" stroke="#ddd" stroke-width="0.8"/>
-          <line x1="-1" y1="-28" x2="-1" y2="32" stroke="#ddd" stroke-width="0.8"/>
-          <line x1="1" y1="-28" x2="1" y2="32" stroke="#ddd" stroke-width="0.8"/>
-          <line x1="3" y1="-28" x2="3" y2="32" stroke="#ddd" stroke-width="0.8"/>`)}
-      </g>`,
-    'electric-guitar': `
-      <g class="held-instrument held-guitar instrument-layered ${anim}" transform="translate(98,155) rotate(-20)">
-        ${instLayer('inst-shadow', `<ellipse cx="2" cy="32" rx="26" ry="9" fill="rgba(0,0,0,0.25)"/>`)}
-        ${instLayer('inst-body-front', `<ellipse cx="0" cy="22" rx="22" ry="16" fill="#8B0000" stroke="${OUTLINE}" stroke-width="3"/>`)}
-        ${instLayer('inst-neck', `<path d="M-7,-38 L7,-38 L9,18 Q0,24 -9,18 Z" fill="#1a1a1a" stroke="${OUTLINE}" stroke-width="3"/>`)}
-        ${instLayer('inst-strings', `
-          <line x1="-4" y1="-36" x2="-3.2" y2="30" stroke="#bbb" stroke-width="0.7"/>
-          <line x1="-2" y1="-36" x2="-1.6" y2="30" stroke="#bbb" stroke-width="0.7"/>
-          <line x1="0" y1="-36" x2="0" y2="30" stroke="#bbb" stroke-width="0.7"/>
-          <line x1="2" y1="-36" x2="1.6" y2="30" stroke="#bbb" stroke-width="0.7"/>
-          <line x1="4" y1="-36" x2="3.2" y2="30" stroke="#bbb" stroke-width="0.7"/>
-          <line x1="6" y1="-36" x2="4.8" y2="30" stroke="#bbb" stroke-width="0.7"/>`)}
-      </g>`,
-  };
-  if (shapes[inst.id]) return shapes[inst.id];
-  return genericInstrumentSvg(inst);
+  if (typeof InstrumentArt !== 'undefined') {
+    return InstrumentArt.renderHeld(inst, pose);
+  }
+  return '';
 }
 
 function renderHeldInstrument(inst, pose = 'idle') {
   return renderHeldInstrumentInner(inst, pose);
+}
+
+function renderShopInstrumentPreview(inst, size = 48) {
+  if (typeof InstrumentArt !== 'undefined') {
+    return InstrumentArt.renderShopPreview(inst, size);
+  }
+  return `<span class="shop-emoji">${inst.emoji}</span>`;
 }

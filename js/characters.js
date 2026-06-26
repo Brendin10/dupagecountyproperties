@@ -46,8 +46,16 @@ function layeredCharacter(id, size, layers, instrumentHtml = '', wearHtml = '') 
   </div>`;
 }
 
-const BENNY_LAYERS = (size) => {
+function rigArmsLayer(z, pose, layer, colors) {
+  const inner = typeof CharacterRig !== 'undefined'
+    ? CharacterRig.renderRiggedArms(colors, pose, layer)
+    : `<ellipse cx="${layer === 'back' ? 38 : 42}" cy="168" rx="16" ry="18" fill="${colors.fur}" stroke="${OUTLINE}" stroke-width="3"/>`;
+  return charLayer(`arms-${layer}`, z, inner, 'rigged-arms');
+}
+
+const BENNY_LAYERS = (size, pose = 'idle') => {
   const s = size;
+  const colors = typeof CharacterRig !== 'undefined' ? CharacterRig.bennyColors() : { fur: '#8E58FF' };
   return [
     charLayer('shadow', 1, `<ellipse cx="100" cy="252" rx="50" ry="9" fill="rgba(0,0,0,0.22)"/>`),
     charLayer('legs', 2, `
@@ -63,9 +71,7 @@ const BENNY_LAYERS = (size) => {
       <ellipse cx="100" cy="174" rx="30" ry="24" fill="#BC94FF"/>
       <ellipse cx="100" cy="178" rx="20" ry="16" fill="#D2B2FF"/>
       ${furTufts(100, 162, '#9E68FF', 8, 34)}`),
-    charLayer('arms-back', 4, `
-      <ellipse cx="38" cy="168" rx="16" ry="18" fill="#7E48EF" stroke="${OUTLINE}" stroke-width="3"/>
-      <ellipse cx="162" cy="168" rx="16" ry="18" fill="#7E48EF" stroke="${OUTLINE}" stroke-width="3"/>`),
+    rigArmsLayer(4, pose, 'back', colors),
     charLayer('jacket', 6, `
       <path d="M44 138 Q100 120 156 138 L152 192 Q100 204 48 192 Z" fill="#5a3420" stroke="${OUTLINE}" stroke-width="4"/>
       <path d="M56 144 Q100 130 144 144 L140 184 Q100 194 60 184 Z" fill="#764426"/>
@@ -94,17 +100,13 @@ const BENNY_LAYERS = (size) => {
       <ellipse cx="48" cy="82" rx="10" ry="8" fill="#7E48EF" stroke="${OUTLINE}" stroke-width="2"/>
       <ellipse cx="152" cy="82" rx="10" ry="8" fill="#7E48EF" stroke="${OUTLINE}" stroke-width="2"/>`),
     charLayer('face', 10, happyFace('#1478C8', 114)),
-    charLayer('arms-front', 11, `
-      <ellipse cx="42" cy="162" rx="18" ry="20" fill="#8E58FF" stroke="${OUTLINE}" stroke-width="4"/>
-      <ellipse cx="158" cy="162" rx="18" ry="20" fill="#8E58FF" stroke="${OUTLINE}" stroke-width="4"/>
-      <ellipse cx="34" cy="178" rx="10" ry="10" fill="#BC94FF" stroke="${OUTLINE}" stroke-width="2"/>
-      <ellipse cx="166" cy="178" rx="10" ry="10" fill="#BC94FF" stroke="${OUTLINE}" stroke-width="2"/>
-      <ellipse cx="30" cy="186" rx="7" ry="6" fill="#D2B2FF" stroke="${OUTLINE}" stroke-width="1"/>
-      <ellipse cx="170" cy="186" rx="7" ry="6" fill="#D2B2FF" stroke="${OUTLINE}" stroke-width="1"/>`),
+    rigArmsLayer(11, pose, 'front', colors),
   ];
 };
 
-const LIZZY_LAYERS = () => [
+const LIZZY_LAYERS = (pose = 'idle') => {
+  const colors = typeof CharacterRig !== 'undefined' ? CharacterRig.lizzyColors() : { fur: '#9458FF' };
+  return [
   charLayer('shadow', 1, `<ellipse cx="100" cy="252" rx="50" ry="9" fill="rgba(0,0,0,0.22)"/>`),
   charLayer('hair-back', 2, `
     <path d="M78 44 Q62 90 70 130 Q76 100 84 70 Q90 52 100 42" fill="#B028D8" stroke="${OUTLINE}" stroke-width="3"/>
@@ -122,9 +124,7 @@ const LIZZY_LAYERS = () => [
       <ellipse cx="100" cy="176" rx="28" ry="22" fill="#C29AFF"/>
       <ellipse cx="100" cy="180" rx="18" ry="14" fill="#DAB6FF"/>
       ${furTufts(100, 164, '#B878FF', 8, 32)}`),
-  charLayer('arms-back', 5, `
-    <ellipse cx="40" cy="170" rx="15" ry="17" fill="#8450EF" stroke="${OUTLINE}" stroke-width="3"/>
-    <ellipse cx="160" cy="170" rx="15" ry="17" fill="#8450EF" stroke="${OUTLINE}" stroke-width="3"/>`),
+  rigArmsLayer(5, pose, 'back', colors),
   charLayer('jacket', 7, `
     <path d="M46 140 Q100 122 154 140 L150 190 Q100 202 52 190 Z" fill="#E05098" stroke="${OUTLINE}" stroke-width="4"/>
     <path d="M58 146 Q100 132 142 146 L138 180 Q100 190 62 180 Z" fill="#FF6CB2"/>
@@ -149,28 +149,25 @@ const LIZZY_LAYERS = () => [
       ${happyFace('#C83CB4', 116)}
       <path d="M58 80 L52 68" stroke="${OUTLINE}" stroke-width="3" stroke-linecap="round"/>
       <path d="M142 80 L148 68" stroke="${OUTLINE}" stroke-width="3" stroke-linecap="round"/>`),
-  charLayer('arms-front', 12, `
-    <ellipse cx="44" cy="164" rx="17" ry="19" fill="#9458FF" stroke="${OUTLINE}" stroke-width="4"/>
-    <ellipse cx="156" cy="164" rx="17" ry="19" fill="#9458FF" stroke="${OUTLINE}" stroke-width="4"/>
-    <ellipse cx="36" cy="180" rx="10" ry="10" fill="#C29AFF" stroke="${OUTLINE}" stroke-width="2"/>
-    <ellipse cx="164" cy="180" rx="10" ry="10" fill="#C29AFF" stroke="${OUTLINE}" stroke-width="2"/>`),
+  rigArmsLayer(12, pose, 'front', colors),
 ];
+};
 
 const CHARACTERS = {
   benny: {
     id: 'benny',
     name: 'Benny',
     tagline: 'Purple powerhouse. Chunky biker fuzz.',
-    render(size = 200) {
-      return layeredCharacter('benny', size, BENNY_LAYERS(size));
+    render(size = 200, pose = 'idle') {
+      return layeredCharacter('benny', size, BENNY_LAYERS(size, pose));
     },
   },
   lizzy: {
     id: 'lizzy',
     name: 'Lizzy',
     tagline: 'Pink jacket queen. Ponytail puff.',
-    render(size = 200) {
-      return layeredCharacter('lizzy', size, LIZZY_LAYERS());
+    render(size = 200, pose = 'idle') {
+      return layeredCharacter('lizzy', size, LIZZY_LAYERS(pose));
     },
   },
 };
@@ -178,10 +175,13 @@ const CHARACTERS = {
 function renderCharacter(id, size, opts = {}) {
   const char = CHARACTERS[id];
   if (!char) return '';
+  const playPose = opts.instrument && typeof CharacterRig !== 'undefined'
+    ? CharacterRig.poseFromInstrument(opts.instrument)
+    : 'idle';
   const instInner = opts.instrument ? renderHeldInstrumentInner(opts.instrument, opts.pose || 'idle') : '';
   const wearHtml = typeof renderWearableLayers === 'function' ? renderWearableLayers(opts.equippedWear, id) : '';
-  if (id === 'benny') return layeredCharacter('benny', size, BENNY_LAYERS(size), instInner, wearHtml);
-  return layeredCharacter('lizzy', size, LIZZY_LAYERS(), instInner, wearHtml);
+  if (id === 'benny') return layeredCharacter('benny', size, BENNY_LAYERS(size, playPose), instInner, wearHtml);
+  return layeredCharacter('lizzy', size, LIZZY_LAYERS(playPose), instInner, wearHtml);
 }
 
 function renderCrowdMember(index) {
