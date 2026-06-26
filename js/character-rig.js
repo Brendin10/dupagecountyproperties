@@ -32,8 +32,8 @@ const CharacterRig = (() => {
 
   function armChain(side, colors, pose, layer, options = {}) {
     const isLeft = side === 'L';
-    const sx = isLeft ? 42 : 158;
-    const shoulderY = layer === 'back' ? 168 : 162;
+    const sx = isLeft ? 56 : 144;
+    const shoulderY = layer === 'back' ? 156 : 150;
     const fur = colors.fur || '#8E58FF';
     const furLight = colors.furLight || '#BC94FF';
     const hand = colors.hand || '#D2B2FF';

@@ -101,7 +101,7 @@ const BENNY_LAYERS = (size, pose = 'idle', inst = null) => {
       <ellipse cx="100" cy="174" rx="30" ry="24" fill="#BC94FF"/>
       <ellipse cx="100" cy="178" rx="20" ry="16" fill="#D2B2FF"/>
       ${furTufts(100, 162, '#9E68FF', 8, 34)}`),
-    rigArmsLayer(4, pose, 'back', colors, { hideSticks }),
+    ...(inst ? [] : [rigArmsLayer(4, pose, 'back', colors, { hideSticks })]),
     charLayer('jacket', 6, `
       <path d="M44 138 Q100 120 156 138 L152 192 Q100 204 48 192 Z" fill="#5a3420" stroke="${OUTLINE}" stroke-width="4"/>
       <path d="M56 144 Q100 130 144 144 L140 184 Q100 194 60 184 Z" fill="#764426"/>
@@ -154,7 +154,7 @@ const LIZZY_LAYERS = (pose = 'idle', inst = null) => {
       <ellipse cx="100" cy="176" rx="28" ry="22" fill="#C29AFF"/>
       <ellipse cx="100" cy="180" rx="18" ry="14" fill="#DAB6FF"/>
       ${furTufts(100, 164, '#B878FF', 8, 32)}`),
-  rigArmsLayer(5, pose, 'back', colors, { hideSticks }),
+  ...(inst ? [] : [rigArmsLayer(5, pose, 'back', colors, { hideSticks })]),
   charLayer('jacket', 7, `
     <path d="M46 140 Q100 122 154 140 L150 190 Q100 202 52 190 Z" fill="#E05098" stroke="${OUTLINE}" stroke-width="4"/>
     <path d="M58 146 Q100 132 142 146 L138 180 Q100 190 62 180 Z" fill="#FF6CB2"/>

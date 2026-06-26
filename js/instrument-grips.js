@@ -163,7 +163,7 @@ const InstrumentGrips = (() => {
     };
   }
 
-  const ART_SCALE = 1.35;
+  const ART_SCALE = 1.3;
 
   function mountTransform(grip) {
     const { gripL, art, rot } = grip;

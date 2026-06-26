@@ -1833,9 +1833,9 @@ body {
 .stage-light-haze {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 80% 60% at 50% 100%, rgba(107, 203, 255, 0.06), transparent 70%);
+  background: radial-gradient(ellipse 70% 50% at 50% 110%, rgba(107, 203, 255, 0.04), transparent 65%);
   animation: hazePulse 4s ease-in-out infinite;
-  opacity: 0.7;
+  opacity: 0.5;
 }
 
 @keyframes hazePulse {
@@ -2309,15 +2309,15 @@ body {
 }
 
 .rig-pose-brass .rig-arm-L .rig-forearm-pose {
-  transform: rotate(16deg);
+  transform: rotate(8deg);
 }
 
 .rig-pose-brass .rig-arm-R .rig-forearm-pose {
-  transform: rotate(-36deg);
+  transform: rotate(-52deg);
 }
 
 .rig-pose-brass .rig-arm-R .rig-hand-pose {
-  transform: rotate(-12deg);
+  transform: rotate(-18deg);
 }
 
 .rig-stick.rig-stick-hit {
