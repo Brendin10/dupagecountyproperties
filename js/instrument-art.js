@@ -1,5 +1,70 @@
 const InstrumentArt = (() => {
   const O = '#1C1230';
+  const ART_BASE = 'assets/instruments/';
+
+  const ART_IDS = new Set([
+    'trash-lid', 'tambourine', 'ukulele', 'electric-guitar', 'piano', 'keyboard',
+    'organ', 'trumpet', 'trombone', 'saxophone', 'violin', 'flute', 'harmonica',
+    'synth-lead', 'triangle', 'xylophone',
+  ]);
+
+  function hasArt(inst) {
+    return !!(inst?.id && ART_IDS.has(inst.id));
+  }
+
+  function artUrl(inst) {
+    return `${ART_BASE}${inst.id}.png`;
+  }
+
+  const HELD_LAYOUT = {
+    'trash-lid': { x: 72, y: 28, w: 56, h: 72, rot: -12 },
+    tambourine: { x: 78, y: 32, w: 48, h: 62, rot: 0 },
+    ukulele: { x: 70, y: 30, w: 60, h: 78, rot: -22 },
+    'electric-guitar': { x: 62, y: 22, w: 76, h: 98, rot: -18 },
+    piano: { x: 38, y: 48, w: 124, h: 72, rot: 0 },
+    keyboard: { x: 42, y: 52, w: 116, h: 58, rot: 0 },
+    organ: { x: 48, y: 30, w: 104, h: 88, rot: 0 },
+    trumpet: { x: 68, y: 34, w: 64, h: 78, rot: -24 },
+    trombone: { x: 66, y: 34, w: 68, h: 78, rot: -24 },
+    saxophone: { x: 64, y: 28, w: 72, h: 86, rot: -22 },
+    violin: { x: 76, y: 28, w: 48, h: 82, rot: -28 },
+    flute: { x: 88, y: 24, w: 28, h: 92, rot: -12 },
+    harmonica: { x: 72, y: 58, w: 56, h: 38, rot: 0 },
+    'synth-lead': { x: 44, y: 48, w: 112, h: 62, rot: 0 },
+    triangle: { x: 82, y: 30, w: 36, h: 72, rot: 0 },
+    xylophone: { x: 52, y: 48, w: 96, h: 58, rot: 0 },
+  };
+
+  function renderHeldImage(inst, anim) {
+    const layout = HELD_LAYOUT[inst.id] || { x: 70, y: 35, w: 60, h: 75, rot: -15 };
+    const { x, y, w, h, rot } = layout;
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+    return `
+      <g class="held-instrument held-img held-${inst.id} instrument-layered ${anim}" transform="translate(${cx},${cy}) rotate(${rot}) translate(${-w / 2},${-h / 2})">
+        <defs>
+          <clipPath id="held-clip-${inst.id}">
+            <rect x="0" y="0" width="${w}" height="${h * 0.82}" rx="4"/>
+          </clipPath>
+        </defs>
+        <image href="${artUrl(inst)}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="xMidYMin slice" clip-path="url(#held-clip-${inst.id})" class="held-instrument-img"/>
+      </g>`;
+  }
+
+  function renderShopPreview(inst, size = 72) {
+    if (!hasArt(inst)) {
+      const svg = renderHeldSvg(inst, 'idle');
+      return `<svg viewBox="0 0 200 270" width="${size}" height="${Math.round(size * 1.3)}" class="shop-inst-preview shop-inst-svg">${svg}</svg>`;
+    }
+    const h = Math.round(size * 1.3);
+    return `<img src="${artUrl(inst)}" width="${size}" height="${h}" class="inst-art-card" alt="${inst.name}" loading="lazy"/>`;
+  }
+
+  function renderInventoryThumb(inst, size = 36) {
+    if (!hasArt(inst)) return `<span class="inv-emoji">${inst.emoji}</span>`;
+    const h = Math.round(size * 1.3);
+    return `<img src="${artUrl(inst)}" width="${size}" height="${h}" class="inv-art-thumb" alt="${inst.name}" loading="lazy"/>`;
+  }
 
   function wrap(cls, transform, layers, anim = '') {
     return `<g class="held-instrument ${cls} instrument-layered ${anim}" transform="${transform}">${layers}</g>`;
@@ -173,12 +238,7 @@ const InstrumentArt = (() => {
     return renderTrashLid(anim);
   }
 
-  function renderShopPreview(inst, size = 48) {
-    const svg = renderHeld(inst, 'idle');
-    return `<svg viewBox="0 0 200 270" width="${size}" height="${Math.round(size * 1.35)}" class="shop-inst-preview">${svg}</svg>`;
-  }
-
-  function renderHeld(inst, pose = 'idle') {
+  function renderHeldSvg(inst, pose = 'idle') {
     if (!inst) return '';
     const anim = pose !== 'idle' ? `inst-${pose}` : '';
     const family = {
@@ -201,6 +261,15 @@ const InstrumentArt = (() => {
     }
   }
 
+  function renderHeld(inst, pose = 'idle') {
+    if (!inst) return '';
+    if (hasArt(inst)) {
+      const anim = pose !== 'idle' ? `inst-${pose}` : '';
+      return renderHeldImage(inst, anim);
+    }
+    return renderHeldSvg(inst, pose);
+  }
+
   function triggerDrumHit(rootEl, hitType = 'snare') {
     if (!rootEl) return;
     const piece = rootEl.querySelector(`.drum-${hitType}`) || rootEl.querySelector('.drum-snare');
@@ -210,7 +279,7 @@ const InstrumentArt = (() => {
     piece.classList.add('drum-hit-flash');
   }
 
-  return { renderHeld, renderShopPreview, triggerDrumHit };
+  return { renderHeld, renderShopPreview, renderInventoryThumb, hasArt, artUrl, triggerDrumHit };
 })();
 
 function renderInstrumentArt(inst, pose = 'idle') {

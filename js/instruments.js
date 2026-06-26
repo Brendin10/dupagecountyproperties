@@ -60,3 +60,17 @@ function renderShopInstrumentPreview(inst, size = 48) {
   }
   return `<span class="shop-emoji">${inst.emoji}</span>`;
 }
+
+function renderInventoryItemThumb(cat, item, size = 36) {
+  if (cat === 'instruments' && INSTRUMENTS[item.id] && typeof InstrumentArt !== 'undefined') {
+    return InstrumentArt.renderInventoryThumb(INSTRUMENTS[item.id], size);
+  }
+  return `<span class="brand-card-icon">${item.emoji}</span>`;
+}
+
+function renderShopItemPreview(cat, item, size = 72) {
+  if (cat === 'instruments' && INSTRUMENTS[item.id]) {
+    return renderShopInstrumentPreview(INSTRUMENTS[item.id], size);
+  }
+  return `<span class="brand-card-icon brand-card-icon-lg">${item.emoji}</span>`;
+}

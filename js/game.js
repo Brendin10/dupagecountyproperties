@@ -265,8 +265,7 @@ const Game = (() => {
       <section class="screen title-screen">
         <div class="title-bg"></div>
         <div class="title-content">
-          <p class="eyebrow">Welcome to</p>
-          <h1 class="game-title">BAND<span>LAND</span></h1>
+          <img src="assets/brand/bandland-logo.png" alt="Bandland" class="brand-logo-hero" />
           <p class="subtitle">From trash can lids to sold-out shows.</p>
           <div class="title-idle-character" id="title-idle-char">${idleChar}</div>
           <div class="title-actions">
@@ -371,7 +370,10 @@ const Game = (() => {
                     || (cat === 'songs' && state.equippedSong === i.id)
                     || (wearCats.includes(cat) && state.equippedWear?.[cat] === i.id);
                   const equipAttr = (cat === 'instruments' || cat === 'songs' || wearCats.includes(cat)) ? i.id : '';
-                  return `<button type="button" class="inv-chip ${equipped ? 'equipped' : ''}" data-equip-cat="${cat}" data-equip="${equipAttr}" title="${i.name}${equipped ? ' (on)' : ' — click to preview'}">${i.emoji}</button>`;
+                  const chipInner = cat === 'instruments' && INSTRUMENTS[i.id]
+                    ? (typeof renderInventoryItemThumb === 'function' ? renderInventoryItemThumb(cat, i, 36) : i.emoji)
+                    : `<span class="brand-card-icon">${i.emoji}</span>`;
+                  return `<button type="button" class="inv-chip ${equipped ? 'equipped' : ''}" data-equip-cat="${cat}" data-equip="${equipAttr}" title="${i.name}${equipped ? ' (on)' : ' — click to preview'}">${chipInner}</button>`;
                 }).join('')
               : '<span class="inv-empty">Empty</span>'}
           </div>
@@ -416,7 +418,10 @@ const Game = (() => {
             <p class="hub-appeal">Crowd Appeal: <strong>+${appeal}</strong></p>
             <div class="hub-loadout">
               <h4>Gig Loadout</h4>
-              <div class="loadout-row"><span>🎸</span> ${inst.name}</div>
+              <div class="loadout-row loadout-instrument">
+                ${typeof renderShopInstrumentPreview === 'function' ? renderShopInstrumentPreview(inst, 32) : inst.emoji}
+                <span>${inst.name}</span>
+              </div>
               <div class="loadout-row"><span>${song.emoji}</span> ${song.name}</div>
             </div>
             ${inventorySections}
@@ -487,10 +492,10 @@ const Game = (() => {
       content = `
         <div class="shop-list">
           ${state.shopNotice ? `<p class="shop-notice">${state.shopNotice}</p>` : ''}
-          <div class="shop-item">
-            <span class="shop-emoji">👥</span>
+          <div class="shop-item brand-card">
+            <span class="brand-card-icon brand-card-icon-lg">👥</span>
             <div class="shop-info">
-              <strong>Band Member Slot</strong>
+              <strong class="brand-label">Band Member Slot</strong>
               <span>${state.bandMembers.length} bandmates · ${openSlots} open · ${slotCount} / ${slotMax()} slots</span>
             </div>
             ${canBuy
@@ -506,14 +511,15 @@ const Game = (() => {
           ${items.map((item) => {
             const owned = state.inventories[state.shopTab].includes(item.id);
             const instObj = state.shopTab === 'instruments' ? INSTRUMENTS[item.id] : null;
-            const preview = instObj && typeof renderShopInstrumentPreview === 'function'
-              ? renderShopInstrumentPreview(instObj, 52)
-              : `<span class="shop-emoji">${item.emoji}</span>`;
+            const preview = typeof renderShopItemPreview === 'function'
+              ? renderShopItemPreview(state.shopTab, item, 72)
+              : `<span class="brand-card-icon brand-card-icon-lg">${item.emoji}</span>`;
+            const previewInst = instObj ? item.id : '';
             return `
-              <div class="shop-item ${owned ? 'owned' : ''}" ${instObj ? `data-preview-inst="${item.id}"` : ''}>
-                <button type="button" class="shop-preview-btn" data-preview-inst="${instObj ? item.id : ''}" title="Tap to preview sound">${preview}</button>
+              <div class="shop-item brand-card ${owned ? 'owned' : ''}">
+                <button type="button" class="shop-preview-btn" data-preview-inst="${previewInst}" data-preview-cat="${state.shopTab}" title="${instObj ? 'Tap to preview sound' : item.name}">${preview}</button>
                 <div class="shop-info">
-                  <strong>${item.name}</strong>
+                  <strong class="brand-label">${item.name}</strong>
                   <span>+${item.crowdBonus} crowd appeal</span>
                 </div>
                 ${owned
@@ -530,7 +536,8 @@ const Game = (() => {
       <section class="screen shop-screen">
         <div class="shop-header">
           <button class="btn btn-ghost" id="btn-back-hub">← Back</button>
-          <h2>Shop</h2>
+          <img src="assets/brand/bandland-logo.png" alt="Bandland" class="brand-logo" />
+          <h2 class="brand-label">Shop</h2>
         </div>
         <div class="shop-tabs">${tabButtons}</div>
         ${content}

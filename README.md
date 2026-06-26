@@ -27,6 +27,12 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 
 No build step required — vanilla HTML, CSS, and JavaScript.
 
+## Visual Assets
+
+Monster-brand instrument art lives in `assets/instruments/{instrument-id}.png` (16 instruments). The logo is `assets/brand/bandland-logo.png`. Drop in your final PNGs using the same filenames to replace placeholders. Regenerate placeholders with `python3 scripts/generate-brand-assets.py`.
+
+Instruments without PNG art (drum kit, acoustic guitar, bass guitar, banjo, clarinet, accordion, cowbell, bongo) still use SVG fallbacks in `js/instrument-art.js`.
+
 ## Audio Samples
 
 Instrument and crowd audio uses hybrid playback: short WAV samples in `audio/instruments/` plus procedural Web Audio synthesis as fallback. Samples are procedurally generated in-repo (CC0) via `scripts/generate-instrument-samples.mjs`. Crowd cheer/boo clips live in `audio/`.
