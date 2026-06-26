@@ -1338,7 +1338,6 @@ const Game = (() => {
       setRhythmHint(isMelodic ? 'miss — hit the gem in the zone!' : 'miss — hit the beat gem!', 'miss');
       spawnFloater(`-${starLoss.toFixed(1)} ★`, 'miss');
       updateHud();
-      updatePerformanceUI();
       return;
     }
 
