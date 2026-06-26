@@ -265,7 +265,7 @@ const Game = (() => {
       <section class="screen title-screen">
         <div class="title-bg"></div>
         <div class="title-content">
-          <img src="assets/brand/bandland-logo-hero.png" alt="Bandland" class="brand-logo-hero" />
+          <img src="assets/brand/bandland-logo.png" alt="" class="brand-logo-hero" />
           <p class="subtitle">From trash can lids to sold-out shows.</p>
           <div class="title-idle-character" id="title-idle-char">${idleChar}</div>
           <div class="title-actions">

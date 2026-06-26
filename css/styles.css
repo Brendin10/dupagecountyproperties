@@ -65,20 +65,21 @@ body {
 }
 
 .brand-logo {
-  height: 36px;
+  height: 44px;
   width: auto;
   display: block;
+  object-fit: contain;
   filter: drop-shadow(0 0 8px var(--brand-purple-glow));
 }
 
 .brand-logo-hero {
-  width: min(92vw, 520px);
+  width: min(88vw, 480px);
   height: auto;
-  max-height: clamp(120px, 28vw, 220px);
-  margin: 0 auto 16px;
+  aspect-ratio: 1;
+  margin: 0 auto 8px;
   display: block;
   object-fit: contain;
-  filter: drop-shadow(0 0 20px var(--brand-purple-glow));
+  filter: drop-shadow(0 0 24px var(--brand-purple-glow));
 }
 
 .hud-stats {
