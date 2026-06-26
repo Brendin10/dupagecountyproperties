@@ -713,6 +713,35 @@ const Game = (() => {
     if (state.screen === 'title') {
       startTitleIdleAnimation();
     }
+    syncPerformerInstrumentPose();
+  }
+
+  function syncPerformerInstrumentPose() {
+    if (!['hub', 'perform', 'tune'].includes(state.screen)) return;
+    let performer = document.getElementById('performer');
+    if (!performer && state.screen === 'hub') {
+      performer = document.querySelector('.hub-character .character-layered');
+    }
+    if (!performer && state.screen === 'tune') {
+      performer = document.querySelector('.tune-preview-wrap .character-layered');
+    }
+    const inst = getActiveInstrument();
+    if (!performer || !inst || typeof CharacterRig === 'undefined') return;
+    requestAnimationFrame(() => {
+      CharacterRig.syncInstrumentPose(performer, inst);
+    });
+  }
+
+  function triggerPlayPress(inst) {
+    const performer = document.getElementById('performer');
+    if (!performer || !inst || typeof CharacterRig === 'undefined') return;
+    CharacterRig.playInstrumentPress(performer, inst);
+  }
+
+  function triggerPlayRelease(inst) {
+    const performer = document.getElementById('performer');
+    if (!performer || typeof CharacterRig === 'undefined') return;
+    CharacterRig.playInstrumentRelease(performer, inst);
   }
 
   let titleIdleTimer = null;
@@ -868,13 +897,18 @@ const Game = (() => {
     playBtn?.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       playBtn.setPointerCapture(e.pointerId);
+      triggerPlayPress(getActiveInstrument());
       onNotePress();
     });
     playBtn?.addEventListener('pointerup', (e) => {
       playBtn.releasePointerCapture?.(e.pointerId);
       onNoteRelease();
+      triggerPlayRelease(getActiveInstrument());
     });
-    playBtn?.addEventListener('pointercancel', onNoteRelease);
+    playBtn?.addEventListener('pointercancel', () => {
+      onNoteRelease();
+      triggerPlayRelease(getActiveInstrument());
+    });
 
     $('#btn-rewind')?.addEventListener('click', rewindPerformance);
 
@@ -1240,7 +1274,8 @@ const Game = (() => {
       performer.classList.add(anim);
       performer.classList.add('hit-flash');
       if (typeof CharacterRig !== 'undefined') {
-        CharacterRig.applyPoseFromInstrument(performer, inst, 'hit');
+        CharacterRig.playInstrumentHit(performer, inst);
+        if (activeHold) CharacterRig.playInstrumentSustain(performer, inst);
       }
     }
     const held = performer.querySelector('.held-play');

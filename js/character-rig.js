@@ -17,6 +17,14 @@ const CharacterRig = (() => {
     Horns: 'one-hand-up',
   };
 
+  const SHOULDER = {
+    L: { x: 58, y: 148 },
+    R: { x: 142, y: 148 },
+  };
+
+  const DEFAULT_FOREARM = { strum: { L: 38, R: 44 }, keys: { L: 26, R: 26 }, drums: { L: 20, R: 20 }, brass: { L: 8, R: 52 }, idle: { L: 18, R: 18 } };
+  const DEFAULT_HAND = { strum: { L: 8, R: 6 }, keys: { L: 0, R: 0 }, drums: { L: 0, R: 0 }, brass: { L: 0, R: 18 }, idle: { L: 0, R: 0 } };
+
   function poseFromHold(hold) {
     return HOLD_TO_POSE[hold] || 'idle';
   }
@@ -30,9 +38,22 @@ const CharacterRig = (() => {
     return poseFromHold(ROLE_TO_HOLD[role] || 'idle');
   }
 
+  function computeArmAim(side, gripPoint, pose) {
+    const sh = SHOULDER[side];
+    const dx = gripPoint.x - sh.x;
+    const dy = gripPoint.y - sh.y;
+    const reachDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+    const base = DEFAULT_FOREARM[pose] || DEFAULT_FOREARM.idle;
+    const handBase = DEFAULT_HAND[pose] || DEFAULT_HAND.idle;
+    const forearmOffset = side === 'L' ? -52 : 128;
+    const forearm = reachDeg - forearmOffset;
+    const hand = handBase[side] + (side === 'L' ? reachDeg * 0.08 : reachDeg * -0.06);
+    return { forearm: Math.round(forearm * 10) / 10, hand: Math.round(hand * 10) / 10 };
+  }
+
   function armChain(side, colors, pose, layer, options = {}) {
     const isLeft = side === 'L';
-    const sx = isLeft ? 58 : 142;
+    const sx = SHOULDER[side].x;
     const shoulderY = layer === 'back' ? 154 : 148;
     const toward = isLeft ? 1 : -1;
     const fur = colors.fur || '#8E58FF';
@@ -80,22 +101,61 @@ const CharacterRig = (() => {
     return { fur: m.fur, furLight: m.furLight, hand: m.belly };
   }
 
+  function setArmClasses(arms, fn) {
+    arms.forEach((arm) => {
+      fn(arm);
+    });
+  }
+
+  function hitClassForArm(side, pose, phase) {
+    const isLeft = side === 'L';
+    if (phase === 'press') {
+      return isLeft ? 'rig-press' : 'rig-press-alt';
+    }
+    if (pose === 'strum') {
+      return isLeft ? 'rig-hit-alt' : 'rig-hit';
+    }
+    return isLeft ? 'rig-hit' : 'rig-hit-alt';
+  }
+
   function applyPose(rootEl, pose, phase = 'hit') {
     if (!rootEl) return;
     const poses = ['idle', 'strum', 'keys', 'drums', 'brass'];
     rootEl.querySelectorAll('.rig-arm').forEach((arm) => {
       poses.forEach((p) => arm.classList.remove(`rig-pose-${p}`));
       arm.classList.add(`rig-pose-${pose}`);
-      arm.classList.remove('rig-hit', 'rig-hit-alt');
-      void arm.offsetWidth;
-      if (phase === 'hit') {
-        arm.classList.add(arm.classList.contains('rig-arm-L') ? 'rig-hit' : 'rig-hit-alt');
+      arm.classList.remove('rig-hit', 'rig-hit-alt', 'rig-press', 'rig-press-alt');
+      if (phase === 'hit' || phase === 'press') {
+        void arm.offsetWidth;
+        const side = arm.classList.contains('rig-arm-L') ? 'L' : 'R';
+        arm.classList.add(hitClassForArm(side, pose, phase));
       }
     });
     rootEl.querySelectorAll('.rig-stick').forEach((s) => {
-      s.classList.remove('rig-stick-hit');
+      s.classList.remove('rig-stick-hit', 'rig-stick-sustain');
       void s.offsetWidth;
-      if (phase === 'hit' && pose === 'drums') s.classList.add('rig-stick-hit');
+      if ((phase === 'hit' || phase === 'press') && pose === 'drums') {
+        s.classList.add(phase === 'press' ? 'rig-stick-sustain' : 'rig-stick-hit');
+      }
+    });
+  }
+
+  function applyGripAlignment(rootEl, inst) {
+    if (!rootEl || !inst || typeof InstrumentGrips === 'undefined') return;
+    const grip = InstrumentGrips.getGrip(inst);
+    if (!grip) return;
+    const pose = poseFromInstrument(inst);
+    const grips = { L: grip.gripL, R: grip.gripR };
+
+    rootEl.querySelectorAll('.rig-arm').forEach((arm) => {
+      const side = arm.classList.contains('rig-arm-L') ? 'L' : 'R';
+      const aim = computeArmAim(side, grips[side], pose);
+      const fb = DEFAULT_FOREARM[pose] || DEFAULT_FOREARM.idle;
+      const hb = DEFAULT_HAND[pose] || DEFAULT_HAND.idle;
+      arm.style.setProperty('--rig-rest-forearm', `${aim.forearm}deg`);
+      arm.style.setProperty('--rig-rest-hand', `${aim.hand}deg`);
+      arm.style.setProperty('--rig-fallback-forearm', `${fb[side]}deg`);
+      arm.style.setProperty('--rig-fallback-hand', `${hb[side]}deg`);
     });
   }
 
@@ -107,16 +167,55 @@ const CharacterRig = (() => {
     applyPose(rootEl, poseFromRole(role), phase);
   }
 
+  function playInstrumentPress(rootEl, inst) {
+    if (!rootEl || !inst) return;
+    applyPoseFromInstrument(rootEl, inst, 'press');
+    applyGripAlignment(rootEl, inst);
+    rootEl.classList.add('rig-playing');
+  }
+
+  function playInstrumentHit(rootEl, inst) {
+    if (!rootEl || !inst) return;
+    applyPoseFromInstrument(rootEl, inst, 'hit');
+    applyGripAlignment(rootEl, inst);
+  }
+
+  function playInstrumentRelease(rootEl, inst) {
+    if (!rootEl) return;
+    rootEl.classList.remove('rig-playing');
+    applyPoseFromInstrument(rootEl, inst || { hold: 'idle' }, 'rest');
+    if (inst) applyGripAlignment(rootEl, inst);
+  }
+
+  function playInstrumentSustain(rootEl, inst) {
+    if (!rootEl || !inst) return;
+    rootEl.classList.add('rig-playing');
+    applyGripAlignment(rootEl, inst);
+  }
+
+  function syncInstrumentPose(rootEl, inst) {
+    if (!rootEl || !inst) return;
+    applyPoseFromInstrument(rootEl, inst, 'rest');
+    applyGripAlignment(rootEl, inst);
+  }
+
   return {
     poseFromHold,
     poseFromInstrument,
     poseFromRole,
     renderRiggedArms,
+    computeArmAim,
     bennyColors,
     lizzyColors,
     bandmateColors,
     applyPose,
+    applyGripAlignment,
     applyPoseFromInstrument,
     applyPoseFromRole,
+    playInstrumentPress,
+    playInstrumentHit,
+    playInstrumentRelease,
+    playInstrumentSustain,
+    syncInstrumentPose,
   };
 })();
