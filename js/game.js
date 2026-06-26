@@ -1080,7 +1080,7 @@ const Game = (() => {
 
   function checkMissedNotes() {
     const p = state.performance;
-    if (!p || p.booed) return;
+    if (!p || p.booed || !Metronome.running) return;
 
     const inst = getActiveInstrument();
     const song = getActiveSong();
@@ -1090,26 +1090,33 @@ const Game = (() => {
     const beatDur = 60 / p.bpm;
     const currentBeat = elapsed / beatDur;
     const late = isMelodic ? 0.24 : 0.2;
-    const part = song.parts[partKey] || [];
 
+    // Brief grace at gig start so the first gem can reach the hit zone
+    if (elapsed < beatDur * 0.75) return;
+
+    const part = song.parts[partKey] || [];
     if (!p.missedBeats) p.missedBeats = new Set();
 
+    let earliestMiss = null;
     for (const ev of part) {
       const key = noteKey(ev);
       if (p.hitBeats.has(key) || p.missedBeats.has(key)) continue;
 
-      const dur = ev.dur || 1;
-      const isHold = dur > 1.05;
       const activeHoldKey = activeHold ? noteKey(activeHold.note) : null;
       if (activeHoldKey === key) continue;
 
-      const missAfter = isHold ? ev.beat + late : ev.beat + late;
+      const missAfter = ev.beat + late;
       if (currentBeat <= missAfter) continue;
 
-      p.missedBeats.add(key);
-      applyHitScore('miss', { ...ev, isHold, dur }, inst);
-      if (!state.performance || p.booed) return;
+      if (!earliestMiss || ev.beat < earliestMiss.beat) {
+        earliestMiss = { ...ev, key, isHold: (ev.dur || 1) > 1.05, dur: ev.dur || 1 };
+      }
     }
+
+    if (!earliestMiss) return;
+
+    p.missedBeats.add(earliestMiss.key);
+    applyHitScore('miss', earliestMiss, inst);
   }
 
   function updatePerformanceUI() {
@@ -1419,7 +1426,15 @@ const Game = (() => {
     if (phase === 'hold-continue') return;
 
     if (!note || rating === 'miss') {
-      applyHitScore('miss', null, inst);
+      const late = isMelodic ? 0.24 : 0.2;
+      const early = isMelodic ? 0.14 : 0.12;
+      const beatDur = 60 / p.bpm;
+      const currentBeat = elapsed / beatDur;
+      const hittable = notes.some((n) => {
+        const dist = n.beat - currentBeat;
+        return dist >= -late && dist <= early;
+      });
+      if (hittable) applyHitScore('miss', null, inst);
       return;
     }
 
