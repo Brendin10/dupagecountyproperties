@@ -5,7 +5,7 @@ const AudioEngine = (() => {
   let percBus = null;
   let dryGain = null;
   let wetGain = null;
-  let reverbSend = null;
+  let crowdBus = null;
 
   const CHORD_ROOT = {
     C: 'C2', G: 'G1', Am: 'A1', F: 'F1', E: 'E2', B: 'B1',
@@ -110,6 +110,10 @@ const AudioEngine = (() => {
     delayFilter.connect(wetGain);
 
     percBus.connect(dryGain);
+
+    crowdBus = ac.createGain();
+    crowdBus.gain.value = 1;
+    crowdBus.connect(ac.destination);
 
     dryGain.connect(ac.destination);
     wetGain.connect(ac.destination);
@@ -1116,14 +1120,85 @@ const AudioEngine = (() => {
     });
   }
 
-  const CHEER_URL = 'audio/crowd-cheer.mp3';
-  const BOO_URL = 'audio/crowd-boo.mp3';
+  function connectCrowd(node, pan = 0) {
+    initMix();
+    if (pan !== 0) {
+      const ac = getCtx();
+      const p = ac.createStereoPanner();
+      p.pan.value = Math.max(-1, Math.min(1, pan));
+      node.connect(p);
+      p.connect(crowdBus);
+      return p;
+    }
+    node.connect(crowdBus);
+    return node;
+  }
+
+  function playBufferClip(buffer, { start = 0, clipLen, vol, pan = 0, attack = 0.03 } = {}) {
+    if (!buffer) return;
+    const ac = getCtx();
+    const now = ac.currentTime;
+    const dur = buffer.duration;
+    const len = clipLen ?? dur;
+    const offset = Math.max(0, Math.min(start, Math.max(0, dur - 0.05)));
+    const playLen = Math.min(len, dur - offset);
+
+    const src = ac.createBufferSource();
+    src.buffer = buffer;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(vol, now + attack);
+    g.gain.setValueAtTime(vol * 0.92, now + playLen * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.001, now + playLen + 0.08);
+    connectCrowd(g, pan);
+    src.connect(g);
+    src.start(now, offset, playLen);
+  }
+
+  const CHEER_URLS = [
+    'audio/storegraphic-crowd-cheers-314919.mp3',
+    'audio/crowd-cheer.mp3',
+    'audio/crowd-cheer.wav',
+  ];
+  const BOO_URLS = [
+    'audio/dragon-studio-crowd-booing-494319.mp3',
+    'audio/crowd-boo.mp3',
+    'audio/crowd-boo.wav',
+  ];
   let cheerBuffer = null;
   let cheerLoadPromise = null;
   let booBuffer = null;
   let booLoadPromise = null;
   let crowdAmbience = null;
-  let useProceduralCrowd = false;
+  let useProceduralCheer = false;
+  let useProceduralBoo = false;
+
+  function fetchDecodeSample(urls) {
+    initMix();
+    const ac = getCtx();
+    const list = Array.isArray(urls) ? urls : [urls];
+
+    const tryNext = (index) => {
+      if (index >= list.length) {
+        return Promise.reject(new Error(`crowd sample not found (${list.join(', ')})`));
+      }
+      const url = list[index];
+      return fetch(url)
+        .then((r) => {
+          if (!r.ok) throw new Error(`${url} ${r.status}`);
+          return r.arrayBuffer();
+        })
+        .then((buf) => new Promise((resolve, reject) => {
+          ac.decodeAudioData(buf, resolve, reject);
+        }))
+        .catch((err) => {
+          console.warn(`Crowd sample unavailable at ${url}`, err);
+          return tryNext(index + 1);
+        });
+    };
+
+    return tryNext(0);
+  }
 
   function noiseBuffer(ac, duration = 2) {
     const len = Math.floor(ac.sampleRate * duration);
@@ -1155,7 +1230,7 @@ const AudioEngine = (() => {
     noise.connect(bp);
     bp.connect(hp);
     hp.connect(ng);
-    connectToMix(ng, (Math.random() - 0.5) * 0.4, 'music');
+    connectCrowd(ng, (Math.random() - 0.5) * 0.4);
     noise.start(now);
     noise.stop(now + dur + 0.05);
 
@@ -1177,7 +1252,7 @@ const AudioEngine = (() => {
       vg.gain.exponentialRampToValueAtTime(0.001, t + 0.35 + Math.random() * 0.25);
       osc.connect(lp);
       lp.connect(vg);
-      connectToMix(vg, (Math.random() - 0.5) * 0.6, 'music');
+      connectCrowd(vg, (Math.random() - 0.5) * 0.6);
       osc.start(t);
       osc.stop(t + 0.5);
     }
@@ -1206,7 +1281,7 @@ const AudioEngine = (() => {
       g.gain.exponentialRampToValueAtTime(0.001, t + dur);
       osc.connect(bp);
       bp.connect(g);
-      connectToMix(g, (Math.random() - 0.5) * 0.5, 'music');
+      connectCrowd(g, (Math.random() - 0.5) * 0.5);
       osc.start(t);
       osc.stop(t + dur + 0.05);
     }
@@ -1222,32 +1297,23 @@ const AudioEngine = (() => {
     ng.gain.exponentialRampToValueAtTime(0.001, now + dur);
     noise.connect(lp);
     lp.connect(ng);
-    connectToMix(ng, 0, 'music');
+    connectCrowd(ng, 0);
     noise.start(now);
     noise.stop(now + dur + 0.05);
   }
 
   function loadCheerSample() {
     if (cheerBuffer) return Promise.resolve(cheerBuffer);
-    if (useProceduralCrowd) return Promise.reject(new Error('procedural crowd'));
+    if (useProceduralCheer) return Promise.reject(new Error('procedural cheer'));
     if (cheerLoadPromise) return cheerLoadPromise;
-    initMix();
-    const ac = getCtx();
-    cheerLoadPromise = fetch(CHEER_URL)
-      .then((r) => {
-        if (!r.ok) throw new Error(`crowd cheer ${r.status}`);
-        return r.arrayBuffer();
-      })
-      .then((buf) => new Promise((resolve, reject) => {
-        ac.decodeAudioData(buf, resolve, reject);
-      }))
+    cheerLoadPromise = fetchDecodeSample(CHEER_URLS)
       .then((decoded) => {
         cheerBuffer = decoded;
         return decoded;
       })
       .catch((err) => {
-        console.warn('Crowd cheer sample failed to load — using synth fallback', err);
-        useProceduralCrowd = true;
+        console.warn('Crowd cheer samples failed to load — using synth fallback', err);
+        useProceduralCheer = true;
         cheerLoadPromise = null;
         throw err;
       });
@@ -1256,25 +1322,16 @@ const AudioEngine = (() => {
 
   function loadBooSample() {
     if (booBuffer) return Promise.resolve(booBuffer);
-    if (useProceduralCrowd) return Promise.reject(new Error('procedural crowd'));
+    if (useProceduralBoo) return Promise.reject(new Error('procedural boo'));
     if (booLoadPromise) return booLoadPromise;
-    initMix();
-    const ac = getCtx();
-    booLoadPromise = fetch(BOO_URL)
-      .then((r) => {
-        if (!r.ok) throw new Error(`crowd boo ${r.status}`);
-        return r.arrayBuffer();
-      })
-      .then((buf) => new Promise((resolve, reject) => {
-        ac.decodeAudioData(buf, resolve, reject);
-      }))
+    booLoadPromise = fetchDecodeSample(BOO_URLS)
       .then((decoded) => {
         booBuffer = decoded;
         return decoded;
       })
       .catch((err) => {
-        console.warn('Crowd boo sample failed to load — using synth fallback', err);
-        useProceduralCrowd = true;
+        console.warn('Crowd boo samples failed to load — using synth fallback', err);
+        useProceduralBoo = true;
         booLoadPromise = null;
         throw err;
       });
@@ -1290,7 +1347,7 @@ const AudioEngine = (() => {
     const ac = getCtx();
     const loud = !!opts.loud;
 
-    if (useProceduralCrowd) {
+    if (useProceduralCheer) {
       const tn = tierNorm(tier);
       const baseVol = loud ? 0.48 + tn * 0.32 : 0.22 + tn * 0.22;
       synthCrowdCheer(ac, ac.currentTime, tier, baseVol * volMult, loud);
@@ -1299,28 +1356,16 @@ const AudioEngine = (() => {
 
     const play = () => {
       if (!cheerBuffer) return;
-      const now = ac.currentTime;
       const tn = tierNorm(tier);
       const dur = cheerBuffer.duration;
       const clipLen = loud
-        ? Math.min(2.5 + tn * 2.5, dur * 0.6)
-        : Math.min(0.6 + tn * 1.2, dur * 0.25);
-      const maxStart = Math.max(0, dur - clipLen - 0.05);
-      const start = opts.start ?? Math.random() * maxStart;
-      const baseVol = loud ? 0.32 + tn * 0.28 : 0.1 + tn * 0.18;
+        ? Math.min(5 + tn * 2, dur)
+        : Math.min(2 + tn * 1.5, dur * 0.35);
+      const start = opts.start ?? 0;
+      const baseVol = loud ? 0.42 + tn * 0.22 : 0.22 + tn * 0.14;
       const vol = baseVol * volMult;
-      const pan = (Math.random() - 0.5) * (0.2 + tn * 0.5);
-
-      const src = ac.createBufferSource();
-      src.buffer = cheerBuffer;
-      const g = ac.createGain();
-      g.gain.setValueAtTime(0, now);
-      g.gain.linearRampToValueAtTime(vol, now + 0.03);
-      g.gain.setValueAtTime(vol * 0.9, now + clipLen * 0.65);
-      g.gain.exponentialRampToValueAtTime(0.001, now + clipLen + 0.1);
-      connectToMix(g, pan, 'music');
-      src.connect(g);
-      src.start(now, start, Math.min(clipLen, dur - start));
+      const pan = (Math.random() - 0.5) * (0.15 + tn * 0.35);
+      playBufferClip(cheerBuffer, { start, clipLen, vol, pan });
     };
 
     if (cheerBuffer) play();
@@ -1397,32 +1442,17 @@ const AudioEngine = (() => {
     const ac = getCtx();
     const tier = crowdAmbience?.tier ?? 3;
 
-    if (useProceduralCrowd) {
+    if (useProceduralBoo) {
       synthCrowdBoo(ac, ac.currentTime, tier, (0.35 + tierNorm(tier) * 0.3) * volMult);
       return;
     }
 
     const play = () => {
       if (!booBuffer) return;
-      const now = ac.currentTime;
       const tn = tierNorm(tier);
-      const dur = booBuffer.duration;
-      const clipLen = Math.min(1.2 + tn * 0.8, dur);
-      const maxStart = Math.max(0, dur - clipLen - 0.02);
-      const start = Math.random() * maxStart;
-      const vol = (0.28 + tn * 0.28) * volMult;
-      const pan = (Math.random() - 0.5) * (0.35 + tn * 0.4);
-
-      const src = ac.createBufferSource();
-      src.buffer = booBuffer;
-      const g = ac.createGain();
-      g.gain.setValueAtTime(0, now);
-      g.gain.linearRampToValueAtTime(vol, now + 0.02);
-      g.gain.setValueAtTime(vol * 0.9, now + clipLen * 0.7);
-      g.gain.exponentialRampToValueAtTime(0.001, now + clipLen + 0.08);
-      connectToMix(g, pan, 'music');
-      src.connect(g);
-      src.start(now, start, Math.min(clipLen, dur - start));
+      const vol = (0.5 + tn * 0.2) * volMult;
+      const pan = (Math.random() - 0.5) * (0.25 + tn * 0.3);
+      playBufferClip(booBuffer, { start: 0, clipLen: booBuffer.duration, vol, pan, attack: 0.02 });
     };
 
     if (booBuffer) play();
