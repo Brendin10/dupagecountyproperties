@@ -29,6 +29,37 @@ const InstrumentArt = (() => {
     return !!InstrumentGrips.getGrip(inst)?.hideSticks;
   }
 
+  const PNG_FRAME = {
+    'trash-lid': { w: 800, h: 800, viewBox: '250 128 299 427' },
+    tambourine: { w: 800, h: 800, viewBox: '205 206 370 388' },
+    ukulele: { w: 800, h: 800, viewBox: '201 196 397 408' },
+    'electric-guitar': { w: 800, h: 800, viewBox: '181 133 438 398' },
+    'acoustic-guitar': { w: 409, h: 1024, viewBox: '21 42 386 922' },
+    'bass-guitar': { w: 409, h: 1024, viewBox: '25 29 359 995' },
+    banjo: { w: 409, h: 1024, viewBox: '26 101 358 822' },
+    piano: { w: 800, h: 800, viewBox: '201 184 397 431' },
+    keyboard: { w: 800, h: 800, viewBox: '177 243 445 314' },
+    organ: { w: 800, h: 800, viewBox: '216 204 367 391' },
+    trumpet: { w: 800, h: 800, viewBox: '190 228 420 344' },
+    trombone: { w: 800, h: 800, viewBox: '190 234 419 332' },
+    saxophone: { w: 800, h: 800, viewBox: '282 180 235 440' },
+    violin: { w: 800, h: 800, viewBox: '250 171 300 457' },
+    flute: { w: 800, h: 800, viewBox: '150 150 500 500' },
+    clarinet: { w: 800, h: 800, viewBox: '211 181 378 437' },
+    harmonica: { w: 800, h: 800, viewBox: '184 240 431 320' },
+    'synth-lead': { w: 800, h: 800, viewBox: '181 235 437 330' },
+    triangle: { w: 800, h: 800, viewBox: '221 207 358 385' },
+    xylophone: { w: 800, h: 800, viewBox: '192 243 416 313' },
+    accordion: { w: 800, h: 800, viewBox: '203 242 394 315' },
+    bongo: { w: 800, h: 800, viewBox: '200 240 399 319' },
+    cowbell: { w: 800, h: 800, viewBox: '208 228 383 344' },
+    'drum-kit': { w: 800, h: 800, viewBox: '177 220 445 360' },
+  };
+
+  function pngFrame(instId) {
+    return PNG_FRAME[instId] || { w: 800, h: 800, viewBox: '0 0 800 800' };
+  }
+
   function renderHeldImage(inst, anim = '') {
     const grip = typeof InstrumentGrips !== 'undefined'
       ? InstrumentGrips.getGrip(inst)
@@ -38,16 +69,17 @@ const InstrumentArt = (() => {
     const mount = grip
       ? InstrumentGrips.mountTransform(grip)
       : { transform: 'translate(70,35)', w, h };
+    const frame = pngFrame(inst.id);
     const playCls = anim ? ` ${anim}` : '';
     return `
       <g class="held-mount held-instrument held-img held-${inst.id}" transform="${mount.transform}">
         <g class="held-play instrument-layered${playCls}">
-          <foreignObject x="0" y="0" width="${mount.w}" height="${mount.h}">
-            <img xmlns="http://www.w3.org/1999/xhtml" src="${artUrl(inst)}" alt=""
-              style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none"
+          <svg x="0" y="0" width="${mount.w}" height="${mount.h}" viewBox="${frame.viewBox}" preserveAspectRatio="xMidYMid meet">
+            <image href="${artUrl(inst)}" width="${frame.w}" height="${frame.h}"
+              class="held-instrument-img"
               data-inst-id="${inst.id}"
               onerror="typeof InstrumentArt!=='undefined'&&InstrumentArt.markPngFailed('${inst.id}')"/>
-          </foreignObject>
+          </svg>
         </g>
       </g>`;
   }
