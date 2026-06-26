@@ -1106,7 +1106,7 @@ const Game = (() => {
 
   function checkMissedNotes() {
     const p = state.performance;
-    if (!p || p.booed || !Metronome.running) return;
+    if (!p || p.booed || !isRhythmScoringEnabled()) return;
 
     const inst = getActiveInstrument();
     const song = getActiveSong();
@@ -1118,7 +1118,7 @@ const Game = (() => {
     const late = isMelodic ? 0.24 : 0.2;
 
     if (!p.rhythmActive) return;
-    if (elapsed < RHYTHM_WARMUP_SEC) return;
+    if (!isRhythmScoringEnabled()) return;
 
     const leadInBeat = p.leadInBeat ?? 0;
 
@@ -1167,8 +1167,6 @@ const Game = (() => {
     const isMelodic = inst.type === 'melodic';
     const elapsed = Metronome.getElapsed();
 
-    finalizeActiveHoldIfExpired();
-
     const timer = document.getElementById('perf-timer');
     if (timer) timer.textContent = `⏱ ${p.timeLeft}s`;
 
@@ -1180,6 +1178,8 @@ const Game = (() => {
       state._updatingPerfUi = false;
       return;
     }
+
+    finalizeActiveHoldIfExpired();
 
     if (elapsed < RHYTHM_WARMUP_SEC) {
       const left = Math.max(1, Math.ceil(RHYTHM_WARMUP_SEC - elapsed));
@@ -1369,9 +1369,16 @@ const Game = (() => {
     });
   }
 
+  function isRhythmScoringEnabled() {
+    const p = state.performance;
+    if (!p || !p.rhythmActive || !Metronome.running) return false;
+    return Metronome.getElapsed() >= RHYTHM_WARMUP_SEC;
+  }
+
   function applyHitScore(rating, note, inst) {
     const p = state.performance;
     if (!p) return;
+    if (rating === 'miss' && !isRhythmScoringEnabled()) return;
 
     triggerPlayAnimation(inst, rating);
     RhythmLane.flashHit(rating);
@@ -1475,13 +1482,12 @@ const Game = (() => {
   function onNotePress() {
     const p = state.performance;
     if (!p || !p.rhythmActive || activeHold) return;
-
-    const elapsed = Metronome.getElapsed();
-    if (elapsed < RHYTHM_WARMUP_SEC) return;
+    if (!isRhythmScoringEnabled()) return;
 
     const inst = getActiveInstrument();
     const song = getActiveSong();
     const partKey = getPlayerPartKey(inst);
+    const elapsed = Metronome.getElapsed();
     const isMelodic = inst.type === 'melodic';
     const notes = getUpcomingNotes(song, partKey, elapsed, p.bpm, RhythmLane.LOOKAHEAD, p.hitBeats, p.missedBeats, p.leadInBeat ?? 0);
     const { rating, note, phase } = rateNotePress(notes, elapsed, p.bpm, isMelodic, p.hitBeats);
