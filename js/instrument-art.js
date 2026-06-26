@@ -39,14 +39,15 @@ const InstrumentArt = (() => {
       ? InstrumentGrips.mountTransform(grip)
       : { transform: 'translate(70,35)', w, h };
     const playCls = anim ? ` ${anim}` : '';
-    const uid = inst.id.replace(/[^a-z0-9-]/gi, '');
     return `
       <g class="held-mount held-instrument held-img held-${inst.id}" transform="${mount.transform}">
         <g class="held-play instrument-layered${playCls}">
-          <image href="${artUrl(inst)}" x="0" y="0" width="${mount.w}" height="${mount.h}"
-            preserveAspectRatio="xMidYMid slice" class="held-instrument-img"
-            data-inst-id="${inst.id}"
-            onerror="typeof InstrumentArt!=='undefined'&&InstrumentArt.markPngFailed('${inst.id}')"/>
+          <foreignObject x="0" y="0" width="${mount.w}" height="${mount.h}">
+            <img xmlns="http://www.w3.org/1999/xhtml" src="${artUrl(inst)}" alt=""
+              style="width:100%;height:100%;object-fit:cover;display:block;pointer-events:none"
+              data-inst-id="${inst.id}"
+              onerror="typeof InstrumentArt!=='undefined'&&InstrumentArt.markPngFailed('${inst.id}')"/>
+          </foreignObject>
         </g>
       </g>`;
   }

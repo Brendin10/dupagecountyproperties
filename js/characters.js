@@ -90,23 +90,17 @@ function staticFrontArms(id, inst) {
 
   if (hold === 'one-hand-up') {
     return `
-      <ellipse cx="66" cy="152" rx="16" ry="18" fill="${colors.fur}" stroke="${O}" stroke-width="3"/>
-      <ellipse cx="134" cy="152" rx="16" ry="18" fill="${colors.fur}" stroke="${O}" stroke-width="3"/>
-      <ellipse cx="74" cy="166" rx="11" ry="10" fill="${colors.hand}" stroke="${O}" stroke-width="2"/>
-      <ellipse cx="126" cy="136" rx="11" ry="10" fill="${colors.hand}" stroke="${O}" stroke-width="2"/>`;
+      <ellipse cx="74" cy="166" rx="12" ry="11" fill="${colors.hand}" stroke="${O}" stroke-width="2.5"/>
+      <ellipse cx="126" cy="134" rx="12" ry="11" fill="${colors.hand}" stroke="${O}" stroke-width="2.5"/>`;
   }
   if (hold === 'keys' || hold === 'two-hand') {
     return `
-      <ellipse cx="66" cy="154" rx="16" ry="18" fill="${colors.fur}" stroke="${O}" stroke-width="3"/>
-      <ellipse cx="134" cy="154" rx="16" ry="18" fill="${colors.fur}" stroke="${O}" stroke-width="3"/>
-      <ellipse cx="78" cy="170" rx="11" ry="10" fill="${colors.hand}" stroke="${O}" stroke-width="2"/>
-      <ellipse cx="122" cy="170" rx="11" ry="10" fill="${colors.hand}" stroke="${O}" stroke-width="2"/>`;
+      <ellipse cx="78" cy="170" rx="12" ry="11" fill="${colors.hand}" stroke="${O}" stroke-width="2.5"/>
+      <ellipse cx="122" cy="170" rx="12" ry="11" fill="${colors.hand}" stroke="${O}" stroke-width="2.5"/>`;
   }
   return `
-    <ellipse cx="64" cy="154" rx="16" ry="18" fill="${colors.fur}" stroke="${O}" stroke-width="3"/>
-    <ellipse cx="136" cy="154" rx="16" ry="18" fill="${colors.fur}" stroke="${O}" stroke-width="3"/>
-    <ellipse cx="82" cy="168" rx="11" ry="10" fill="${colors.hand}" stroke="${O}" stroke-width="2"/>
-    <ellipse cx="118" cy="162" rx="11" ry="10" fill="${colors.hand}" stroke="${O}" stroke-width="2"/>`;
+    <ellipse cx="82" cy="168" rx="12" ry="11" fill="${colors.hand}" stroke="${O}" stroke-width="2.5"/>
+    <ellipse cx="118" cy="162" rx="12" ry="11" fill="${colors.hand}" stroke="${O}" stroke-width="2.5"/>`;
 }
 
 function frontArmsForCharacter(id, pose, inst) {
