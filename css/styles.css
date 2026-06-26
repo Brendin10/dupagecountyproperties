@@ -2276,7 +2276,7 @@ body {
 }
 
 .rig-pose-strum .rig-arm-R .rig-forearm-pose {
-  transform: rotate(-44deg);
+  transform: rotate(44deg);
 }
 
 .rig-pose-strum .rig-arm-L .rig-hand-pose {
@@ -2284,7 +2284,7 @@ body {
 }
 
 .rig-pose-strum .rig-arm-R .rig-hand-pose {
-  transform: rotate(-6deg);
+  transform: rotate(6deg);
 }
 
 .rig-pose-keys .rig-arm-L .rig-forearm-pose {
@@ -2292,7 +2292,7 @@ body {
 }
 
 .rig-pose-keys .rig-arm-R .rig-forearm-pose {
-  transform: rotate(-26deg);
+  transform: rotate(26deg);
 }
 
 .rig-pose-keys .rig-arm-L .rig-hand-pose,
@@ -2305,7 +2305,7 @@ body {
 }
 
 .rig-pose-drums .rig-arm-R .rig-forearm-pose {
-  transform: rotate(-20deg);
+  transform: rotate(20deg);
 }
 
 .rig-pose-brass .rig-arm-L .rig-forearm-pose {
@@ -2313,11 +2313,11 @@ body {
 }
 
 .rig-pose-brass .rig-arm-R .rig-forearm-pose {
-  transform: rotate(-52deg);
+  transform: rotate(52deg);
 }
 
 .rig-pose-brass .rig-arm-R .rig-hand-pose {
-  transform: rotate(-18deg);
+  transform: rotate(18deg);
 }
 
 .rig-stick.rig-stick-hit {
@@ -2325,9 +2325,9 @@ body {
 }
 
 @keyframes rigStrumR {
-  0%, 100% { transform: rotate(-44deg); }
-  40% { transform: rotate(-58deg); }
-  70% { transform: rotate(-30deg); }
+  0%, 100% { transform: rotate(44deg); }
+  40% { transform: rotate(58deg); }
+  70% { transform: rotate(30deg); }
 }
 
 @keyframes rigStrumL {
@@ -2342,8 +2342,8 @@ body {
 }
 
 @keyframes rigDrumHitR {
-  0%, 100% { transform: rotate(-20deg); }
-  35% { transform: rotate(-42deg); }
+  0%, 100% { transform: rotate(20deg); }
+  35% { transform: rotate(42deg); }
 }
 
 @keyframes rigKeyPress {
@@ -2352,8 +2352,8 @@ body {
 }
 
 @keyframes rigBrassToot {
-  0%, 100% { transform: rotate(-12deg); }
-  50% { transform: rotate(-20deg) translateY(3px); }
+  0%, 100% { transform: rotate(18deg); }
+  50% { transform: rotate(26deg) translateY(3px); }
 }
 
 @keyframes rigStickHit {

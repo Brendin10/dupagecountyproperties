@@ -34,11 +34,11 @@ const CharacterRig = (() => {
     const isLeft = side === 'L';
     const sx = isLeft ? 58 : 142;
     const shoulderY = layer === 'back' ? 154 : 148;
+    const toward = isLeft ? 1 : -1;
     const fur = colors.fur || '#8E58FF';
     const furLight = colors.furLight || '#BC94FF';
     const hand = colors.hand || '#D2B2FF';
     const poseCls = `rig-pose-${pose}`;
-    const flip = isLeft ? '' : ' scale(-1,1)';
 
     const stick = pose === 'drums' && !options.hideSticks
       ? `<line class="rig-stick" x1="${isLeft ? 28 : 172}" y1="188" x2="${isLeft ? 18 : 182}" y2="168" stroke="#8B7355" stroke-width="3" stroke-linecap="round"/>
@@ -46,9 +46,9 @@ const CharacterRig = (() => {
       : '';
 
     return `
-      <g class="rig-arm rig-arm-${side} rig-layer-${layer} ${poseCls}" transform="translate(${sx},${shoulderY})${flip}">
+      <g class="rig-arm rig-arm-${side} rig-layer-${layer} ${poseCls}" transform="translate(${sx},${shoulderY})">
         <g class="rig-upper-arm">
-          <ellipse cx="12" cy="10" rx="17" ry="14" fill="${fur}" stroke="${OUTLINE}" stroke-width="3"/>
+          <ellipse cx="${12 * toward}" cy="10" rx="17" ry="14" fill="${fur}" stroke="${OUTLINE}" stroke-width="3"/>
         </g>
         <g class="rig-forearm" transform="translate(0,18)">
           <g class="rig-forearm-pose" style="transform-box:fill-box;transform-origin:0 0">

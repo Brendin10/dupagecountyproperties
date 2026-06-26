@@ -176,11 +176,10 @@ const InstrumentGrips = (() => {
     return PNG_BOOST[instId] ?? 2.2;
   }
 
-  function mountTransform(grip, instId) {
+  function mountTransform(grip) {
     const { gripL, art, rot } = grip;
-    const boost = pngBoost(instId);
-    const w = art.w * boost;
-    const h = art.h * boost;
+    const w = art.w;
+    const h = art.h;
     const ax = art.anchorX * w;
     const ay = art.anchorY * h;
     return {

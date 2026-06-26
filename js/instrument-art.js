@@ -36,7 +36,7 @@ const InstrumentArt = (() => {
     const w = grip?.art?.w ?? 70;
     const h = grip?.art?.h ?? 75;
     const mount = grip
-      ? InstrumentGrips.mountTransform(grip, inst.id)
+      ? InstrumentGrips.mountTransform(grip)
       : { transform: 'translate(70,35)', w, h };
     const playCls = anim ? ` ${anim}` : '';
     const uid = inst.id.replace(/[^a-z0-9-]/gi, '');
@@ -44,7 +44,7 @@ const InstrumentArt = (() => {
       <g class="held-mount held-instrument held-img held-${inst.id}" transform="${mount.transform}">
         <g class="held-play instrument-layered${playCls}">
           <image href="${artUrl(inst)}" x="0" y="0" width="${mount.w}" height="${mount.h}"
-            preserveAspectRatio="xMidYMid meet" class="held-instrument-img"
+            preserveAspectRatio="xMidYMid slice" class="held-instrument-img"
             data-inst-id="${inst.id}"
             onerror="typeof InstrumentArt!=='undefined'&&InstrumentArt.markPngFailed('${inst.id}')"/>
         </g>
