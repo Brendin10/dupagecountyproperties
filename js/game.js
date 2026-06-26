@@ -1121,7 +1121,9 @@ const Game = (() => {
 
   function updatePerformanceUI() {
     const p = state.performance;
-    if (!p) return;
+    if (!p || state._updatingPerfUi) return;
+    state._updatingPerfUi = true;
+
     const inst = getActiveInstrument();
     const song = getActiveSong();
     const partKey = getPlayerPartKey(inst);
@@ -1130,7 +1132,10 @@ const Game = (() => {
 
     finalizeActiveHoldIfExpired();
     checkMissedNotes();
-    if (!state.performance || state.screen !== 'perform') return;
+    if (!state.performance || state.screen !== 'perform') {
+      state._updatingPerfUi = false;
+      return;
+    }
 
     if (elapsed - lastSnapshotAt >= SNAPSHOT_INTERVAL) {
       captureRewindSnapshot(elapsed);
@@ -1161,6 +1166,7 @@ const Game = (() => {
       else comboEl.textContent = p.combo > 1 ? `COMBO ×${p.combo}` : '';
     }
     updateFireState();
+    state._updatingPerfUi = false;
   }
 
   function triggerBandmateAnimation(member) {
