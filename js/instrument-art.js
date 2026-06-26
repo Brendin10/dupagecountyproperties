@@ -64,11 +64,9 @@ const InstrumentArt = (() => {
     const grip = typeof InstrumentGrips !== 'undefined'
       ? InstrumentGrips.getGrip(inst)
       : null;
-    const w = grip?.art?.w ?? 70;
-    const h = grip?.art?.h ?? 75;
     const mount = grip
-      ? InstrumentGrips.mountTransform(grip)
-      : { transform: 'translate(70,35)', w, h };
+      ? InstrumentGrips.mountTransform(grip, inst.id)
+      : { transform: 'translate(70,35)', w: 70, h: 75 };
     const frame = pngFrame(inst.id);
     const playCls = anim ? ` ${anim}` : '';
     return `
@@ -107,6 +105,22 @@ const InstrumentArt = (() => {
     </g>`;
   }
 
+  function wrapHeld(inst, cls, inner, anim = '', localOffset = { x: 0, y: 0 }) {
+    const grip = typeof InstrumentGrips !== 'undefined'
+      ? InstrumentGrips.getGrip(inst)
+      : null;
+    const mount = grip
+      ? InstrumentGrips.mountTransform(grip, inst.id)
+      : { transform: 'translate(100,158)', w: 70, h: 75, ax: 35, ay: 58 };
+    const ox = localOffset.x ?? 0;
+    const oy = localOffset.y ?? 0;
+    return `<g class="held-mount held-instrument ${cls} instrument-layered" transform="${mount.transform}">
+      <g class="held-play ${anim}">
+        <g transform="translate(${mount.ax + ox},${mount.ay + oy})">${inner}</g>
+      </g>
+    </g>`;
+  }
+
   function layer(cls, content) {
     return `<g class="inst-layer ${cls}">${content}</g>`;
   }
@@ -137,7 +151,7 @@ const InstrumentArt = (() => {
       return `<line x1="${x.toFixed(1)}" y1="-28" x2="${(x * 0.8).toFixed(1)}" y2="32" stroke="#bbb" stroke-width="0.7"/>`;
     }).join('');
     const inner = `${shadow()}${layer('inst-body', body)}${layer('inst-neck', neck)}${layer('inst-strings', strLines)}`;
-    return wrap(`held-${inst.id}`, `translate(100,158) rotate(${cfg.rot})`, inner, anim);
+    return wrapHeld(inst, `held-${inst.id}`, inner, anim, { x: 0, y: 18 });
   }
 
   function renderBrass(inst, anim) {
@@ -150,7 +164,7 @@ const InstrumentArt = (() => {
         ${inst.id === 'trombone' ? '<rect x="20" y="0" width="28" height="6" rx="3" fill="#bbb" stroke="' + O + '" stroke-width="1.5"/>' : ''}
         ${inst.subtype === 'sax' ? '<path d="M-10,6 Q-16,20 -8,32 L-2,28 Q-8,18 -4,8 Z" fill="' + gold + '" stroke="' + O + '" stroke-width="2"/>' : ''}`)}
       ${layer('inst-bell', `<ellipse cx="36" cy="8" rx="12" ry="10" fill="${gold}" stroke="${O}" stroke-width="2.5"/>`)}`;
-    return wrap(`held-${inst.id}`, 'translate(108,142) rotate(-28)', inner, anim);
+    return wrapHeld(inst, `held-${inst.id}`, inner, anim, { x: -6, y: 8 });
   }
 
   function renderKeys(inst, anim) {
@@ -181,7 +195,7 @@ const InstrumentArt = (() => {
         ${layer('inst-keys', Array.from({ length: 10 }, (_, i) => `<rect x="${-28 + i * 6}" y="-2" width="5" height="16" fill="${i % 7 === 0 || i % 7 === 3 ? '#222' : p.keys}" stroke="${O}" stroke-width="0.5"/>`).join(''))}`;
     }
     const inner = `${shadow(32, 8, 18)}${shape}`;
-    return wrap(`held-${inst.id}`, 'translate(100,152)', inner, anim);
+    return wrapHeld(inst, `held-${inst.id}`, inner, anim, { x: 0, y: 10 });
   }
 
   function renderWoodwind(inst, anim) {
@@ -191,31 +205,31 @@ const InstrumentArt = (() => {
     if (inst.id === 'harmonica') {
       inner = `${shadow(16, 6, 12)}${layer('inst-body', `<rect x="-20" y="-6" width="40" height="14" rx="4" fill="${fill}" stroke="${O}" stroke-width="2"/>
         ${Array.from({ length: 8 }, (_, i) => `<circle cx="${-14 + i * 4}" cy="1" r="1.5" fill="#222"/>`).join('')}`)}`;
-      return wrap(`held-${inst.id}`, 'translate(118,138)', inner, anim);
+      return wrapHeld(inst, `held-${inst.id}`, inner, anim);
     }
     inner = `${shadow(14, 6, 18)}${layer('inst-body', `<rect x="-4" y="-30" width="8" height="58" rx="4" fill="${fill}" stroke="${O}" stroke-width="2"/>
       ${Array.from({ length: 6 }, (_, i) => `<circle cx="0" cy="${-20 + i * 8}" r="2" fill="#333" stroke="${O}" stroke-width="1"/>`).join('')}
       <ellipse cx="0" cy="-32" rx="6" ry="4" fill="${fill}" stroke="${O}" stroke-width="2"/>`)}`;
-    return wrap(`held-${inst.id}`, 'translate(115,145) rotate(-15)', inner, anim);
+    return wrapHeld(inst, `held-${inst.id}`, inner, anim, { x: 0, y: 28 });
   }
 
   function renderSynth(inst, anim) {
     const inner = `${shadow(28, 8, 16)}${layer('inst-body', `<rect x="-30" y="-12" width="60" height="32" rx="5" fill="#2d1b69" stroke="${O}" stroke-width="3"/>
       ${Array.from({ length: 6 }, (_, i) => `<circle cx="${-20 + i * 8}" cy="-4" r="3" fill="#9b6bff" stroke="${O}" stroke-width="1"/><rect x="${-22 + i * 8}" y="4" width="4" height="8" rx="1" fill="#666"/>`).join('')}
       <rect x="-24" y="14" width="48" height="4" rx="1" fill="#4ecdc4"/>`)}`;
-    return wrap(`held-${inst.id}`, 'translate(100,150)', inner, anim);
+    return wrapHeld(inst, `held-${inst.id}`, inner, anim, { x: 0, y: 8 });
   }
 
-  function renderTrashLid(anim) {
+  function renderTrashLid(inst, anim) {
     const inner = `
       ${layer('inst-shadow', `<ellipse cx="4" cy="6" rx="30" ry="8" fill="rgba(0,0,0,0.25)"/>`)}
       ${layer('inst-rim', `<ellipse cx="0" cy="0" rx="30" ry="30" fill="#a8a8a8" stroke="${O}" stroke-width="3"/><ellipse cx="0" cy="-2" rx="28" ry="28" fill="#c8c8c8"/>`)}
       ${layer('inst-face', `<ellipse cx="0" cy="2" rx="22" ry="22" fill="#e8e8e8"/>`)}
       ${layer('inst-handle', `<rect x="-4" y="22" width="8" height="18" rx="3" fill="#888" stroke="${O}" stroke-width="2"/>`)}`;
-    return wrap('held-cymbal', 'translate(118,148) rotate(-18)', inner, anim);
+    return wrapHeld(inst, 'held-cymbal', inner, anim);
   }
 
-  function renderTambourine(anim) {
+  function renderTambourine(inst, anim) {
     const inner = `
       ${layer('inst-shadow', `<ellipse cx="2" cy="8" rx="26" ry="7" fill="rgba(0,0,0,0.22)"/>`)}
       ${layer('inst-frame', `<circle cx="0" cy="0" r="24" fill="#b8860b" stroke="${O}" stroke-width="3"/><circle cx="0" cy="0" r="20" fill="#d4a017"/>`)}
@@ -223,10 +237,10 @@ const InstrumentArt = (() => {
         const [x, y] = p.split(',');
         return `<circle cx="${x}" cy="${y}" r="2.5" fill="#ccc"/>`;
       }).join(''))}`;
-    return wrap('held-tambourine', 'translate(122,142)', inner, anim);
+    return wrapHeld(inst, 'held-tambourine', inner, anim);
   }
 
-  function renderDrumKit(anim) {
+  function renderDrumKit(inst, anim) {
     const inner = `
       ${layer('inst-shadow', `<ellipse cx="100" cy="178" rx="90" ry="12" fill="rgba(0,0,0,0.2)"/>`)}
       ${layer('inst-kick', `<ellipse cx="100" cy="178" rx="28" ry="18" fill="#5a3018" stroke="${O}" stroke-width="2.5"/><ellipse cx="100" cy="174" rx="24" ry="14" fill="#8B4513"/><circle cx="100" cy="174" r="8" fill="#c8c8c8" stroke="${O}" stroke-width="1.5"/>`)}
@@ -234,33 +248,33 @@ const InstrumentArt = (() => {
       ${layer('inst-hihat', `<ellipse cx="138" cy="158" rx="14" ry="10" fill="#bbb" stroke="${O}" stroke-width="2"/><ellipse cx="138" cy="156" rx="12" ry="8" fill="#ddd"/><line x1="138" y1="156" x2="138" y2="178" stroke="#666" stroke-width="3"/>`)}
       ${layer('inst-cymbal', `<ellipse class="drum-piece drum-cymbal" cx="100" cy="148" rx="20" ry="14" fill="#c8c8c8" stroke="${O}" stroke-width="2"/><ellipse cx="100" cy="146" rx="18" ry="12" fill="#e0e0e0"/>`)}
       ${layer('inst-toms', `<ellipse cx="82" cy="162" rx="12" ry="9" fill="#a0522d" stroke="${O}" stroke-width="1.5"/><ellipse cx="118" cy="162" rx="12" ry="9" fill="#a0522d" stroke="${O}" stroke-width="1.5"/>`)}`;
-    return wrap('held-drums', 'translate(0,0)', inner, anim);
+    return wrapHeld(inst, 'held-drums', inner, anim, { x: -100, y: -165 });
   }
 
   function renderPercussion(inst, anim) {
-    if (inst.id === 'trash-lid') return renderTrashLid(anim);
-    if (inst.id === 'tambourine') return renderTambourine(anim);
-    if (inst.id === 'drum-kit') return renderDrumKit(anim);
+    if (inst.id === 'trash-lid') return renderTrashLid(inst, anim);
+    if (inst.id === 'tambourine') return renderTambourine(inst, anim);
+    if (inst.id === 'drum-kit') return renderDrumKit(inst, anim);
     if (inst.id === 'bongo') {
       const inner = `${shadow(18, 7, 14)}${layer('inst-body', `<ellipse cx="-10" cy="8" rx="14" ry="12" fill="#8B4513" stroke="${O}" stroke-width="2"/><ellipse cx="12" cy="6" rx="11" ry="10" fill="#a0522d" stroke="${O}" stroke-width="2"/>`)}`;
-      return wrap('held-bongo', 'translate(100,155)', inner, anim);
+      return wrapHeld(inst, 'held-bongo', inner, anim, { x: 0, y: 8 });
     }
     if (inst.id === 'cowbell') {
       const inner = `${shadow(12, 6, 14)}${layer('inst-body', `<path d="M-12,0 Q0,-14 12,0 L10,16 Q0,20 -10,16 Z" fill="#d4a017" stroke="${O}" stroke-width="2.5"/>`)}`;
-      return wrap('held-cowbell', 'translate(120,140) rotate(-20)', inner, anim);
+      return wrapHeld(inst, 'held-cowbell', inner, anim, { x: 0, y: 8 });
     }
     if (inst.id === 'triangle') {
       const inner = `${layer('inst-body', `<path d="M0,-18 L16,14 L-16,14 Z" fill="none" stroke="#ffd166" stroke-width="4" stroke-linejoin="round"/><line x1="0" y1="-18" x2="0" y2="-28" stroke="#888" stroke-width="2"/>`)}`;
-      return wrap('held-triangle', 'translate(122,135)', inner, anim);
+      return wrapHeld(inst, 'held-triangle', inner, anim, { x: 0, y: 14 });
     }
     if (inst.id === 'xylophone') {
       const bars = ['#ff6b6b', '#ffd166', '#6bcb77', '#4ecdc4', '#9b6bff'].map((c, i) =>
         `<rect x="${-22 + i * 9}" y="${-4 + i}" width="8" height="22" rx="2" fill="${c}" stroke="${O}" stroke-width="1"/>`
       ).join('');
       const inner = `${shadow(24, 7, 16)}${layer('inst-body', bars)}`;
-      return wrap('held-xylophone', 'translate(100,148)', inner, anim);
+      return wrapHeld(inst, 'held-xylophone', inner, anim, { x: 0, y: 10 });
     }
-    return renderTrashLid(anim);
+    return renderTrashLid(inst, anim);
   }
 
   function renderHeldSvg(inst, pose = 'idle') {

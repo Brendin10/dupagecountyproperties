@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Bandland — Instrument Grip Tuner</title>
-  <link rel="stylesheet" href="../css/styles.css?v=17" />
+  <link rel="stylesheet" href="../css/styles.css?v=38" />
   <style>
     body { background: #0a0014; color: #eee; font-family: Fredoka, sans-serif; padding: 16px; }
     .tune-wrap { display: grid; grid-template-columns: 1fr 320px; gap: 24px; max-width: 1100px; margin: 0 auto; }
@@ -28,6 +28,16 @@
       <select id="inst-select"></select>
       <label>Character</label>
       <select id="char-select"><option value="benny">Benny</option><option value="lizzy">Lizzy</option></select>
+      <label>Mount anchor</label>
+      <select id="mount">
+        <option value="L">L — left grip (neck)</option>
+        <option value="R">R — right grip (one-hand)</option>
+        <option value="mid">mid — between grips</option>
+      </select>
+      <div class="tune-row">
+        <div><label>L arm layer</label><select id="layerL"><option value="back">back</option><option value="front">front</option></select></div>
+        <div><label>R arm layer</label><select id="layerR"><option value="back">back</option><option value="front">front</option></select></div>
+      </div>
       <div class="tune-row">
         <div><label>gripL.x</label><input type="number" id="gripLx" step="1" /></div>
         <div><label>gripL.y</label><input type="number" id="gripLy" step="1" /></div>
@@ -43,11 +53,11 @@
       <textarea class="tune-export" id="export" readonly></textarea>
     </div>
   </div>
-  <script src="../js/instrument-grips.js"></script>
-  <script src="../js/instrument-art.js"></script>
+  <script src="../js/instrument-grips.js?v=38"></script>
+  <script src="../js/instrument-art.js?v=38"></script>
   <script src="../js/instruments.js"></script>
-  <script src="../js/character-rig.js"></script>
-  <script src="../js/characters.js"></script>
+  <script src="../js/character-rig.js?v=38"></script>
+  <script src="../js/characters.js?v=38"></script>
   <script>
     const edits = {};
     const sel = document.getElementById('inst-select');
@@ -64,6 +74,17 @@
       return edits[id];
     }
 
+    function applyOverride(id, g) {
+      InstrumentGrips.OVERRIDES[id] = {
+        gripL: g.gripL,
+        gripR: g.gripR,
+        art: g.art,
+        rot: g.rot,
+        mount: g.mount,
+        layers: g.layers,
+      };
+    }
+
     function syncFields() {
       const g = currentEdit();
       document.getElementById('gripLx').value = g.gripL.x;
@@ -75,6 +96,9 @@
       document.getElementById('anchorX').value = g.art.anchorX;
       document.getElementById('anchorY').value = g.art.anchorY;
       document.getElementById('rot').value = g.rot;
+      document.getElementById('mount').value = g.mount || 'L';
+      document.getElementById('layerL').value = g.layers?.L || 'back';
+      document.getElementById('layerR').value = g.layers?.R || 'front';
       renderPreview();
       exportJson();
     }
@@ -84,15 +108,12 @@
       const charId = document.getElementById('char-select').value;
       const g = currentEdit();
       const orig = InstrumentGrips.OVERRIDES[id];
-      InstrumentGrips.OVERRIDES[id] = {
-        gripL: g.gripL,
-        gripR: g.gripR,
-        art: g.art,
-        rot: g.rot,
-      };
+      applyOverride(id, g);
       document.getElementById('preview').innerHTML = renderCharacter(charId, 200, {
         instrument: INSTRUMENTS[id],
       });
+      const performer = document.querySelector('#preview .character-layered');
+      if (performer) CharacterRig.syncInstrumentPose(performer, INSTRUMENTS[id]);
       if (!orig) delete InstrumentGrips.OVERRIDES[id];
       else InstrumentGrips.OVERRIDES[id] = orig;
     }
@@ -100,27 +121,45 @@
     function exportJson() {
       const id = sel.value;
       const g = currentEdit();
+      const mountLine = g.mount && g.mount !== 'L' ? `\n  mount: '${g.mount}',` : '';
+      const layersLine = g.layers
+        ? `\n  layers: { L: '${g.layers.L}', R: '${g.layers.R}' },`
+        : '';
       const snippet = `'${id}': {
   gripL: { x: ${g.gripL.x}, y: ${g.gripL.y} },
   gripR: { x: ${g.gripR.x}, y: ${g.gripR.y} },
   art: { w: ${g.art.w}, h: ${g.art.h}, anchorX: ${g.art.anchorX}, anchorY: ${g.art.anchorY} },
-  rot: ${g.rot},
+  rot: ${g.rot},${mountLine}${layersLine}
 },`;
       document.getElementById('export').value = snippet;
     }
 
-    ['gripLx', 'gripLy', 'gripRx', 'gripRy', 'artW', 'artH', 'anchorX', 'anchorY', 'rot'].forEach((fid) => {
+    function readFieldsIntoEdit() {
+      const g = currentEdit();
+      g.gripL.x = +document.getElementById('gripLx').value;
+      g.gripL.y = +document.getElementById('gripLy').value;
+      g.gripR.x = +document.getElementById('gripRx').value;
+      g.gripR.y = +document.getElementById('gripRy').value;
+      g.art.w = +document.getElementById('artW').value;
+      g.art.h = +document.getElementById('artH').value;
+      g.art.anchorX = +document.getElementById('anchorX').value;
+      g.art.anchorY = +document.getElementById('anchorY').value;
+      g.rot = +document.getElementById('rot').value;
+      g.mount = document.getElementById('mount').value;
+      g.layers = {
+        L: document.getElementById('layerL').value,
+        R: document.getElementById('layerR').value,
+      };
+    }
+
+    ['gripLx', 'gripLy', 'gripRx', 'gripRy', 'artW', 'artH', 'anchorX', 'anchorY', 'rot', 'mount', 'layerL', 'layerR'].forEach((fid) => {
       document.getElementById(fid).addEventListener('input', () => {
-        const g = currentEdit();
-        g.gripL.x = +document.getElementById('gripLx').value;
-        g.gripL.y = +document.getElementById('gripLy').value;
-        g.gripR.x = +document.getElementById('gripRx').value;
-        g.gripR.y = +document.getElementById('gripRy').value;
-        g.art.w = +document.getElementById('artW').value;
-        g.art.h = +document.getElementById('artH').value;
-        g.art.anchorX = +document.getElementById('anchorX').value;
-        g.art.anchorY = +document.getElementById('anchorY').value;
-        g.rot = +document.getElementById('rot').value;
+        readFieldsIntoEdit();
+        renderPreview();
+        exportJson();
+      });
+      document.getElementById(fid).addEventListener('change', () => {
+        readFieldsIntoEdit();
         renderPreview();
         exportJson();
       });
@@ -141,7 +180,7 @@
       syncFields();
     });
 
-    sel.addEventListener('change', syncFields);
+    sel.addEventListener('change', () => { delete edits[sel.value]; syncFields(); });
     document.getElementById('char-select').addEventListener('change', renderPreview);
     syncFields();
   </script>

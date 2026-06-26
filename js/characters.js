@@ -96,20 +96,27 @@ function rigOptionsForInst(inst) {
   };
 }
 
-function frontArmsForCharacter(id, pose, inst) {
+function armsForCharacterLayer(id, pose, inst, layer) {
+  if (typeof CharacterRig === 'undefined') return '';
   const colors = characterColors(id);
-  const hideSticks = rigOptionsForInst(inst).hideSticks;
-  return typeof CharacterRig !== 'undefined'
-    ? CharacterRig.renderRiggedArms(colors, pose, 'front', { hideSticks })
-    : '';
+  const options = rigOptionsForInst(inst);
+  if (!inst || typeof InstrumentGrips === 'undefined') {
+    if (layer === 'back') return '';
+    return CharacterRig.renderRiggedArms(colors, pose, 'front', options);
+  }
+  const grip = InstrumentGrips.getGrip(inst);
+  if (!grip) return '';
+  const sides = InstrumentGrips.sidesForLayer(grip, layer);
+  if (!sides.length) return '';
+  return CharacterRig.renderRiggedArms(colors, pose, layer, { ...options, sides });
+}
+
+function frontArmsForCharacter(id, pose, inst) {
+  return armsForCharacterLayer(id, pose, inst, 'front');
 }
 
 function backArmsForCharacter(id, pose, inst) {
-  if (!inst) return '';
-  const colors = characterColors(id);
-  return typeof CharacterRig !== 'undefined'
-    ? CharacterRig.renderRiggedArms(colors, pose, 'back', rigOptionsForInst(inst))
-    : '';
+  return armsForCharacterLayer(id, pose, inst, 'back');
 }
 
 const BENNY_LAYERS = (size, pose = 'idle', inst = null) => {
