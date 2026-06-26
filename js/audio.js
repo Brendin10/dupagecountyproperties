@@ -112,7 +112,7 @@ const AudioEngine = (() => {
     percBus.connect(dryGain);
 
     crowdBus = ac.createGain();
-    crowdBus.gain.value = 1;
+    crowdBus.gain.value = 0.8;
     crowdBus.connect(ac.destination);
 
     dryGain.connect(ac.destination);

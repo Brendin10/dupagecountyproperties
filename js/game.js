@@ -82,6 +82,7 @@ const Game = (() => {
   let activeHold = null;
 
   const REWIND_SECONDS = 5;
+  const GIG_START_GRACE_SEC = 5;
   const SNAPSHOT_INTERVAL = 0.5;
   const SNAPSHOT_RETENTION = 12;
   let rewindSnapshots = [];
@@ -908,6 +909,20 @@ const Game = (() => {
     setScreen('booed');
   }
 
+  function beginRhythmGameplay(bpm) {
+    const p = state.performance;
+    if (!p || p.rhythmActive) return;
+
+    p.rhythmActive = true;
+    p.rhythmStartAt = performance.now();
+
+    BandAudio.start(bpm);
+    Metronome.start(bpm, (beatIdx) => {
+      BandAudio.onBeat(beatIdx);
+    }, { silent: true });
+    setRhythmHint('Tap quick gems · hold long gems through the zone!', null);
+  }
+
   function startPerformanceLoop() {
     const p = state.performance;
     if (!p) return;
@@ -920,11 +935,9 @@ const Game = (() => {
     AudioEngine.startCrowdAmbience?.(venue?.tier ?? 0);
     BandAudio.setBand(state.bandMembers, song);
     BandAudio.setOnMemberPlay((member) => triggerBandmateAnimation(member));
-    BandAudio.start(bpm);
 
-    Metronome.start(bpm, (beatIdx) => {
-      BandAudio.onBeat(beatIdx);
-    }, { silent: true });
+    p.rhythmActive = false;
+    p.rhythmStartAt = performance.now() + GIG_START_GRACE_SEC * 1000;
 
     const uiLoop = () => {
       if (!state.performance || state.screen !== 'perform') return;
@@ -932,9 +945,20 @@ const Game = (() => {
       state.perfUiRaf = requestAnimationFrame(uiLoop);
     };
     state.perfUiRaf = requestAnimationFrame(uiLoop);
+
+    if (state.rhythmGraceTimeout) clearTimeout(state.rhythmGraceTimeout);
+    state.rhythmGraceTimeout = setTimeout(() => {
+      state.rhythmGraceTimeout = null;
+      if (!state.performance || state.screen !== 'perform') return;
+      beginRhythmGameplay(bpm);
+    }, GIG_START_GRACE_SEC * 1000);
   }
 
   function stopPerformanceLoop() {
+    if (state.rhythmGraceTimeout) {
+      clearTimeout(state.rhythmGraceTimeout);
+      state.rhythmGraceTimeout = null;
+    }
     Metronome.stop();
     BandAudio.stop();
     AudioEngine.stopSustain?.();
@@ -1091,8 +1115,7 @@ const Game = (() => {
     const currentBeat = elapsed / beatDur;
     const late = isMelodic ? 0.24 : 0.2;
 
-    // Brief grace at gig start so the first gem can reach the hit zone
-    if (elapsed < beatDur * 0.75) return;
+    if (!p.rhythmActive) return;
 
     const part = song.parts[partKey] || [];
     if (!p.missedBeats) p.missedBeats = new Set();
@@ -1134,6 +1157,19 @@ const Game = (() => {
     const elapsed = Metronome.getElapsed();
 
     finalizeActiveHoldIfExpired();
+
+    const timer = document.getElementById('perf-timer');
+    if (timer) timer.textContent = `⏱ ${p.timeLeft}s`;
+
+    if (!p.rhythmActive) {
+      const left = Math.max(0, Math.ceil((p.rhythmStartAt - performance.now()) / 1000));
+      setRhythmHint(left > 0 ? `Get ready… ${left}` : 'Go!', 'good');
+      const hitZone = document.getElementById('hit-zone');
+      if (hitZone) hitZone.classList.remove('ready', 'holding');
+      state._updatingPerfUi = false;
+      return;
+    }
+
     checkMissedNotes();
     if (!state.performance || state.screen !== 'perform') {
       state._updatingPerfUi = false;
@@ -1144,9 +1180,6 @@ const Game = (() => {
       captureRewindSnapshot(elapsed);
     }
     updateRewindButtonState();
-
-    const timer = document.getElementById('perf-timer');
-    if (timer) timer.textContent = `⏱ ${p.timeLeft}s`;
 
     RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic, p.hitBeats, p.missedBeats, activeHold ? noteKey(activeHold.note) : null);
 
@@ -1421,7 +1454,7 @@ const Game = (() => {
 
   function onNotePress() {
     const p = state.performance;
-    if (!p || activeHold) return;
+    if (!p || !p.rhythmActive || activeHold) return;
 
     const inst = getActiveInstrument();
     const song = getActiveSong();
