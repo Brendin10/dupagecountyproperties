@@ -81,6 +81,13 @@ const Game = (() => {
 
   let activeHold = null;
 
+  const REWIND_SECONDS = 5;
+  const SNAPSHOT_INTERVAL = 0.5;
+  const SNAPSHOT_RETENTION = 12;
+  let rewindSnapshots = [];
+  let lastSnapshotAt = -1;
+  let rewindCooldown = false;
+
   const ROLE_ANIM = {
     Guitar: 'anim-strum',
     Drums: 'anim-drums',
@@ -593,10 +600,16 @@ const Game = (() => {
             ${renderStageLineup(inst)}
             <div class="performer-stack">
               ${RhythmLane.renderHtml(song.name)}
-              <button class="play-btn" id="btn-play-note">
-                <span class="instrument-emoji">${inst.emoji}</span>
-                <span>PLAY ${inst.name.toUpperCase()}!</span>
-              </button>
+              <div class="play-controls">
+                <button type="button" class="rewind-btn" id="btn-rewind" title="Rewind 5 seconds" disabled>
+                  <span aria-hidden="true">⏪</span>
+                  <span>5s</span>
+                </button>
+                <button class="play-btn" id="btn-play-note">
+                  <span class="instrument-emoji">${inst.emoji}</span>
+                  <span>PLAY ${inst.name.toUpperCase()}!</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -855,6 +868,8 @@ const Game = (() => {
     $('#btn-play-note')?.addEventListener('touchstart', (e) => { e.preventDefault(); onNotePress(); }, { passive: false });
     $('#btn-play-note')?.addEventListener('touchend', onNoteRelease);
 
+    $('#btn-rewind')?.addEventListener('click', rewindPerformance);
+
     $('#tune-inst-select')?.addEventListener('change', (e) => {
       state.tuneInstId = e.target.value;
       render();
@@ -920,10 +935,119 @@ const Game = (() => {
     AudioEngine.stopCrowdAmbience?.();
     AudioEngine.setCrowdBooing?.(false);
     activeHold = null;
+    rewindSnapshots = [];
+    lastSnapshotAt = -1;
+    rewindCooldown = false;
     if (state.perfUiRaf) cancelAnimationFrame(state.perfUiRaf);
     if (state.perfInterval) clearInterval(state.perfInterval);
     state.perfInterval = null;
     state.perfUiRaf = null;
+  }
+
+  function captureRewindSnapshot(elapsed) {
+    const p = state.performance;
+    if (!p) return;
+
+    rewindSnapshots.push({
+      elapsed,
+      timeLeft: p.timeLeft,
+      crowd: p.crowd,
+      cheer: p.cheer,
+      sessionCash: p.sessionCash,
+      sessionStars: p.sessionStars,
+      peakCrowd: p.peakCrowd,
+      combo: p.combo,
+      missStreak: p.missStreak,
+      onFire: p.onFire,
+      booed: p.booed,
+      recruitRolls: p.recruitRolls,
+      hitBeats: [...p.hitBeats],
+      bandCash: state.bandCash,
+      starMeter: state.starMeter,
+      pendingRecruit: state.pendingRecruit,
+    });
+
+    const cutoff = elapsed - SNAPSHOT_RETENTION;
+    while (rewindSnapshots.length && rewindSnapshots[0].elapsed < cutoff) {
+      rewindSnapshots.shift();
+    }
+    lastSnapshotAt = elapsed;
+  }
+
+  function findRewindSnapshot(targetElapsed) {
+    if (!rewindSnapshots.length) return null;
+    let best = rewindSnapshots[0];
+    for (const snap of rewindSnapshots) {
+      if (snap.elapsed <= targetElapsed) best = snap;
+      else break;
+    }
+    return best;
+  }
+
+  function updateRewindButtonState() {
+    const btn = document.getElementById('btn-rewind');
+    if (!btn) return;
+    const p = state.performance;
+    const canRewind = !!p
+      && state.screen === 'perform'
+      && !p.booed
+      && !rewindCooldown
+      && rewindSnapshots.length > 0
+      && Metronome.running;
+    btn.disabled = !canRewind;
+  }
+
+  function rewindPerformance() {
+    const p = state.performance;
+    if (!p || state.screen !== 'perform' || p.booed || rewindCooldown || !Metronome.running) return;
+
+    const currentElapsed = Metronome.getElapsed();
+    const targetElapsed = Math.max(0, currentElapsed - REWIND_SECONDS);
+    const snapshot = findRewindSnapshot(targetElapsed);
+    if (!snapshot) return;
+
+    rewindCooldown = true;
+    const btn = document.getElementById('btn-rewind');
+    if (btn) btn.disabled = true;
+
+    activeHold = null;
+    AudioEngine.stopSustain?.();
+    const zone = document.getElementById('hit-zone');
+    if (zone) zone.classList.remove('holding');
+
+    p.timeLeft = snapshot.timeLeft;
+    p.crowd = snapshot.crowd;
+    p.cheer = snapshot.cheer;
+    p.sessionCash = snapshot.sessionCash;
+    p.sessionStars = snapshot.sessionStars;
+    p.peakCrowd = snapshot.peakCrowd;
+    p.combo = snapshot.combo;
+    p.missStreak = snapshot.missStreak;
+    p.onFire = snapshot.onFire;
+    p.booed = snapshot.booed;
+    p.recruitRolls = snapshot.recruitRolls;
+    p.hitBeats = new Set(snapshot.hitBeats);
+    state.bandCash = snapshot.bandCash;
+    state.starMeter = snapshot.starMeter;
+    state.pendingRecruit = snapshot.pendingRecruit;
+
+    const beatDur = 60 / p.bpm;
+    Metronome.seek(snapshot.elapsed);
+    BandAudio.syncToBeat(Math.floor(snapshot.elapsed / beatDur));
+
+    const floaters = document.getElementById('floaters');
+    if (floaters) floaters.innerHTML = '';
+
+    AudioEngine.setCrowdBooing?.(p.missStreak >= 3);
+    updateFireState();
+    updateHud();
+    updatePerformanceUI();
+    persist();
+
+    setTimeout(() => {
+      rewindCooldown = false;
+      updateRewindButtonState();
+    }, 1000);
   }
 
   function updatePerformanceUI() {
@@ -934,6 +1058,11 @@ const Game = (() => {
     const partKey = getPlayerPartKey(inst);
     const isMelodic = inst.type === 'melodic';
     const elapsed = Metronome.getElapsed();
+
+    if (elapsed - lastSnapshotAt >= SNAPSHOT_INTERVAL) {
+      captureRewindSnapshot(elapsed);
+    }
+    updateRewindButtonState();
 
     const timer = document.getElementById('perf-timer');
     if (timer) timer.textContent = `⏱ ${p.timeLeft}s`;
@@ -1072,6 +1201,9 @@ const Game = (() => {
     };
 
     activeHold = null;
+    rewindSnapshots = [];
+    lastSnapshotAt = -1;
+    rewindCooldown = false;
     stopPerformanceLoop();
     state.perfInterval = setInterval(tickPerformance, 1000);
     setScreen('perform');

@@ -57,8 +57,15 @@ const Metronome = (() => {
     return running ? (performance.now() - startTime) / 1000 : 0;
   }
 
+  function seek(elapsedSec) {
+    if (!running) return;
+    const beatDur = 60 / bpm;
+    startTime = performance.now() - elapsedSec * 1000;
+    lastBeat = Math.floor(elapsedSec / beatDur) - 1;
+  }
+
   return {
-    start, stop, getPhase, getBeatDistance, ratePercussionHit, getElapsed,
+    start, stop, seek, getPhase, getBeatDistance, ratePercussionHit, getElapsed,
     get bpm() { return bpm; },
     get running() { return running; },
   };

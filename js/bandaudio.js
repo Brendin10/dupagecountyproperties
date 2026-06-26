@@ -103,5 +103,9 @@ const BandAudio = (() => {
     lastBeat = -1;
   }
 
-  return { setBand, setOnMemberPlay, start, stop, onBeat, get running() { return running; } };
+  function syncToBeat(beatIdx) {
+    lastBeat = beatIdx - 1;
+  }
+
+  return { setBand, setOnMemberPlay, start, stop, syncToBeat, onBeat, get running() { return running; } };
 })();
