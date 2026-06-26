@@ -652,6 +652,24 @@ const Game = (() => {
     `;
   }
 
+  function renderTune() {
+    const ids = Object.keys(INSTRUMENTS);
+    const id = state.tuneInstId || ids[0];
+    const inst = INSTRUMENTS[id];
+    const charId = state.character || 'benny';
+    const options = ids.map((i) =>
+      `<option value="${i}" ${i === id ? 'selected' : ''}>${INSTRUMENTS[i].name}</option>`
+    ).join('');
+    return `
+      <section class="screen tune-screen">
+        <h2 class="brand-label">Instrument Grip Preview</h2>
+        <p class="tune-hint-text">Use <code>?tune=1</code> or <code>tools/tune-instrument-grip.html</code> to fine-tune hand positions for all 24 instruments.</p>
+        <select id="tune-inst-select" class="tune-select">${options}</select>
+        <div class="tune-preview-wrap">${renderCharacter(charId, 200, { instrument: inst })}</div>
+        <button class="btn btn-primary" id="btn-back-title">Back to Title</button>
+      </section>`;
+  }
+
   function render() {
     state.shopTab = state.shopTab || 'instruments';
     let html = '';
@@ -664,6 +682,7 @@ const Game = (() => {
       case 'perform': html = renderPerformance(); break;
       case 'results': html = renderResults(); break;
       case 'booed': html = renderBooed(); break;
+      case 'tune': html = renderTune(); break;
       default: html = renderTitle();
     }
     root().innerHTML = html;
@@ -838,6 +857,12 @@ const Game = (() => {
     $('#btn-play-note')?.addEventListener('mouseleave', onNoteRelease);
     $('#btn-play-note')?.addEventListener('touchstart', (e) => { e.preventDefault(); onNotePress(); }, { passive: false });
     $('#btn-play-note')?.addEventListener('touchend', onNoteRelease);
+
+    $('#tune-inst-select')?.addEventListener('change', (e) => {
+      state.tuneInstId = e.target.value;
+      render();
+    });
+    $('#btn-back-title')?.addEventListener('click', () => setScreen('title'));
   }
 
   function updateFireState() {
@@ -964,7 +989,7 @@ const Game = (() => {
         CharacterRig.applyPoseFromInstrument(performer, inst, 'hit');
       }
     }
-    const held = performer.querySelector('.held-instrument');
+    const held = performer.querySelector('.held-play');
     if (held) {
       held.classList.remove('inst-play-melodic', 'inst-play-percussion', 'inst-play-drums', 'inst-play-cymbal', 'inst-play-shake');
       void held.offsetWidth;
@@ -975,9 +1000,10 @@ const Game = (() => {
           tambourine: 'inst-play-shake',
         }[inst.id] || (inst.type === 'melodic' ? 'inst-play-melodic' : 'inst-play-percussion');
         held.classList.add(instAnim);
-        if (inst.id === 'drum-kit' && typeof InstrumentArt !== 'undefined') {
+        if (inst.id === 'drum-kit' && typeof InstrumentArt !== 'undefined' && !InstrumentArt.hasArt(inst)) {
+          const mount = performer.querySelector('.held-mount');
           const hitType = rating === 'perfect' ? 'cymbal' : 'snare';
-          InstrumentArt.triggerDrumHit(held, hitType);
+          InstrumentArt.triggerDrumHit(mount || held, hitType);
         }
       }
     }
@@ -1277,6 +1303,12 @@ const Game = (() => {
 
   function init() {
     if (typeof ensureSongInstrumentParts === 'function') ensureSongInstrumentParts();
+    if (new URLSearchParams(window.location.search).get('tune') === '1') {
+      state.screen = 'tune';
+      state.tuneInstId = Object.keys(INSTRUMENTS)[0];
+      render();
+      return;
+    }
     setScreen('title');
   }
 

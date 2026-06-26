@@ -43,6 +43,14 @@ MAX_EDGE = 1024
 JPEG_QUALITY = 85
 
 
+def has_transparency(img) -> bool:
+    if img.mode != "RGBA":
+        return False
+    alpha = img.getchannel("A")
+    lo, hi = alpha.getextrema()
+    return lo < 250
+
+
 def optimize_png(src: Path, dst: Path) -> None:
     if Image is None:
         dst.write_bytes(src.read_bytes())
@@ -50,6 +58,8 @@ def optimize_png(src: Path, dst: Path) -> None:
     img = Image.open(src)
     if img.mode not in ("RGB", "RGBA"):
         img = img.convert("RGBA")
+    if not has_transparency(img):
+        print(f"  warn: {src.name} may not have transparent background (check alpha channel)")
     w, h = img.size
     if max(w, h) > MAX_EDGE:
         scale = MAX_EDGE / max(w, h)

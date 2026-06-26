@@ -36,26 +36,40 @@ function charLayer(name, z, inner, extra = '') {
   return `<div class="char-layer layer-${name} ${extra}" style="z-index:${z}">${charSvg(inner)}</div>`;
 }
 
-function layeredCharacter(id, size, layers, instrumentHtml = '', wearHtml = '') {
+function layeredCharacter(id, size, layers, frontArmsHtml, instrumentHtml = '', wearHtml = '') {
   const h = size * 1.35;
   const instLayer = instrumentHtml
-    ? `<div class="char-layer layer-instrument" style="z-index:20">${charSvg(instrumentHtml)}</div>`
+    ? `<div class="char-layer layer-instrument" style="z-index:13">${charSvg(instrumentHtml)}</div>`
+    : '';
+  const frontArms = frontArmsHtml
+    ? `<div class="char-layer layer-arms-front rigged-arms" style="z-index:15">${charSvg(frontArmsHtml)}</div>`
     : '';
   return `<div class="character-layered ${id}-layered" style="width:${size}px;height:${h}px" aria-label="${id}">
-    ${layers.join('')}${wearHtml}${instLayer}
+    ${layers.join('')}${wearHtml}${instLayer}${frontArms}
   </div>`;
 }
 
-function rigArmsLayer(z, pose, layer, colors) {
+function rigArmsLayer(z, pose, layer, colors, options = {}) {
   const inner = typeof CharacterRig !== 'undefined'
-    ? CharacterRig.renderRiggedArms(colors, pose, layer)
+    ? CharacterRig.renderRiggedArms(colors, pose, layer, options)
     : `<ellipse cx="${layer === 'back' ? 38 : 42}" cy="168" rx="16" ry="18" fill="${colors.fur}" stroke="${OUTLINE}" stroke-width="3"/>`;
   return charLayer(`arms-${layer}`, z, inner, 'rigged-arms');
 }
 
-const BENNY_LAYERS = (size, pose = 'idle') => {
+function frontArmsForCharacter(id, pose, inst) {
+  const colors = id === 'benny'
+    ? (typeof CharacterRig !== 'undefined' ? CharacterRig.bennyColors() : { fur: '#8E58FF' })
+    : (typeof CharacterRig !== 'undefined' ? CharacterRig.lizzyColors() : { fur: '#9458FF' });
+  const hideSticks = inst && typeof InstrumentArt !== 'undefined' && InstrumentArt.shouldHideSticks(inst);
+  return typeof CharacterRig !== 'undefined'
+    ? CharacterRig.renderRiggedArms(colors, pose, 'front', { hideSticks })
+    : '';
+}
+
+const BENNY_LAYERS = (size, pose = 'idle', inst = null) => {
   const s = size;
   const colors = typeof CharacterRig !== 'undefined' ? CharacterRig.bennyColors() : { fur: '#8E58FF' };
+  const hideSticks = inst && typeof InstrumentArt !== 'undefined' && InstrumentArt.shouldHideSticks(inst);
   return [
     charLayer('shadow', 1, `<ellipse cx="100" cy="252" rx="50" ry="9" fill="rgba(0,0,0,0.22)"/>`),
     charLayer('legs', 2, `
@@ -71,7 +85,7 @@ const BENNY_LAYERS = (size, pose = 'idle') => {
       <ellipse cx="100" cy="174" rx="30" ry="24" fill="#BC94FF"/>
       <ellipse cx="100" cy="178" rx="20" ry="16" fill="#D2B2FF"/>
       ${furTufts(100, 162, '#9E68FF', 8, 34)}`),
-    rigArmsLayer(4, pose, 'back', colors),
+    rigArmsLayer(4, pose, 'back', colors, { hideSticks }),
     charLayer('jacket', 6, `
       <path d="M44 138 Q100 120 156 138 L152 192 Q100 204 48 192 Z" fill="#5a3420" stroke="${OUTLINE}" stroke-width="4"/>
       <path d="M56 144 Q100 130 144 144 L140 184 Q100 194 60 184 Z" fill="#764426"/>
@@ -100,12 +114,12 @@ const BENNY_LAYERS = (size, pose = 'idle') => {
       <ellipse cx="48" cy="82" rx="10" ry="8" fill="#7E48EF" stroke="${OUTLINE}" stroke-width="2"/>
       <ellipse cx="152" cy="82" rx="10" ry="8" fill="#7E48EF" stroke="${OUTLINE}" stroke-width="2"/>`),
     charLayer('face', 10, happyFace('#1478C8', 114)),
-    rigArmsLayer(11, pose, 'front', colors),
   ];
 };
 
-const LIZZY_LAYERS = (pose = 'idle') => {
+const LIZZY_LAYERS = (pose = 'idle', inst = null) => {
   const colors = typeof CharacterRig !== 'undefined' ? CharacterRig.lizzyColors() : { fur: '#9458FF' };
+  const hideSticks = inst && typeof InstrumentArt !== 'undefined' && InstrumentArt.shouldHideSticks(inst);
   return [
   charLayer('shadow', 1, `<ellipse cx="100" cy="252" rx="50" ry="9" fill="rgba(0,0,0,0.22)"/>`),
   charLayer('hair-back', 2, `
@@ -124,7 +138,7 @@ const LIZZY_LAYERS = (pose = 'idle') => {
       <ellipse cx="100" cy="176" rx="28" ry="22" fill="#C29AFF"/>
       <ellipse cx="100" cy="180" rx="18" ry="14" fill="#DAB6FF"/>
       ${furTufts(100, 164, '#B878FF', 8, 32)}`),
-  rigArmsLayer(5, pose, 'back', colors),
+  rigArmsLayer(5, pose, 'back', colors, { hideSticks }),
   charLayer('jacket', 7, `
     <path d="M46 140 Q100 122 154 140 L150 190 Q100 202 52 190 Z" fill="#E05098" stroke="${OUTLINE}" stroke-width="4"/>
     <path d="M58 146 Q100 132 142 146 L138 180 Q100 190 62 180 Z" fill="#FF6CB2"/>
@@ -149,7 +163,6 @@ const LIZZY_LAYERS = (pose = 'idle') => {
       ${happyFace('#C83CB4', 116)}
       <path d="M58 80 L52 68" stroke="${OUTLINE}" stroke-width="3" stroke-linecap="round"/>
       <path d="M142 80 L148 68" stroke="${OUTLINE}" stroke-width="3" stroke-linecap="round"/>`),
-  rigArmsLayer(12, pose, 'front', colors),
 ];
 };
 
@@ -159,7 +172,7 @@ const CHARACTERS = {
     name: 'Benny',
     tagline: 'Purple powerhouse. Chunky biker fuzz.',
     render(size = 200, pose = 'idle') {
-      return layeredCharacter('benny', size, BENNY_LAYERS(size, pose));
+      return layeredCharacter('benny', size, BENNY_LAYERS(size, pose), frontArmsForCharacter('benny', pose));
     },
   },
   lizzy: {
@@ -167,7 +180,7 @@ const CHARACTERS = {
     name: 'Lizzy',
     tagline: 'Pink jacket queen. Ponytail puff.',
     render(size = 200, pose = 'idle') {
-      return layeredCharacter('lizzy', size, LIZZY_LAYERS(pose));
+      return layeredCharacter('lizzy', size, LIZZY_LAYERS(pose), frontArmsForCharacter('lizzy', pose));
     },
   },
 };
@@ -180,8 +193,9 @@ function renderCharacter(id, size, opts = {}) {
     : 'idle';
   const instInner = opts.instrument ? renderHeldInstrumentInner(opts.instrument, opts.pose || 'idle') : '';
   const wearHtml = typeof renderWearableLayers === 'function' ? renderWearableLayers(opts.equippedWear, id) : '';
-  if (id === 'benny') return layeredCharacter('benny', size, BENNY_LAYERS(size, playPose), instInner, wearHtml);
-  return layeredCharacter('lizzy', size, LIZZY_LAYERS(playPose), instInner, wearHtml);
+  const frontArms = frontArmsForCharacter(id, playPose, opts.instrument);
+  if (id === 'benny') return layeredCharacter('benny', size, BENNY_LAYERS(size, playPose, opts.instrument), frontArms, instInner, wearHtml);
+  return layeredCharacter('lizzy', size, LIZZY_LAYERS(playPose, opts.instrument), frontArms, instInner, wearHtml);
 }
 
 function renderCrowdMember(index) {

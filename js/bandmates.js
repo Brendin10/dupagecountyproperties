@@ -85,10 +85,10 @@ function renderBandmate(id, size = 80) {
   const colors = typeof CharacterRig !== 'undefined' ? CharacterRig.bandmateColors(m) : m;
   const pose = typeof CharacterRig !== 'undefined' ? CharacterRig.poseFromRole(m.role) : 'idle';
   const armsBack = typeof CharacterRig !== 'undefined'
-    ? CharacterRig.renderRiggedArms(colors, pose, 'back')
+    ? CharacterRig.renderRiggedArms(colors, pose, 'back', { hideSticks: typeof InstrumentArt !== 'undefined' && m.instrumentId && InstrumentArt.shouldHideSticks(INSTRUMENTS[m.instrumentId]) })
     : '';
   const armsFront = typeof CharacterRig !== 'undefined'
-    ? CharacterRig.renderRiggedArms(colors, pose, 'front')
+    ? CharacterRig.renderRiggedArms(colors, pose, 'front', { hideSticks: typeof InstrumentArt !== 'undefined' && m.instrumentId && InstrumentArt.shouldHideSticks(INSTRUMENTS[m.instrumentId]) })
     : '';
   const tufts = (cx, cy, spread) => Array.from({ length: 6 }, (_, i) => {
     const ang = (i / 6) * Math.PI * 2 - Math.PI / 2;
@@ -125,8 +125,8 @@ function renderBandmate(id, size = 80) {
       <path d="M84 108 Q100 114 116 108" fill="white" stroke="${OUTLINE}" stroke-width="1.5"/>
       <circle cx="68" cy="96" r="8" fill="#FF8EC8" opacity="0.5"/>
       <circle cx="132" cy="96" r="8" fill="#FF8EC8" opacity="0.5"/>
-      <g class="rig-arms-front">${armsFront}</g>
       <g class="bandmate-instrument">${inst}</g>
+      <g class="rig-arms-front">${armsFront}</g>
     </svg>`;
 }
 

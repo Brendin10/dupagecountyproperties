@@ -10,54 +10,44 @@ const InstrumentArt = (() => {
     'cowbell', 'drum-kit',
   ]);
 
+  const pngFailed = new Set();
+
   function hasArt(inst) {
-    return !!(inst?.id && ART_IDS.has(inst.id));
+    return !!(inst?.id && ART_IDS.has(inst.id) && !pngFailed.has(inst.id));
+  }
+
+  function markPngFailed(instId) {
+    if (instId) pngFailed.add(instId);
   }
 
   function artUrl(inst) {
     return `${ART_BASE}${inst.id}.png`;
   }
 
-  const HELD_LAYOUT = {
-    'trash-lid': { x: 72, y: 28, w: 56, h: 72, rot: -12 },
-    tambourine: { x: 78, y: 32, w: 48, h: 62, rot: 0 },
-    ukulele: { x: 70, y: 30, w: 60, h: 78, rot: -22 },
-    'electric-guitar': { x: 62, y: 22, w: 76, h: 98, rot: -18 },
-    'acoustic-guitar': { x: 64, y: 24, w: 74, h: 96, rot: -20 },
-    'bass-guitar': { x: 60, y: 26, w: 78, h: 94, rot: -16 },
-    banjo: { x: 72, y: 32, w: 58, h: 76, rot: -18 },
-    piano: { x: 38, y: 48, w: 124, h: 72, rot: 0 },
-    keyboard: { x: 42, y: 52, w: 116, h: 58, rot: 0 },
-    organ: { x: 48, y: 30, w: 104, h: 88, rot: 0 },
-    trumpet: { x: 68, y: 34, w: 64, h: 78, rot: -24 },
-    trombone: { x: 66, y: 34, w: 68, h: 78, rot: -24 },
-    saxophone: { x: 64, y: 28, w: 72, h: 86, rot: -22 },
-    violin: { x: 76, y: 28, w: 48, h: 82, rot: -28 },
-    flute: { x: 88, y: 24, w: 28, h: 92, rot: -12 },
-    harmonica: { x: 72, y: 58, w: 56, h: 38, rot: 0 },
-    'synth-lead': { x: 44, y: 48, w: 112, h: 62, rot: 0 },
-    triangle: { x: 82, y: 30, w: 36, h: 72, rot: 0 },
-    xylophone: { x: 52, y: 48, w: 96, h: 58, rot: 0 },
-    accordion: { x: 48, y: 38, w: 104, h: 88, rot: 0 },
-    bongo: { x: 68, y: 42, w: 64, h: 72, rot: 0 },
-    clarinet: { x: 86, y: 24, w: 32, h: 92, rot: -12 },
-    cowbell: { x: 78, y: 32, w: 48, h: 62, rot: -20 },
-    'drum-kit': { x: 28, y: 52, w: 144, h: 96, rot: 0 },
-  };
+  function shouldHideSticks(inst) {
+    if (!hasArt(inst) || typeof InstrumentGrips === 'undefined') return false;
+    return !!InstrumentGrips.getGrip(inst)?.hideSticks;
+  }
 
-  function renderHeldImage(inst, anim) {
-    const layout = HELD_LAYOUT[inst.id] || { x: 70, y: 35, w: 60, h: 75, rot: -15 };
-    const { x, y, w, h, rot } = layout;
-    const cx = x + w / 2;
-    const cy = y + h / 2;
+  function renderHeldImage(inst, anim = '') {
+    const grip = typeof InstrumentGrips !== 'undefined'
+      ? InstrumentGrips.getGrip(inst)
+      : null;
+    const w = grip?.art?.w ?? 70;
+    const h = grip?.art?.h ?? 75;
+    const mount = grip
+      ? InstrumentGrips.mountTransform(grip)
+      : { transform: 'translate(70,35)', w, h };
+    const playCls = anim ? ` ${anim}` : '';
+    const uid = inst.id.replace(/[^a-z0-9-]/gi, '');
     return `
-      <g class="held-instrument held-img held-${inst.id} instrument-layered ${anim}" transform="translate(${cx},${cy}) rotate(${rot}) translate(${-w / 2},${-h / 2})">
-        <defs>
-          <clipPath id="held-clip-${inst.id}">
-            <rect x="0" y="0" width="${w}" height="${h * 0.82}" rx="4"/>
-          </clipPath>
-        </defs>
-        <image href="${artUrl(inst)}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="xMidYMin slice" clip-path="url(#held-clip-${inst.id})" class="held-instrument-img"/>
+      <g class="held-mount held-instrument held-img held-${inst.id}" transform="${mount.transform}">
+        <g class="held-play instrument-layered${playCls}">
+          <image href="${artUrl(inst)}" x="0" y="0" width="${mount.w}" height="${mount.h}"
+            preserveAspectRatio="xMidYMid meet" class="held-instrument-img"
+            data-inst-id="${inst.id}"
+            onerror="typeof InstrumentArt!=='undefined'&&InstrumentArt.markPngFailed('${inst.id}')"/>
+        </g>
       </g>`;
   }
 
@@ -67,17 +57,21 @@ const InstrumentArt = (() => {
       return `<svg viewBox="0 0 200 270" width="${size}" height="${Math.round(size * 1.3)}" class="shop-inst-preview shop-inst-svg">${svg}</svg>`;
     }
     const h = Math.round(size * 1.3);
-    return `<img src="${artUrl(inst)}" width="${size}" height="${h}" class="inst-art-card" alt="${inst.name}" loading="lazy"/>`;
+    return `<img src="${artUrl(inst)}" width="${size}" height="${h}" class="inst-art-card" alt="${inst.name}" loading="lazy"
+      onerror="this.classList.add('inst-art-missing');this.alt='${inst.emoji}'"/>`;
   }
 
   function renderInventoryThumb(inst, size = 36) {
     if (!hasArt(inst)) return `<span class="inv-emoji">${inst.emoji}</span>`;
     const h = Math.round(size * 1.3);
-    return `<img src="${artUrl(inst)}" width="${size}" height="${h}" class="inv-art-thumb" alt="${inst.name}" loading="lazy"/>`;
+    return `<img src="${artUrl(inst)}" width="${size}" height="${h}" class="inv-art-thumb" alt="${inst.name}" loading="lazy"
+      onerror="this.outerHTML='<span class=\\'inv-emoji\\'>${inst.emoji}</span>'"/>`;
   }
 
   function wrap(cls, transform, layers, anim = '') {
-    return `<g class="held-instrument ${cls} instrument-layered ${anim}" transform="${transform}">${layers}</g>`;
+    return `<g class="held-mount held-instrument ${cls} instrument-layered" transform="${transform}">
+      <g class="held-play ${anim}">${layers}</g>
+    </g>`;
   }
 
   function layer(cls, content) {
@@ -86,18 +80,6 @@ const InstrumentArt = (() => {
 
   function shadow(rx = 24, ry = 8, cy = 28) {
     return layer('inst-shadow', `<ellipse cx="4" cy="${cy}" rx="${rx}" ry="${ry}" fill="rgba(0,0,0,0.22)"/>`);
-  }
-
-  function stringsArt(bodyFill, neckFill, headstock = '', strings = 6, bodyW = 22, bodyH = 16) {
-    const strLines = Array.from({ length: strings }, (_, i) => {
-      const x = -3 + (i * 6) / (strings - 1 || 1);
-      return `<line x1="${x.toFixed(1)}" y1="-28" x2="${(x * 0.8).toFixed(1)}" y2="32" stroke="#ddd" stroke-width="0.8"/>`;
-    }).join('');
-    return `
-      ${shadow()}
-      ${layer('inst-body', `<ellipse cx="0" cy="20" rx="${bodyW}" ry="${bodyH}" fill="${bodyFill}" stroke="${O}" stroke-width="3"/><circle cx="0" cy="20" r="${Math.min(bodyW, bodyH) * 0.35}" fill="#3a2010" stroke="${O}" stroke-width="2"/>`)}
-      ${layer('inst-neck', `<rect x="-5" y="-32" width="10" height="52" rx="3" fill="${neckFill}" stroke="${O}" stroke-width="2"/>${headstock}`)}
-      ${layer('inst-strings', strLines)}`;
   }
 
   function renderStrings(inst, anim) {
@@ -289,8 +271,19 @@ const InstrumentArt = (() => {
     piece.classList.add('drum-hit-flash');
   }
 
-  return { renderHeld, renderShopPreview, renderInventoryThumb, hasArt, artUrl, triggerDrumHit };
+  return {
+    renderHeld,
+    renderShopPreview,
+    renderInventoryThumb,
+    hasArt,
+    artUrl,
+    markPngFailed,
+    shouldHideSticks,
+    triggerDrumHit,
+  };
 })();
+
+window.InstrumentArt = InstrumentArt;
 
 function renderInstrumentArt(inst, pose = 'idle') {
   return InstrumentArt.renderHeld(inst, pose);

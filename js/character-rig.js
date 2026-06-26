@@ -30,7 +30,7 @@ const CharacterRig = (() => {
     return poseFromHold(ROLE_TO_HOLD[role] || 'idle');
   }
 
-  function armChain(side, colors, pose, layer) {
+  function armChain(side, colors, pose, layer, options = {}) {
     const isLeft = side === 'L';
     const sx = isLeft ? 42 : 158;
     const shoulderY = layer === 'back' ? 168 : 162;
@@ -40,7 +40,7 @@ const CharacterRig = (() => {
     const poseCls = `rig-pose-${pose}`;
     const flip = isLeft ? '' : ' scale(-1,1) translate(-200,0)';
 
-    const stick = pose === 'drums'
+    const stick = pose === 'drums' && !options.hideSticks
       ? `<line class="rig-stick" x1="${isLeft ? 28 : 172}" y1="188" x2="${isLeft ? 18 : 182}" y2="168" stroke="#8B7355" stroke-width="3" stroke-linecap="round"/>
          <ellipse class="rig-stick-tip" cx="${isLeft ? 16 : 184}" cy="166" rx="4" ry="3" fill="#deb887" stroke="${OUTLINE}" stroke-width="1"/>`
       : '';
@@ -60,8 +60,8 @@ const CharacterRig = (() => {
       </g>`;
   }
 
-  function renderRiggedArms(colors, pose, layer = 'front') {
-    return armChain('L', colors, pose, layer) + armChain('R', colors, pose, layer);
+  function renderRiggedArms(colors, pose, layer = 'front', options = {}) {
+    return armChain('L', colors, pose, layer, options) + armChain('R', colors, pose, layer, options);
   }
 
   function bennyColors() {

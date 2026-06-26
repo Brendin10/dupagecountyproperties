@@ -367,8 +367,9 @@ body {
 }
 
 .char-layer.layer-instrument {
-  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.38));
+  filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.32));
   transform: translateY(-2px);
+  z-index: 13 !important;
 }
 
 /* Layered instrument depth */
@@ -896,7 +897,7 @@ body {
   display: block;
   border-radius: 8px;
   object-fit: contain;
-  background: #000;
+  background: transparent;
   flex-shrink: 0;
 }
 
@@ -904,7 +905,7 @@ body {
   display: block;
   border-radius: 6px;
   object-fit: contain;
-  background: #000;
+  background: transparent;
 }
 
 .held-instrument-img {
@@ -912,6 +913,40 @@ body {
 }
 
 .shop-emoji { font-size: 1.8rem; }
+
+.tune-screen {
+  text-align: center;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.tune-hint-text {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+
+.tune-select {
+  margin-bottom: 20px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 2px solid var(--brand-purple);
+  background: var(--brand-bg);
+  color: var(--text);
+  font-family: inherit;
+  width: 100%;
+  max-width: 280px;
+}
+
+.tune-preview-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 16px;
+  border: 2px solid var(--brand-purple);
+}
 
 .shop-info {
   flex: 1;
@@ -1711,25 +1746,30 @@ body {
   min-height: 1.2em;
 }
 
-/* Held instrument animations */
-.held-instrument.inst-play-drums {
+/* Held instrument animations — inner .held-play so mount transform stays stable */
+.held-play.inst-play-drums {
   animation: drumStickHit 0.22s ease;
 }
 
-.held-instrument.inst-play-cymbal {
+.held-play.inst-play-cymbal {
   animation: cymbalHit 0.22s ease;
 }
 
-.held-instrument.inst-play-shake {
+.held-play.inst-play-shake {
   animation: tambourineShake 0.2s ease;
 }
 
-.held-instrument.inst-play-melodic {
-  animation: strumHit 0.28s ease;
+.held-play.inst-play-melodic {
+  animation: strumHitPlay 0.28s ease;
 }
 
-.held-instrument.inst-play-percussion {
+.held-play.inst-play-percussion {
   animation: cymbalHit 0.2s ease;
+}
+
+@keyframes strumHitPlay {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(4px, -2px) rotate(3deg); }
 }
 
 @keyframes drumStickHit {
@@ -2181,6 +2221,56 @@ body {
 
 .rig-pose-brass .rig-arm-R.rig-hit-alt .rig-hand {
   animation: rigBrassToot 0.24s ease;
+}
+
+/* Resting arm poses — hands reach toward instrument grips */
+.rig-pose-strum .rig-arm-L .rig-forearm {
+  transform: rotate(42deg);
+}
+
+.rig-pose-strum .rig-arm-R .rig-forearm {
+  transform: rotate(-48deg);
+}
+
+.rig-pose-strum .rig-arm-L .rig-hand {
+  transform: rotate(8deg);
+}
+
+.rig-pose-strum .rig-arm-R .rig-hand {
+  transform: rotate(-6deg);
+}
+
+.rig-pose-keys .rig-arm-L .rig-forearm {
+  transform: rotate(28deg);
+}
+
+.rig-pose-keys .rig-arm-R .rig-forearm {
+  transform: rotate(-28deg);
+}
+
+.rig-pose-keys .rig-arm-L .rig-hand,
+.rig-pose-keys .rig-arm-R .rig-hand {
+  transform: rotate(0deg);
+}
+
+.rig-pose-drums .rig-arm-L .rig-forearm {
+  transform: rotate(22deg);
+}
+
+.rig-pose-drums .rig-arm-R .rig-forearm {
+  transform: rotate(-22deg);
+}
+
+.rig-pose-brass .rig-arm-L .rig-forearm {
+  transform: rotate(18deg);
+}
+
+.rig-pose-brass .rig-arm-R .rig-forearm {
+  transform: rotate(-38deg);
+}
+
+.rig-pose-brass .rig-arm-R .rig-hand {
+  transform: rotate(-12deg);
 }
 
 .rig-stick.rig-stick-hit {
