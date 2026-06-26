@@ -4,7 +4,7 @@ const InstrumentArt = (() => {
 
   const ART_IDS = new Set([
     'trash-lid', 'tambourine', 'ukulele', 'electric-guitar', 'acoustic-guitar',
-    'piano', 'keyboard',
+    'bass-guitar', 'banjo', 'piano', 'keyboard',
     'organ', 'trumpet', 'trombone', 'saxophone', 'violin', 'flute', 'harmonica',
     'synth-lead', 'triangle', 'xylophone', 'accordion', 'bongo', 'clarinet',
     'cowbell', 'drum-kit',
