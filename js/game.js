@@ -21,6 +21,15 @@ const Game = (() => {
     equippedInstrument: 'trash-lid',
     equippedSong: 'street-jam',
     equippedWear: { clothes: null, makeup: null, accessories: null },
+    gigBandIds: [],
+    hubPanelsOpen: {
+      instruments: false,
+      songs: false,
+      clothes: false,
+      makeup: false,
+      accessories: false,
+      band: false,
+    },
     shopNotice: null,
     gigIntroRunning: false,
   };
@@ -134,6 +143,142 @@ const Game = (() => {
     }));
   }
 
+  const WEAR_CATS = ['clothes', 'makeup', 'accessories'];
+
+  function defaultHubPanelsOpen() {
+    return {
+      instruments: false,
+      songs: false,
+      clothes: false,
+      makeup: false,
+      accessories: false,
+      band: false,
+    };
+  }
+
+  function syncGigBandIds() {
+    if (!state.gigBandIds) state.gigBandIds = [];
+    const ids = state.bandMembers.map(getBandmateId);
+    state.gigBandIds = state.gigBandIds.filter((id) => ids.includes(id));
+    for (const id of ids) {
+      if (!state.gigBandIds.includes(id)) state.gigBandIds.push(id);
+    }
+  }
+
+  function getGigBandMembers() {
+    syncGigBandIds();
+    return state.bandMembers.filter((m) => state.gigBandIds.includes(getBandmateId(m)));
+  }
+
+  function toggleGigBandMember(id) {
+    syncGigBandIds();
+    const idx = state.gigBandIds.indexOf(id);
+    if (idx >= 0) state.gigBandIds.splice(idx, 1);
+    else state.gigBandIds.push(id);
+    persist();
+  }
+
+  function dropBandMember(id) {
+    const member = state.bandMembers.find((m) => getBandmateId(m) === id);
+    if (!member) return false;
+    if (!confirm(`Drop ${member.name} from your band? This frees a slot.`)) return false;
+    state.bandMembers = state.bandMembers.filter((m) => getBandmateId(m) !== id);
+    state.gigBandIds = (state.gigBandIds || []).filter((gid) => gid !== id);
+    normalizeBandMembers();
+    syncGigBandIds();
+    persist();
+    return true;
+  }
+
+  function getWearableItem(cat) {
+    const id = state.equippedWear?.[cat];
+    if (!id) return null;
+    return SHOP_ITEMS[cat]?.find((i) => i.id === id) || null;
+  }
+
+  function renderHubPanel(key, title, countLabel, bodyHtml) {
+    if (!state.hubPanelsOpen) state.hubPanelsOpen = defaultHubPanelsOpen();
+    const open = !!state.hubPanelsOpen[key];
+    return `
+      <div class="inv-section hub-panel ${open ? 'open' : ''}" data-hub-panel="${key}">
+        <button type="button" class="hub-panel-toggle" data-toggle-panel="${key}">
+          <span class="hub-panel-chevron">▸</span>
+          <span class="hub-panel-title">${title}</span>
+          ${countLabel ? `<span class="hub-panel-count">${countLabel}</span>` : ''}
+        </button>
+        <div class="hub-panel-body">${bodyHtml}</div>
+      </div>`;
+  }
+
+  function renderNoneChip(cat) {
+    const equipped = !state.equippedWear?.[cat];
+    return `<button type="button" class="inv-chip none-chip ${equipped ? 'equipped' : ''}" data-equip-cat="${cat}" data-equip="__none__" title="None">—</button>`;
+  }
+
+  function renderInventoryChips(cat) {
+    const items = ownedItems(cat);
+    const noneChip = WEAR_CATS.includes(cat) ? renderNoneChip(cat) : '';
+
+    if (!items.length && !WEAR_CATS.includes(cat)) {
+      return '<span class="inv-empty">Empty</span>';
+    }
+
+    const chips = items.map((i) => {
+      const equipped = (cat === 'instruments' && state.equippedInstrument === i.id)
+        || (cat === 'songs' && state.equippedSong === i.id)
+        || (WEAR_CATS.includes(cat) && state.equippedWear?.[cat] === i.id);
+      const equipAttr = (cat === 'instruments' || cat === 'songs' || WEAR_CATS.includes(cat)) ? i.id : '';
+      const chipInner = cat === 'instruments' && INSTRUMENTS[i.id]
+        ? (typeof renderInventoryItemThumb === 'function' ? renderInventoryItemThumb(cat, i, 36) : i.emoji)
+        : `<span class="brand-card-icon">${i.emoji}</span>`;
+      return `<button type="button" class="inv-chip ${equipped ? 'equipped' : ''}" data-equip-cat="${cat}" data-equip="${equipAttr}" title="${i.name}${equipped ? ' (on)' : ' — click to equip'}">${chipInner}</button>`;
+    }).join('');
+
+    return `<div class="inv-items">${noneChip}${chips}</div>`;
+  }
+
+  function renderGigLoadoutSummary({ compact } = {}) {
+    const inst = getActiveInstrument();
+    const song = getActiveSong();
+    const gigBand = getGigBandMembers();
+
+    if (compact) {
+      const wearParts = WEAR_CATS.map((cat) => {
+        const item = getWearableItem(cat);
+        return item ? item.name : null;
+      }).filter(Boolean);
+      const bandPart = gigBand.length ? gigBand.map((m) => m.name).join(', ') : 'Solo';
+      return [inst.name, song.name, ...wearParts, bandPart].join(' · ');
+    }
+
+    const wearRows = WEAR_CATS.map((cat) => {
+      const label = cat.charAt(0).toUpperCase() + cat.slice(1);
+      const item = getWearableItem(cat);
+      const text = item ? `${item.emoji} ${item.name}` : 'None';
+      return `<div class="loadout-row loadout-wear"><span class="loadout-label">${label}</span> <span>${text}</span></div>`;
+    }).join('');
+
+    const bandHtml = gigBand.length
+      ? gigBand.map((m) => `
+          <span class="loadout-band-member" title="${m.role}">
+            ${renderBandmateCharacter(m, 28)}
+            <span>${m.name}</span>
+          </span>`).join('')
+      : '<span class="loadout-solo">Solo</span>';
+
+    return `
+      <div class="loadout-row loadout-instrument">
+        ${typeof renderShopInstrumentPreview === 'function' ? renderShopInstrumentPreview(inst, 32) : inst.emoji}
+        <span>${inst.name}</span>
+      </div>
+      <div class="loadout-row"><span>${song.emoji}</span> ${song.name}</div>
+      ${wearRows}
+      <div class="loadout-row loadout-band">
+        <span class="loadout-label">Band</span>
+        <div class="loadout-band-list">${bandHtml}</div>
+      </div>`;
+  }
+
   function slotMax() {
     return typeof MAX_BAND_SLOTS !== 'undefined' ? MAX_BAND_SLOTS : 7;
   }
@@ -197,6 +342,8 @@ const Game = (() => {
     state.equippedInstrument = 'trash-lid';
     state.equippedSong = 'street-jam';
     state.equippedWear = { clothes: null, makeup: null, accessories: null };
+    state.gigBandIds = [];
+    state.hubPanelsOpen = defaultHubPanelsOpen();
   }
 
   const root = () => document.getElementById('screen-root');
@@ -223,7 +370,7 @@ const Game = (() => {
         if (item) bonus += item.crowdBonus;
       }
     }
-    bonus += state.bandMembers.length * 8;
+    bonus += getGigBandMembers().length * 8;
     return bonus;
   }
 
@@ -266,6 +413,7 @@ const Game = (() => {
     if (!canRecruitBandmate()) return false;
     state.bandMembers.push(state.pendingRecruit);
     normalizeBandMembers();
+    syncGigBandIds();
     state.starMeter += 5;
     state.pendingRecruit = null;
     updateHud();
@@ -380,55 +528,51 @@ const Game = (() => {
     const inventorySections = ['instruments', 'songs', 'clothes', 'makeup', 'accessories'].map((cat) => {
       const items = ownedItems(cat);
       const label = cat === 'songs' ? 'Songs' : cat.charAt(0).toUpperCase() + cat.slice(1);
-      return `
-        <div class="inv-section">
-          <h4>${label}</h4>
-          <div class="inv-items">
-            ${items.length
-              ? items.map((i) => {
-                  const wearCats = ['clothes', 'makeup', 'accessories'];
-                  const equipped = (cat === 'instruments' && state.equippedInstrument === i.id)
-                    || (cat === 'songs' && state.equippedSong === i.id)
-                    || (wearCats.includes(cat) && state.equippedWear?.[cat] === i.id);
-                  const equipAttr = (cat === 'instruments' || cat === 'songs' || wearCats.includes(cat)) ? i.id : '';
-                  const chipInner = cat === 'instruments' && INSTRUMENTS[i.id]
-                    ? (typeof renderInventoryItemThumb === 'function' ? renderInventoryItemThumb(cat, i, 36) : i.emoji)
-                    : `<span class="brand-card-icon">${i.emoji}</span>`;
-                  return `<button type="button" class="inv-chip ${equipped ? 'equipped' : ''}" data-equip-cat="${cat}" data-equip="${equipAttr}" title="${i.name}${equipped ? ' (on)' : ' — click to preview'}">${chipInner}</button>`;
-                }).join('')
-              : '<span class="inv-empty">Empty</span>'}
-          </div>
-        </div>
-      `;
+      return renderHubPanel(cat, label, `(${items.length})`, renderInventoryChips(cat));
     }).join('');
 
     const openSlots = getOpenBandSlots();
     const slotCount = getBandSlotCount();
+    syncGigBandIds();
+    const gigBand = getGigBandMembers();
+    const gigCount = gigBand.length;
+    const rosterCount = state.bandMembers.length;
 
-    const bandSection = `
-      <div class="inv-section">
-        <h4>Band (${state.bandMembers.length}/${slotCount})</h4>
-        <p class="band-open-slots">${openSlots} open slot${openSlots === 1 ? '' : 's'} · play gigs to recruit</p>
-        <div class="inv-items band-roster">
-          ${state.bandMembers.map((m) => `
-                <div class="bandmate-chip" title="${m.role}">
-                  ${renderBandmateCharacter(m, 52)}
-                  <span>${m.name}</span>
-                </div>`).join('')}
-          ${Array.from({ length: openSlots }, (_, i) => `
-                <div class="bandmate-chip empty-slot" title="Open slot — recruit during gigs">
-                  <div class="empty-slot-icon">➕</div>
-                  <span>Open</span>
-                </div>`).join('')}
-          ${!state.bandMembers.length && !openSlots
-            ? '<span class="inv-empty">Solo act</span>'
-            : ''}
-        </div>
-      </div>
-    `;
+    const bandBody = `
+      <p class="band-open-slots">${openSlots} open slot${openSlots === 1 ? '' : 's'} · play gigs to recruit</p>
+      <div class="band-roster-gig">
+        ${state.bandMembers.map((m) => {
+          const id = getBandmateId(m);
+          const forGig = state.gigBandIds.includes(id);
+          return `
+            <div class="band-member-row ${forGig ? 'gig-active' : ''}">
+              <button type="button" class="gig-toggle-btn ${forGig ? 'active' : ''}" data-gig-toggle="${id}" title="${forGig ? 'Playing this gig' : 'Bench for this gig'}">${forGig ? '✓' : '○'}</button>
+              <div class="bandmate-chip" title="${m.role}">
+                ${renderBandmateCharacter(m, 52)}
+                <span>${m.name}</span>
+              </div>
+              <button type="button" class="btn-drop-member" data-drop-member="${id}" title="Drop from band">✕</button>
+            </div>`;
+        }).join('')}
+        ${Array.from({ length: openSlots }, () => `
+          <div class="bandmate-chip empty-slot" title="Open slot — recruit during gigs">
+            <div class="empty-slot-icon">➕</div>
+            <span>Open</span>
+          </div>`).join('')}
+        ${!state.bandMembers.length && !openSlots
+          ? '<span class="inv-empty">Solo act</span>'
+          : ''}
+      </div>`;
+
+    const bandSection = renderHubPanel(
+      'band',
+      'Band',
+      `(${gigCount}/${rosterCount} gig · ${rosterCount}/${slotCount})`,
+      bandBody,
+    );
 
     const inst = getActiveInstrument();
-    const song = getActiveSong();
+    const loadoutCompact = renderGigLoadoutSummary({ compact: true });
 
     return `
       <section class="screen hub-screen">
@@ -439,11 +583,7 @@ const Game = (() => {
             <p class="hub-appeal">Crowd Appeal: <strong>+${appeal}</strong></p>
             <div class="hub-loadout">
               <h4>Gig Loadout</h4>
-              <div class="loadout-row loadout-instrument">
-                ${typeof renderShopInstrumentPreview === 'function' ? renderShopInstrumentPreview(inst, 32) : inst.emoji}
-                <span>${inst.name}</span>
-              </div>
-              <div class="loadout-row"><span>${song.emoji}</span> ${song.name}</div>
+              ${renderGigLoadoutSummary()}
             </div>
             ${inventorySections}
             ${bandSection}
@@ -460,7 +600,7 @@ const Game = (() => {
             <div class="hub-actions">
               <button class="btn btn-primary btn-lg" id="btn-perform">
                 <span class="gig-loadout-preview">${typeof renderShopInstrumentPreview === 'function' ? renderShopInstrumentPreview(inst, 36) : inst.emoji}</span>
-                <span class="gig-loadout-text">Play Gig<br><small>${inst.name} · ${song.name}</small></span>
+                <span class="gig-loadout-text">Play Gig<br><small>${loadoutCompact}</small></span>
               </button>
               <button class="btn btn-secondary" id="btn-shop">🛍️ Shop</button>
             </div>
@@ -616,8 +756,9 @@ const Game = (() => {
   }
 
   function renderStageLineup(inst) {
-    const left = state.bandMembers.filter((_, i) => i % 2 === 0);
-    const right = state.bandMembers.filter((_, i) => i % 2 === 1);
+    const gigBand = getGigBandMembers();
+    const left = gigBand.filter((_, i) => i % 2 === 0);
+    const right = gigBand.filter((_, i) => i % 2 === 1);
     const leftHtml = left.map((m, i) => `
       <div class="lineup-slot side" id="bandmate-${getBandmateId(m)}" style="--slot:${i}">
         ${renderBandmateCharacter(m, 88)}
@@ -834,6 +975,7 @@ const Game = (() => {
       const data = SaveManager.load();
       if (SaveManager.apply(state, data)) {
         normalizeBandMembers();
+        syncGigBandIds();
         state.tutorialStep = state.hasLid ? 1 : 0;
         setScreen(state.hasLid ? 'hub' : 'tutorial');
       }
@@ -921,6 +1063,14 @@ const Game = (() => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.equip;
         const cat = btn.dataset.equipCat;
+        const wearCats = ['clothes', 'makeup', 'accessories'];
+        if (wearCats.includes(cat) && (id === '__none__' || !id)) {
+          state.equippedWear = state.equippedWear || { clothes: null, makeup: null, accessories: null };
+          state.equippedWear[cat] = null;
+          persist();
+          render();
+          return;
+        }
         if (!id) return;
         if (cat === 'instruments' && state.inventories.instruments.includes(id)) {
           state.equippedInstrument = id;
@@ -937,10 +1087,33 @@ const Game = (() => {
         }
         if (['clothes', 'makeup', 'accessories'].includes(cat) && state.inventories[cat]?.includes(id)) {
           state.equippedWear = state.equippedWear || { clothes: null, makeup: null, accessories: null };
-          state.equippedWear[cat] = state.equippedWear[cat] === id ? null : id;
+          state.equippedWear[cat] = id;
           persist();
           render();
         }
+      });
+    });
+
+    $$('[data-toggle-panel]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.togglePanel;
+        state.hubPanelsOpen = state.hubPanelsOpen || defaultHubPanelsOpen();
+        state.hubPanelsOpen[key] = !state.hubPanelsOpen[key];
+        render();
+      });
+    });
+
+    $$('[data-gig-toggle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        toggleGigBandMember(btn.dataset.gigToggle);
+        render();
+      });
+    });
+
+    $$('[data-drop-member]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (dropBandMember(btn.dataset.dropMember)) render();
       });
     });
 
@@ -1033,7 +1206,7 @@ const Game = (() => {
 
     AudioEngine.initMix();
     AudioEngine.startCrowdAmbience?.(venue?.tier ?? 0, { intro: true });
-    BandAudio.setBand(state.bandMembers, song);
+    BandAudio.setBand(getGigBandMembers(), song);
     BandAudio.setOnMemberPlay((member) => triggerBandmateAnimation(member));
 
     beginRhythmGameplay(bpm);

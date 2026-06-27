@@ -15,6 +15,7 @@ const SaveManager = {
       equippedInstrument: state.equippedInstrument,
       equippedSong: state.equippedSong,
       equippedWear: state.equippedWear,
+      gigBandIds: state.gigBandIds,
       savedAt: Date.now(),
     };
     try {
@@ -55,6 +56,7 @@ const SaveManager = {
     state.equippedInstrument = data.equippedInstrument ?? 'trash-lid';
     state.equippedSong = data.equippedSong ?? 'street-jam';
     state.equippedWear = data.equippedWear ?? { clothes: null, makeup: null, accessories: null };
+    state.gigBandIds = Array.isArray(data.gigBandIds) ? data.gigBandIds : [];
     return true;
   },
 

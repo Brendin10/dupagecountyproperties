@@ -682,6 +682,120 @@ body {
   margin-bottom: 6px;
 }
 
+.hub-panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  margin: 0 0 6px;
+  background: none;
+  border: none;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.hub-panel-toggle:hover {
+  color: var(--text);
+}
+
+.hub-panel-chevron {
+  display: inline-block;
+  transition: transform 0.15s ease;
+  font-size: 0.7rem;
+}
+
+.hub-panel.open .hub-panel-chevron {
+  transform: rotate(90deg);
+}
+
+.hub-panel-count {
+  margin-left: auto;
+  font-size: 0.7rem;
+  opacity: 0.75;
+}
+
+.hub-panel-body {
+  display: none;
+}
+
+.hub-panel.open .hub-panel-body {
+  display: block;
+}
+
+.inv-chip.none-chip {
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 44px;
+}
+
+.band-roster-gig {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.band-member-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.band-member-row.gig-active {
+  background: rgba(107, 203, 119, 0.12);
+  border: 1px solid rgba(107, 203, 119, 0.25);
+}
+
+.band-member-row .bandmate-chip {
+  flex: 1;
+  min-width: 0;
+}
+
+.gig-toggle-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 2px solid rgba(155, 107, 255, 0.4);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gig-toggle-btn.active {
+  border-color: var(--green);
+  background: rgba(107, 203, 119, 0.2);
+  color: var(--green);
+}
+
+.btn-drop-member {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  background: rgba(255, 107, 107, 0.1);
+  color: #ff6b6b;
+  font-size: 0.75rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.btn-drop-member:hover {
+  background: rgba(255, 107, 107, 0.25);
+}
+
 .inv-items {
   display: flex;
   flex-wrap: wrap;
@@ -2934,6 +3048,48 @@ body {
   width: 32px;
   height: auto;
   border-radius: 4px;
+}
+
+.loadout-row.loadout-wear {
+  display: flex;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.loadout-label {
+  min-width: 72px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.loadout-row.loadout-band {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.loadout-band-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.loadout-band-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  background: rgba(155, 107, 255, 0.15);
+  border-radius: 6px;
+  padding: 2px 6px 2px 2px;
+}
+
+.loadout-solo {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-style: italic;
 }
 
 #btn-perform {
