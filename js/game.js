@@ -358,8 +358,17 @@ const Game = (() => {
 
   function setScreen(name) {
     state.screen = name;
+    if (name === 'hub' || name === 'shop') preloadOwnedInstrumentAudio();
     updateHud();
     render();
+  }
+
+  function preloadOwnedInstrumentAudio() {
+    if (typeof AudioSamples === 'undefined') return;
+    ownedItems('instruments').forEach((item) => {
+      const inst = INSTRUMENTS[item.id];
+      if (inst) AudioSamples.loadInstrumentSamples(inst.subtype, inst.id);
+    });
   }
 
   function crowdAppeal() {
@@ -1100,6 +1109,7 @@ const Game = (() => {
         if (!id) return;
         if (cat === 'instruments' && state.inventories.instruments.includes(id)) {
           state.equippedInstrument = id;
+          AudioEngine.resume?.();
           AudioEngine.playInstrument?.(INSTRUMENTS[id]);
           persist();
           render();

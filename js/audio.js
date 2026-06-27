@@ -871,10 +871,19 @@ const AudioEngine = (() => {
     }
   }
 
-  function playInstrument(instrument, chord) {
+  async function playInstrument(instrument, chord) {
     const ac = getCtx();
+    if (!instrument) {
+      const now = ac.currentTime;
+      playCymbal(ac, now, 0.45);
+      return;
+    }
+
+    if (typeof AudioSamples !== 'undefined' && instrument.id && !AudioSamples.hasInstrumentSample(instrument.id)) {
+      await AudioSamples.loadInstrumentSample(instrument.id);
+    }
+
     const now = ac.currentTime;
-    if (!instrument) { playCymbal(ac, now, 0.45); return; }
     const c = chord || instrument.progression?.[0] || 'C';
     const event = instrument.type === 'percussion'
       ? { hit: instrument.subtype === 'drums' ? 'snare' : instrument.subtype === 'shake' ? 'shake' : 'cymbal' }
