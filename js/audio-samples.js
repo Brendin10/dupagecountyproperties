@@ -1,5 +1,6 @@
 const AudioSamples = (() => {
   const BASE = 'audio/instruments/';
+  const INSTRUMENT_AUDIO_V = 2;
   const INSTRUMENT_EXTENSIONS = ['mp3', 'wav', 'ogg', 'm4a'];
 
   const SUBTYPE_SAMPLES = {
@@ -53,7 +54,7 @@ const AudioSamples = (() => {
   }
 
   function instrumentSampleUrl(instId, ext) {
-    return `${BASE}${instId}.${ext}`;
+    return `${BASE}${instId}.${ext}?v=${INSTRUMENT_AUDIO_V}`;
   }
 
   function loadBuffer(name) {
@@ -91,7 +92,7 @@ const AudioSamples = (() => {
       const ac = await resumeCtx();
       for (const ext of INSTRUMENT_EXTENSIONS) {
         try {
-          const r = await fetch(instrumentSampleUrl(instId, ext));
+          const r = await fetch(instrumentSampleUrl(instId, ext), { cache: 'no-store' });
           if (!r.ok) continue;
           const buf = await r.arrayBuffer();
           const decoded = await decodeAudioBuffer(ac, buf);
