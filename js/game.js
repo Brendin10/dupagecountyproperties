@@ -887,6 +887,32 @@ const Game = (() => {
       </section>`;
   }
 
+  function updateHubVenueSelection() {
+    if (state.screen !== 'hub') return false;
+    const venue = VENUES.find((v) => v.id === state.currentVenue);
+    if (!venue) return false;
+
+    document.querySelectorAll('.venue-card:not(.locked)').forEach((btn) => {
+      const isActive = btn.dataset.venue === state.currentVenue;
+      btn.classList.toggle('active', isActive);
+      if (isActive) {
+        btn.classList.remove('venue-just-selected');
+        void btn.offsetWidth;
+        btn.classList.add('venue-just-selected');
+        setTimeout(() => btn.classList.remove('venue-just-selected'), 400);
+      }
+    });
+
+    const preview = document.querySelector('.hub-venue-preview');
+    if (!preview) return false;
+    preview.innerHTML = `${renderVenueBackdrop(state.currentVenue)}<div class="hub-venue-label">${venue.name}</div>`;
+
+    if (parallaxCleanup) parallaxCleanup();
+    parallaxCleanup = initVenueParallax(preview) || null;
+
+    return true;
+  }
+
   function render() {
     state.shopTab = state.shopTab || 'instruments';
     let html = '';
@@ -1014,7 +1040,7 @@ const Game = (() => {
       btn.addEventListener('click', () => {
         state.currentVenue = btn.dataset.venue;
         persist();
-        render();
+        if (!updateHubVenueSelection()) render();
       });
     });
 
