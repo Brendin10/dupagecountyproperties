@@ -358,6 +358,7 @@ const Game = (() => {
 
   function setScreen(name) {
     state.screen = name;
+    if (name === 'shop') state.shopTab = state.shopTab || 'instruments';
     if (name === 'hub' || name === 'shop') preloadOwnedInstrumentAudio();
     if (name === 'shop') preloadShopInstrumentAudio();
     updateHud();
@@ -373,7 +374,9 @@ const Game = (() => {
   }
 
   function preloadShopInstrumentAudio() {
-    if (typeof AudioSamples === 'undefined' || state.shopTab !== 'instruments') return;
+    if (typeof AudioSamples === 'undefined') return;
+    const tab = state.shopTab || 'instruments';
+    if (tab !== 'instruments') return;
     SHOP_ITEMS.instruments.forEach((item) => {
       AudioSamples.loadInstrumentSample(item.id);
     });
@@ -382,11 +385,15 @@ const Game = (() => {
   async function previewInstrumentSound(id) {
     const inst = INSTRUMENTS[id];
     if (!inst) return;
-    await AudioEngine.resume?.();
-    if (typeof AudioSamples !== 'undefined') {
-      await AudioSamples.ensureInstrumentSample(id);
+    try {
+      await AudioEngine.resume?.();
+      if (typeof AudioSamples !== 'undefined') {
+        await AudioSamples.ensureInstrumentSample(id);
+      }
+      await AudioEngine.playInstrument(inst);
+    } catch (err) {
+      console.warn('Instrument preview failed', id, err);
     }
-    await AudioEngine.playInstrument(inst);
   }
 
   function crowdAppeal() {
@@ -958,6 +965,9 @@ const Game = (() => {
     }
     root().innerHTML = html;
     bindEvents();
+    if (state.screen === 'shop' && (state.shopTab || 'instruments') === 'instruments') {
+      preloadShopInstrumentAudio();
+    }
     if (parallaxCleanup) parallaxCleanup();
     parallaxCleanup = null;
     if (['hub', 'perform'].includes(state.screen)) {
@@ -1015,9 +1025,23 @@ const Game = (() => {
     }, 2400);
   }
 
+  let shopPreviewListenerAttached = false;
+
   function bindEvents() {
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => document.querySelectorAll(sel);
+
+    if (!shopPreviewListenerAttached) {
+      root().addEventListener('click', (e) => {
+        const btn = e.target.closest('.shop-preview-btn[data-preview-inst]');
+        if (!btn) return;
+        const id = btn.dataset.previewInst;
+        if (!id || !INSTRUMENTS[id]) return;
+        e.stopPropagation();
+        previewInstrumentSound(id);
+      });
+      shopPreviewListenerAttached = true;
+    }
 
     $('#btn-start')?.addEventListener('click', () => {
       SaveManager.clear();
@@ -1169,15 +1193,6 @@ const Game = (() => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (dropBandMember(btn.dataset.dropMember)) render();
-      });
-    });
-
-    $$('.shop-preview-btn[data-preview-inst]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const id = btn.dataset.previewInst;
-        if (!id || !INSTRUMENTS[id]) return;
-        previewInstrumentSound(id);
       });
     });
 
