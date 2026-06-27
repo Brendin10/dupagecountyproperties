@@ -1164,6 +1164,7 @@ const AudioEngine = (() => {
   let booLoadPromise = null;
   let rewindBuffer = null;
   let rewindLoadPromise = null;
+  let activeRewindSfx = null;
   let crowdAmbience = null;
   let useProceduralCheer = false;
   let useProceduralBoo = false;
@@ -1352,23 +1353,37 @@ const AudioEngine = (() => {
     return rewindLoadPromise;
   }
 
-  function playRewindSfx(vol = 0.85) {
+  function stopRewindSfx() {
+    if (!activeRewindSfx) return;
+    try {
+      activeRewindSfx.source.stop();
+    } catch (_) {}
+    activeRewindSfx = null;
+  }
+
+  function playRewindSfx(vol = 0.85, durationSec = 5) {
     initMix();
     const ac = getCtx();
 
     const play = () => {
       if (!rewindBuffer) return;
+      stopRewindSfx();
       const now = ac.currentTime;
+      const clipLen = Math.min(durationSec, rewindBuffer.duration);
       const src = ac.createBufferSource();
       src.buffer = rewindBuffer;
       const g = ac.createGain();
       g.gain.setValueAtTime(0, now);
       g.gain.linearRampToValueAtTime(vol, now + 0.02);
-      g.gain.setValueAtTime(vol * 0.95, now + rewindBuffer.duration * 0.75);
-      g.gain.exponentialRampToValueAtTime(0.001, now + rewindBuffer.duration + 0.05);
+      g.gain.setValueAtTime(vol * 0.95, now + clipLen * 0.75);
+      g.gain.exponentialRampToValueAtTime(0.001, now + clipLen + 0.05);
       connectToMix(g, 0, 'music');
       src.connect(g);
-      src.start(now);
+      src.onended = () => {
+        if (activeRewindSfx?.source === src) activeRewindSfx = null;
+      };
+      activeRewindSfx = { source: src };
+      src.start(now, 0, clipLen);
     };
 
     if (rewindBuffer) play();
@@ -1649,7 +1664,7 @@ const AudioEngine = (() => {
     resume, getCtx, initMix, getMix, connectToMix,
     playCrash, playCheer, playCheerLoud, playCoin, playMiss, playTick, playHitBurst,
     playInstrument, playPartEvent, playSongPad, startSustain, stopSustain,
-    startCrowdAmbience, stopCrowdAmbience, endCrowdIntro, setCrowdBooing, setHotStreakCheering, boostCrowdCheer, playBoo, playCrowdSample, loadCheerSample, loadBooSample, loadRewindSample, playRewindSfx,
+    startCrowdAmbience, stopCrowdAmbience, endCrowdIntro, setCrowdBooing, setHotStreakCheering, boostCrowdCheer, playBoo, playCrowdSample, loadCheerSample, loadBooSample, loadRewindSample, playRewindSfx, stopRewindSfx,
     playLiveBass, playLiveShimmer, playLiveStrum, playDanceBeat, playDrumStyleBeat, playFourOnFloorKick,
     playKick, playSnare, playHihat, playCymbal, playShake,
     playChord, playGuitarChord, playBassNote, playKeysChord, playHornNote, playVocal,

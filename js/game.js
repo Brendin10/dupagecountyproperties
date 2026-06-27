@@ -1253,6 +1253,7 @@ const Game = (() => {
     Metronome.stop();
     BandAudio.stop();
     AudioEngine.stopSustain?.();
+    AudioEngine.stopRewindSfx?.();
     AudioEngine.stopCrowdAmbience?.();
     AudioEngine.setCrowdBooing?.(false);
     activeHold = null;
@@ -1387,7 +1388,7 @@ const Game = (() => {
     const floaters = document.getElementById('floaters');
     if (floaters) floaters.innerHTML = '';
 
-    AudioEngine.playRewindSfx?.();
+    AudioEngine.playRewindSfx?.(0.85, REWIND_SECONDS);
     Metronome.setBeatSuspended?.(true);
 
     const inst = getActiveInstrument();
@@ -1400,6 +1401,7 @@ const Game = (() => {
       if (rewindAnimRaf) cancelAnimationFrame(rewindAnimRaf);
       rewindAnimRaf = null;
 
+      AudioEngine.stopRewindSfx?.();
       applyRewindSnapshot(finalSnapshot);
       AudioEngine.setCrowdBooing?.(p.missStreak >= 3);
       updateFireState();
@@ -1421,6 +1423,7 @@ const Game = (() => {
 
     const scrubFrame = (now) => {
       if (!state.performance || state.screen !== 'perform') {
+        AudioEngine.stopRewindSfx?.();
         rewindActive = false;
         Metronome.setBeatSuspended?.(false);
         return;
