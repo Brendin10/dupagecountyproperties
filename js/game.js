@@ -990,6 +990,7 @@ const Game = (() => {
     document.getElementById('rhythm-highway')?.classList.toggle('on-fire', on);
     document.querySelector('.play-controls')?.classList.toggle('on-fire', on);
     document.getElementById('btn-play-note')?.classList.toggle('on-fire', on);
+    AudioEngine.setHotStreakCheering?.(on);
   }
 
   function endBooedOffStage() {
@@ -1599,12 +1600,7 @@ const Game = (() => {
 
     const isMelodic = inst.type === 'melodic';
     p.combo += 1;
-    const wasOnFire = p.onFire;
     if (p.combo >= HOT_STREAK_COMBO) p.onFire = true;
-    if (!wasOnFire && p.onFire) {
-      AudioEngine.playCheerLoud();
-      AudioEngine.boostCrowdCheer?.();
-    }
     updateFireState();
 
     const hot = isHotStreak(p);

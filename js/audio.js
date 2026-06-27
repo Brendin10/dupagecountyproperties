@@ -1168,6 +1168,9 @@ const AudioEngine = (() => {
   let useProceduralCheer = false;
   let useProceduralBoo = false;
 
+  const BOO_DUCK_MULT = 0.8;
+  const BOO_DUCK_RAMP_SEC = 0.12;
+
   function fetchDecodeSample(urls) {
     initMix();
     const ac = getCtx();
@@ -1425,6 +1428,62 @@ const AudioEngine = (() => {
     crowdAmbience.cheerTimeout = setTimeout(scheduleCrowdCheer, nextDelay);
   }
 
+  function scheduleHotStreakCheer() {
+    if (!crowdAmbience?.hotStreak || crowdAmbience.booing || crowdAmbience.introMode) return;
+    const { tier } = crowdAmbience;
+    const mult = 1.2 + Math.random() * 0.3;
+    playCrowdSample(tier, mult, { loud: true });
+    if (Math.random() < 0.4) {
+      setTimeout(() => {
+        if (crowdAmbience?.hotStreak && !crowdAmbience.booing) {
+          playCrowdSample(tier, mult * 0.9, { loud: true });
+        }
+      }, 100 + Math.random() * 80);
+    }
+    const nextDelay = 700 + Math.random() * 500;
+    crowdAmbience.hotStreakCheerTimeout = setTimeout(scheduleHotStreakCheer, nextDelay);
+  }
+
+  function resetGameplayDuck() {
+    initMix();
+    const ac = getCtx();
+    const now = ac.currentTime;
+    [musicBus, percBus].forEach((bus) => {
+      if (!bus) return;
+      bus.gain.cancelScheduledValues(now);
+      bus.gain.setValueAtTime(1, now);
+    });
+  }
+
+  function applyGameplayDuck(active) {
+    initMix();
+    const ac = getCtx();
+    const now = ac.currentTime;
+    const target = active ? BOO_DUCK_MULT : 1;
+    [musicBus, percBus].forEach((bus) => {
+      if (!bus) return;
+      bus.gain.cancelScheduledValues(now);
+      bus.gain.setValueAtTime(bus.gain.value, now);
+      bus.gain.linearRampToValueAtTime(target, now + BOO_DUCK_RAMP_SEC);
+    });
+  }
+
+  function setHotStreakCheering(active) {
+    if (!crowdAmbience) return;
+    if (!!crowdAmbience.hotStreak === !!active) return;
+    crowdAmbience.hotStreak = active;
+    if (active) {
+      playCheerLoud();
+      scheduleHotStreakCheer();
+    } else {
+      if (crowdAmbience.hotStreakCheerTimeout) {
+        clearTimeout(crowdAmbience.hotStreakCheerTimeout);
+        crowdAmbience.hotStreakCheerTimeout = null;
+      }
+      crowdAmbience.cheerMult = 1;
+    }
+  }
+
   function playHitBurst(rating = 'good', volMult = 1) {
     const ac = getCtx();
     const now = ac.currentTime;
@@ -1521,6 +1580,7 @@ const AudioEngine = (() => {
     crowdAmbience = {
       tier, booing: false, cheerMult: 1, booInterval, cheerTimeout: null,
       introMode, introTimeout: null,
+      hotStreak: false, hotStreakCheerTimeout: null,
     };
 
     if (introMode) {
@@ -1542,12 +1602,17 @@ const AudioEngine = (() => {
     clearInterval(crowdAmbience.booInterval);
     if (crowdAmbience.cheerTimeout) clearTimeout(crowdAmbience.cheerTimeout);
     if (crowdAmbience.introTimeout) clearTimeout(crowdAmbience.introTimeout);
+    if (crowdAmbience.hotStreakCheerTimeout) clearTimeout(crowdAmbience.hotStreakCheerTimeout);
+    resetGameplayDuck();
     crowdAmbience = null;
   }
 
   function setCrowdBooing(active) {
     if (!crowdAmbience) return;
+    const wasBooing = !!crowdAmbience.booing;
+    if (wasBooing === !!active) return;
     crowdAmbience.booing = active;
+    applyGameplayDuck(active);
     if (active) {
       loadBooSample().then(() => {
         playBoo(1.1);
@@ -1584,7 +1649,7 @@ const AudioEngine = (() => {
     resume, getCtx, initMix, getMix, connectToMix,
     playCrash, playCheer, playCheerLoud, playCoin, playMiss, playTick, playHitBurst,
     playInstrument, playPartEvent, playSongPad, startSustain, stopSustain,
-    startCrowdAmbience, stopCrowdAmbience, endCrowdIntro, setCrowdBooing, boostCrowdCheer, playBoo, playCrowdSample, loadCheerSample, loadBooSample, loadRewindSample, playRewindSfx,
+    startCrowdAmbience, stopCrowdAmbience, endCrowdIntro, setCrowdBooing, setHotStreakCheering, boostCrowdCheer, playBoo, playCrowdSample, loadCheerSample, loadBooSample, loadRewindSample, playRewindSfx,
     playLiveBass, playLiveShimmer, playLiveStrum, playDanceBeat, playDrumStyleBeat, playFourOnFloorKick,
     playKick, playSnare, playHihat, playCymbal, playShake,
     playChord, playGuitarChord, playBassNote, playKeysChord, playHornNote, playVocal,
