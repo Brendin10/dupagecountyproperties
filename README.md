@@ -35,4 +35,4 @@ Instruments without PNG art (drum kit, acoustic guitar, bass guitar, banjo, clar
 
 ## Audio Samples
 
-Instrument and crowd audio uses hybrid playback: short WAV samples in `audio/instruments/` plus procedural Web Audio synthesis as fallback. Samples are procedurally generated in-repo (CC0) via `scripts/generate-instrument-samples.mjs`. Crowd cheer/boo clips live in `audio/`.
+Instrument and crowd audio uses hybrid playback: short samples in `audio/instruments/` plus procedural Web Audio synthesis as fallback. Generic subtype WAVs are in-repo (CC0). **Custom instrument recordings:** upload to `Assets/Instrument audio/` (or `Assets/Instrument Audio/`) named like the instrument (`Acoustic Guitar.mp3` or `acoustic-guitar.mp3`), then run `python3 scripts/sync-instrument-audio.py` to copy into `audio/instruments/{instrument-id}.{ext}`. Crowd cheer/boo clips live in `audio/`.

@@ -820,16 +820,25 @@ const AudioEngine = (() => {
     const sampleVol = v * 0.65;
 
     if (event.chord) {
+      let sampleResult = false;
       if (typeof AudioSamples !== 'undefined') {
-        AudioSamples.playInstrumentSample(subtype, event, sampleVol);
+        sampleResult = AudioSamples.playInstrumentSample(subtype, event, sampleVol, instId);
       }
-      playMelodicBySubtype(ac, now, subtype, event.chord, v * 0.22, instId);
+      const customSample = sampleResult === 'custom'
+        || (instId && typeof AudioSamples !== 'undefined' && AudioSamples.hasInstrumentSample(instId));
+      if (!customSample) {
+        playMelodicBySubtype(ac, now, subtype, event.chord, v * 0.22, instId);
+      }
       return;
     }
     if (event.note) {
+      let sampleResult = false;
       if (typeof AudioSamples !== 'undefined') {
-        AudioSamples.playInstrumentSample(subtype, event, sampleVol * 0.8);
+        sampleResult = AudioSamples.playInstrumentSample(subtype, event, sampleVol * 0.8, instId);
       }
+      const customSample = sampleResult === 'custom'
+        || (instId && typeof AudioSamples !== 'undefined' && AudioSamples.hasInstrumentSample(instId));
+      if (customSample) return;
       if (subtype === 'bass' || roleOrInst === 'Bass') {
         playBassNote(ac, now, event.note, 0.28 * v);
       } else if (subtype === 'brass' || subtype === 'sax' || subtype === 'flute' || roleOrInst === 'Horns') {
@@ -842,7 +851,7 @@ const AudioEngine = (() => {
     if (event.hit) {
       let samplePlayed = false;
       if (typeof AudioSamples !== 'undefined') {
-        samplePlayed = AudioSamples.playInstrumentSample(subtype, event, sampleVol);
+        samplePlayed = AudioSamples.playInstrumentSample(subtype, event, sampleVol, instId);
       }
       const accent = samplePlayed ? 0.35 : 1;
       switch (event.hit) {
@@ -871,10 +880,13 @@ const AudioEngine = (() => {
       ? { hit: instrument.subtype === 'drums' ? 'snare' : instrument.subtype === 'shake' ? 'shake' : 'cymbal' }
       : { chord: c };
     if (typeof AudioSamples !== 'undefined') {
-      const played = AudioSamples.playInstrumentSample(instrument.subtype, event, 0.58);
+      const played = AudioSamples.playInstrumentSample(instrument.subtype, event, 0.58, instrument.id);
       if (played) {
         if (instrument.type === 'percussion') return;
-        playMelodicBySubtype(ac, now, instrument.subtype, c, 0.18, instrument.id);
+        const customSample = played === 'custom' || AudioSamples.hasInstrumentSample(instrument.id);
+        if (!customSample) {
+          playMelodicBySubtype(ac, now, instrument.subtype, c, 0.18, instrument.id);
+        }
         return;
       }
     }

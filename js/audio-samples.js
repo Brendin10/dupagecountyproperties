@@ -1,5 +1,6 @@
 const AudioSamples = (() => {
   const BASE = 'audio/instruments/';
+  const INSTRUMENT_EXTENSIONS = ['mp3', 'wav', 'ogg', 'm4a'];
 
   const SUBTYPE_SAMPLES = {
     electric: ['electric-strum.wav'],
@@ -28,6 +29,8 @@ const AudioSamples = (() => {
 
   const cache = new Map();
   const loading = new Map();
+  const instrumentCache = new Map();
+  const instrumentLoading = new Map();
   let hitCounter = 0;
 
   function getCtx() {
@@ -36,6 +39,10 @@ const AudioSamples = (() => {
 
   function sampleUrl(name) {
     return `${BASE}${name}`;
+  }
+
+  function instrumentSampleUrl(instId, ext) {
+    return `${BASE}${instId}.${ext}`;
   }
 
   function loadBuffer(name) {
@@ -66,14 +73,55 @@ const AudioSamples = (() => {
     return promise;
   }
 
-  async function loadInstrumentSamples(subtype) {
-    if (!subtype) return [];
-    const names = SUBTYPE_SAMPLES[subtype] || [];
-    const results = await Promise.all(names.map(loadBuffer));
+  function loadInstrumentSample(instId) {
+    if (!instId) return Promise.resolve(null);
+    if (instrumentCache.has(instId)) return Promise.resolve(instrumentCache.get(instId));
+    if (instrumentLoading.has(instId)) return instrumentLoading.get(instId);
+
+    const ac = getCtx();
+    const promise = (async () => {
+      for (const ext of INSTRUMENT_EXTENSIONS) {
+        try {
+          const r = await fetch(instrumentSampleUrl(instId, ext));
+          if (!r.ok) continue;
+          const buf = await r.arrayBuffer();
+          const decoded = await new Promise((resolve, reject) => {
+            ac.decodeAudioData(buf, resolve, reject);
+          });
+          instrumentCache.set(instId, decoded);
+          instrumentLoading.delete(instId);
+          return decoded;
+        } catch (_) {
+          /* try next extension */
+        }
+      }
+      instrumentLoading.delete(instId);
+      return null;
+    })();
+
+    instrumentLoading.set(instId, promise);
+    return promise;
+  }
+
+  async function loadInstrumentSamples(subtype, instId = null) {
+    const loads = [];
+    if (subtype) {
+      const names = SUBTYPE_SAMPLES[subtype] || [];
+      loads.push(...names.map(loadBuffer));
+    }
+    if (instId) loads.push(loadInstrumentSample(instId));
+    const results = await Promise.all(loads);
     return results.filter(Boolean);
   }
 
-  function pickSample(subtype, noteEvent) {
+  function hasInstrumentSample(instId) {
+    return !!(instId && instrumentCache.has(instId));
+  }
+
+  function pickSample(subtype, noteEvent, instId = null) {
+    if (instId && instrumentCache.has(instId)) {
+      return instrumentCache.get(instId);
+    }
     const names = SUBTYPE_SAMPLES[subtype] || [];
     if (!names.length) return null;
     if (subtype === 'drums' && noteEvent?.hit) {
@@ -86,8 +134,9 @@ const AudioSamples = (() => {
     return cache.get(name) || null;
   }
 
-  function playInstrumentSample(subtype, noteEvent, vol = 0.55) {
-    const buffer = pickSample(subtype, noteEvent);
+  function playInstrumentSample(subtype, noteEvent, vol = 0.55, instId = null) {
+    const usedCustom = !!(instId && instrumentCache.has(instId));
+    const buffer = pickSample(subtype, noteEvent, instId);
     if (!buffer) return false;
 
     const ac = getCtx();
@@ -95,14 +144,14 @@ const AudioSamples = (() => {
     const src = ac.createBufferSource();
     src.buffer = buffer;
     const g = ac.createGain();
-    const pitch = 0.96 + Math.random() * 0.08;
+    const pitch = usedCustom ? 1 : 0.96 + Math.random() * 0.08;
     src.playbackRate.value = pitch;
     g.gain.setValueAtTime(vol, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + Math.min(buffer.duration * 0.9, 0.8));
     src.connect(g);
     AudioEngine.connectToMix(g, (Math.random() - 0.5) * 0.3, noteEvent?.hit ? 'perc' : 'music');
     src.start(now);
-    return true;
+    return usedCustom ? 'custom' : true;
   }
 
   function preloadCommon() {
@@ -112,9 +161,11 @@ const AudioSamples = (() => {
 
   return {
     loadBuffer,
+    loadInstrumentSample,
     loadInstrumentSamples,
     playInstrumentSample,
     preloadCommon,
+    hasInstrumentSample,
     hasSample(subtype) {
       return !!(SUBTYPE_SAMPLES[subtype]?.length);
     },

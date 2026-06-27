@@ -1685,7 +1685,7 @@ const Game = (() => {
       AudioEngine.loadCheerSample?.().catch(() => null),
       AudioEngine.loadBooSample?.().catch(() => null),
       AudioEngine.loadRewindSample?.().catch(() => null),
-      typeof AudioSamples !== 'undefined' ? AudioSamples.loadInstrumentSamples(inst.subtype) : null,
+      typeof AudioSamples !== 'undefined' ? AudioSamples.loadInstrumentSamples(inst.subtype, inst.id) : null,
     ]);
 
     await waitMs(600);

@@ -16,5 +16,6 @@ def run(name: str) -> None:
 
 if __name__ == "__main__":
     run("sync-instrument-assets.py")
+    run("sync-instrument-audio.py")
     run("sync-brand-assets.py")
     print("\nDone.")
