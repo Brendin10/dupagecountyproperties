@@ -77,7 +77,11 @@ const AudioEngine = (() => {
     return ctx;
   }
 
-  function resume() { return getCtx(); }
+  function resume() {
+    const ac = getCtx();
+    if (ac.state === 'suspended') return ac.resume().then(() => ac);
+    return Promise.resolve(ac);
+  }
 
   function initMix() {
     if (mixReady) return musicBus;
@@ -112,7 +116,7 @@ const AudioEngine = (() => {
     percBus.connect(dryGain);
 
     crowdBus = ac.createGain();
-    crowdBus.gain.value = 0.8;
+    crowdBus.gain.value = 0.64;
     crowdBus.connect(ac.destination);
 
     dryGain.connect(ac.destination);
@@ -811,12 +815,15 @@ const AudioEngine = (() => {
     }
   }
 
-  function playPartEvent(event, roleOrInst, volScale = 1) {
+  async function playPartEvent(event, roleOrInst, volScale = 1) {
     const ac = getCtx();
     const now = ac.currentTime;
     const v = volScale;
     const subtype = resolveSubtype(roleOrInst);
-    const instId = typeof roleOrInst === 'object' ? roleOrInst.id : roleOrInst;
+    const instId = typeof roleOrInst === 'object' ? roleOrInst.id : null;
+    if (instId && typeof AudioSamples !== 'undefined') {
+      await AudioSamples.ensureInstrumentSample(instId);
+    }
     const sampleVol = v * 0.65;
 
     if (event.chord) {
@@ -879,8 +886,9 @@ const AudioEngine = (() => {
       return;
     }
 
-    if (typeof AudioSamples !== 'undefined' && instrument.id && !AudioSamples.hasInstrumentSample(instrument.id)) {
-      await AudioSamples.loadInstrumentSample(instrument.id);
+    await resume();
+    if (typeof AudioSamples !== 'undefined' && instrument.id) {
+      await AudioSamples.ensureInstrumentSample(instrument.id);
     }
 
     const now = ac.currentTime;

@@ -359,6 +359,7 @@ const Game = (() => {
   function setScreen(name) {
     state.screen = name;
     if (name === 'hub' || name === 'shop') preloadOwnedInstrumentAudio();
+    if (name === 'shop') preloadShopInstrumentAudio();
     updateHud();
     render();
   }
@@ -369,6 +370,23 @@ const Game = (() => {
       const inst = INSTRUMENTS[item.id];
       if (inst) AudioSamples.loadInstrumentSamples(inst.subtype, inst.id);
     });
+  }
+
+  function preloadShopInstrumentAudio() {
+    if (typeof AudioSamples === 'undefined' || state.shopTab !== 'instruments') return;
+    SHOP_ITEMS.instruments.forEach((item) => {
+      AudioSamples.loadInstrumentSample(item.id);
+    });
+  }
+
+  async function previewInstrumentSound(id) {
+    const inst = INSTRUMENTS[id];
+    if (!inst) return;
+    await AudioEngine.resume?.();
+    if (typeof AudioSamples !== 'undefined') {
+      await AudioSamples.ensureInstrumentSample(id);
+    }
+    await AudioEngine.playInstrument(inst);
   }
 
   function crowdAppeal() {
@@ -400,6 +418,7 @@ const Game = (() => {
       state.equippedWear = state.equippedWear || { clothes: null, makeup: null, accessories: null };
       state.equippedWear[cat] = itemId;
     }
+    if (cat === 'instruments') previewInstrumentSound(itemId);
     updateHud();
     persist();
     return true;
@@ -1064,6 +1083,7 @@ const Game = (() => {
       tab.addEventListener('click', () => {
         state.shopTab = tab.dataset.tab;
         state.shopNotice = null;
+        if (state.shopTab === 'instruments') preloadShopInstrumentAudio();
         render();
       });
     });
@@ -1109,8 +1129,7 @@ const Game = (() => {
         if (!id) return;
         if (cat === 'instruments' && state.inventories.instruments.includes(id)) {
           state.equippedInstrument = id;
-          AudioEngine.resume?.();
-          AudioEngine.playInstrument?.(INSTRUMENTS[id]);
+          previewInstrumentSound(id);
           persist();
           render();
           return;
@@ -1158,8 +1177,7 @@ const Game = (() => {
         e.stopPropagation();
         const id = btn.dataset.previewInst;
         if (!id || !INSTRUMENTS[id]) return;
-        AudioEngine.resume();
-        AudioEngine.playInstrument(INSTRUMENTS[id]);
+        previewInstrumentSound(id);
       });
     });
 

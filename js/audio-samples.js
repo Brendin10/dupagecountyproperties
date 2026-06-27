@@ -37,6 +37,17 @@ const AudioSamples = (() => {
     return AudioEngine.getCtx();
   }
 
+  async function resumeCtx() {
+    const ac = getCtx();
+    if (ac.state === 'suspended') await ac.resume();
+    return ac;
+  }
+
+  async function decodeAudioBuffer(ac, buf) {
+    const copy = buf.slice(0);
+    return ac.decodeAudioData(copy);
+  }
+
   function sampleUrl(name) {
     return `${BASE}${name}`;
   }
@@ -55,9 +66,7 @@ const AudioSamples = (() => {
         if (!r.ok) throw new Error(`sample ${name} ${r.status}`);
         return r.arrayBuffer();
       })
-      .then((buf) => new Promise((resolve, reject) => {
-        ac.decodeAudioData(buf, resolve, reject);
-      }))
+      .then((buf) => decodeAudioBuffer(ac, buf))
       .then((decoded) => {
         cache.set(name, decoded);
         loading.delete(name);
@@ -78,21 +87,19 @@ const AudioSamples = (() => {
     if (instrumentCache.has(instId)) return Promise.resolve(instrumentCache.get(instId));
     if (instrumentLoading.has(instId)) return instrumentLoading.get(instId);
 
-    const ac = getCtx();
     const promise = (async () => {
+      const ac = await resumeCtx();
       for (const ext of INSTRUMENT_EXTENSIONS) {
         try {
           const r = await fetch(instrumentSampleUrl(instId, ext));
           if (!r.ok) continue;
           const buf = await r.arrayBuffer();
-          const decoded = await new Promise((resolve, reject) => {
-            ac.decodeAudioData(buf, resolve, reject);
-          });
+          const decoded = await decodeAudioBuffer(ac, buf);
           instrumentCache.set(instId, decoded);
           instrumentLoading.delete(instId);
           return decoded;
-        } catch (_) {
-          /* try next extension */
+        } catch (err) {
+          console.warn(`Instrument sample unavailable: ${instId}.${ext}`, err);
         }
       }
       instrumentLoading.delete(instId);
@@ -101,6 +108,11 @@ const AudioSamples = (() => {
 
     instrumentLoading.set(instId, promise);
     return promise;
+  }
+
+  async function ensureInstrumentSample(instId) {
+    if (!instId) return null;
+    return loadInstrumentSample(instId);
   }
 
   async function loadInstrumentSamples(subtype, instId = null) {
@@ -162,6 +174,7 @@ const AudioSamples = (() => {
   return {
     loadBuffer,
     loadInstrumentSample,
+    ensureInstrumentSample,
     loadInstrumentSamples,
     playInstrumentSample,
     preloadCommon,
