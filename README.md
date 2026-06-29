@@ -1,11 +1,10 @@
 # Bandland
 
-A 2D web game about building a band from a trash can lid to sold-out shows.
+A 2D web game about building a band from street-corner drums to sold-out shows.
 
 ## Play Locally
 
 ```bash
-cd bandland
 python3 -m http.server 8080
 ```
 
@@ -14,25 +13,87 @@ Open [http://localhost:8080](http://localhost:8080) in your browser.
 ## Game Flow
 
 1. **Pick your character** — Benny or Lizzy
-2. **Find your first instrument** — tap the metal trash can lid
-3. **Play gigs** — tap to perform, grow the crowd, earn BandCash and Star Meter
-4. **Shop** — buy instruments, clothes, makeup, accessories, and band slots
+2. **Find your first instrument** — discover a drum kit on the street
+3. **Play gigs** — tap rhythm gems synced to stem charts, grow the crowd, earn BandCash and Star Meter
+4. **Shop** — buy Bass, Electric Guitar, Keys, clothes, makeup, accessories, songs, and band slots
 5. **Unlock venues** — Street Corner → Local Tavern → Town Square → Local Talent Show → Small Concert Venue
 
 ## Progression
 
 - **BandCash** — earned from tips during gigs; spent in the shop
 - **Star Meter** — grows from crowd size, cheering, and tips; unlocks bigger venues
-- **Band members** — recruited as your star power grows; requires purchased band slots
+- **Band members** — recruited as your star power grows (Lead, Drums, Bass, Keys)
 
 No build step required — vanilla HTML, CSS, and JavaScript.
 
-## Visual Assets
+## Instruments (4)
 
-Monster-brand instrument art lives in `assets/instruments/{instrument-id}.png` (16 instruments). The logo is `assets/brand/bandland-logo.png`. Drop in your final PNGs using the same filenames to replace placeholders. Regenerate placeholders with `python3 scripts/generate-brand-assets.py`.
+| ID | Name | Stem chart |
+| --- | --- | --- |
+| `drums` | Drums (starter) | `Drums` — kick + snare only |
+| `bass` | Bass | `Bass` — note onsets |
+| `electric-guitar` | Electric Guitar | `Lead` |
+| `keys` | Keys | `Keys` |
 
-Instruments without PNG art (drum kit, acoustic guitar, bass guitar, banjo, clarinet, accordion, cowbell, bongo) still use SVG fallbacks in `js/instrument-art.js`.
+Monster-brand PNG art lives in `assets/instruments/{id}.png`. Upload source files to `Assets/Instruments/` and run:
+
+```bash
+python3 scripts/sync-instrument-assets.py
+```
+
+## Adding Songs (stem upload workflow)
+
+1. Create a folder under `Assets/Songs/{song-id}/` with these stems (WAV):
+
+   ```
+   Assets/Songs/my-song/
+     song.json          # optional: name, emoji, cost, bpm, beatOffset
+     Full.wav           # full mix (shop preview / ambience)
+     Bass.wav
+     Drums.wav
+     Lead.wav
+     Keys.wav
+   ```
+
+2. Install Python deps (first time):
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. Sync and analyze stems:
+
+   ```bash
+   python3 scripts/sync-song-assets.py
+   ```
+
+   This writes `assets/songs/{song-id}/manifest.json`, `charts.json`, normalized WAV stems, and regenerates `js/song-manifest.js`.
+
+4. Bump the cache version in `index.html` (`?v=…` and `SONG_ASSET_VERSION`) and deploy.
+
+The bundled example song **Street Jam** lives in `Assets/Songs/street-jam/`. Regenerate its source stems with:
+
+```bash
+python3 scripts/generate-example-song.py
+python3 scripts/sync-song-assets.py
+```
+
+Or sync everything at once:
+
+```bash
+python3 scripts/sync-all-assets.py
+```
+
+### Chart notes
+
+- Drum charts include **kick and snare only** (hi-hats filtered out during analysis).
+- Automatic chart extraction may need hand-tuning — edit `assets/songs/{id}/charts.json` after sync if needed.
+- Optional `song.json` fields: `bpm`, `beatOffset`, `name`, `emoji`, `cost`.
 
 ## Audio Samples
 
-Instrument and crowd audio uses hybrid playback: short WAV samples in `audio/instruments/` plus procedural Web Audio synthesis as fallback. Samples are procedurally generated in-repo (CC0) via `scripts/generate-instrument-samples.mjs`. Crowd cheer/boo clips live in `audio/`.
+Tap feedback and crowd audio use hybrid playback: short WAV samples in `audio/instruments/` plus procedural Web Audio synthesis as fallback. During gigs, **stem playback** (`js/stem-player.js`) plays the synced song stems; the player's equipped instrument stem is muted so hits use synth confirmation.
+
+## Visual Assets
+
+The logo is `assets/brand/bandland-logo.png`. Regenerate placeholders with `python3 scripts/generate-brand-assets.py`.

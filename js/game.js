@@ -7,7 +7,7 @@ const Game = (() => {
     hasLid: false,
     tutorialStep: 0,
     inventories: {
-      instruments: ['trash-lid'],
+      instruments: ['drums'],
       clothes: [],
       makeup: [],
       accessories: [],
@@ -18,25 +18,39 @@ const Game = (() => {
     currentVenue: 'street-corner',
     performance: null,
     pendingRecruit: null,
-    equippedInstrument: 'trash-lid',
+    equippedInstrument: 'drums',
     equippedSong: 'street-jam',
     equippedWear: { clothes: null, makeup: null, accessories: null },
     shopNotice: null,
     gigIntroRunning: false,
+    loadedSong: null,
   };
 
   let parallaxCleanup = null;
 
   function getActiveInstrument() {
-    const id = state.equippedInstrument
+    const raw = state.equippedInstrument
       || state.inventories.instruments[state.inventories.instruments.length - 1]
-      || 'trash-lid';
-    return INSTRUMENTS[id] || INSTRUMENTS['trash-lid'];
+      || 'drums';
+    const id = typeof migrateInstrumentId === 'function' ? migrateInstrumentId(raw) : raw;
+    return INSTRUMENTS[id] || INSTRUMENTS.drums;
   }
 
   function getActiveSong() {
-    const id = state.equippedSong || 'street-jam';
-    return getSong(id);
+    if (state.loadedSong && state.loadedSong.id === (state.equippedSong || SongLoader?.getDefaultSongId?.())) {
+      return state.loadedSong;
+    }
+    const id = state.equippedSong || (typeof SongLoader !== 'undefined' ? SongLoader.getDefaultSongId() : 'street-jam');
+    return typeof SongLoader !== 'undefined' && SongLoader.getCached(id)
+      ? SongLoader.getCached(id)
+      : getSong(id);
+  }
+
+  async function ensureSongLoaded(songId) {
+    const id = songId || state.equippedSong || SongLoader.getDefaultSongId();
+    const song = await SongLoader.loadSong(id);
+    state.loadedSong = song;
+    return song;
   }
 
   function getPerformanceBpm() {
@@ -44,50 +58,27 @@ const Game = (() => {
   }
 
   const INST_ANIM = {
-    'trash-lid': 'anim-cymbal',
-    tambourine: 'anim-shake',
-    'drum-kit': 'anim-drums',
-    ukulele: 'anim-strum',
+    drums: 'anim-drums',
+    bass: 'anim-strum',
     'electric-guitar': 'anim-strum',
-    bongo: 'anim-drums',
-    cowbell: 'anim-cymbal',
-    triangle: 'anim-cymbal',
-    piano: 'anim-keys',
-    keyboard: 'anim-keys',
-    organ: 'anim-keys',
-    'synth-lead': 'anim-keys',
-    accordion: 'anim-keys',
-    violin: 'anim-strum',
-    banjo: 'anim-strum',
-    'acoustic-guitar': 'anim-strum',
-    'bass-guitar': 'anim-strum',
-    trumpet: 'anim-horn',
-    trombone: 'anim-horn',
-    saxophone: 'anim-horn',
-    flute: 'anim-sing',
-    clarinet: 'anim-sing',
-    harmonica: 'anim-sing',
-    xylophone: 'anim-cymbal',
+    keys: 'anim-keys',
   };
 
   const SUBTYPE_ANIM = {
-    cymbal: 'anim-cymbal', shake: 'anim-shake', drums: 'anim-drums', bongo: 'anim-drums',
-    bell: 'anim-cymbal', triangle: 'anim-cymbal', ukulele: 'anim-strum', electric: 'anim-strum',
-    acoustic: 'anim-strum', banjo: 'anim-strum', bass: 'anim-strum', bow: 'anim-strum',
-    piano: 'anim-keys', synth: 'anim-keys', organ: 'anim-keys', accordion: 'anim-keys',
-    brass: 'anim-horn', sax: 'anim-horn', flute: 'anim-sing', clarinet: 'anim-sing',
-    harmonica: 'anim-sing', mallet: 'anim-cymbal',
+    drums: 'anim-drums',
+    bass: 'anim-strum',
+    electric: 'anim-strum',
+    piano: 'anim-keys',
   };
 
   let activeHold = null;
 
   const ROLE_ANIM = {
+    Lead: 'anim-strum',
     Guitar: 'anim-strum',
     Drums: 'anim-drums',
     Bass: 'anim-strum',
     Keys: 'anim-keys',
-    Vocals: 'anim-sing',
-    Horns: 'anim-horn',
   };
 
   const ALL_ANIM_CLASSES = [
@@ -162,19 +153,20 @@ const Game = (() => {
     state.hasLid = false;
     state.tutorialStep = 0;
     state.inventories = {
-      instruments: ['trash-lid'],
+      instruments: ['drums'],
       clothes: [],
       makeup: [],
       accessories: [],
-      songs: ['street-jam'],
+      songs: [typeof SongLoader !== 'undefined' ? SongLoader.getDefaultSongId() : 'street-jam'],
     };
     state.bandMembers = [];
     state.bandSlots = 1;
     state.currentVenue = 'street-corner';
     state.performance = null;
     state.pendingRecruit = null;
-    state.equippedInstrument = 'trash-lid';
-    state.equippedSong = 'street-jam';
+    state.equippedInstrument = 'drums';
+    state.equippedSong = typeof SongLoader !== 'undefined' ? SongLoader.getDefaultSongId() : 'street-jam';
+    state.loadedSong = null;
     state.equippedWear = { clothes: null, makeup: null, accessories: null };
   }
 
@@ -218,7 +210,10 @@ const Game = (() => {
     state.bandCash -= item.cost;
     state.inventories[cat].push(itemId);
     if (cat === 'instruments') state.equippedInstrument = itemId;
-    if (cat === 'songs') state.equippedSong = itemId;
+    if (cat === 'songs') {
+      state.equippedSong = itemId;
+      state.loadedSong = null;
+    }
     if (['clothes', 'makeup', 'accessories'].includes(cat)) {
       state.equippedWear = state.equippedWear || { clothes: null, makeup: null, accessories: null };
       state.equippedWear[cat] = itemId;
@@ -259,14 +254,14 @@ const Game = (() => {
   function renderTitle() {
     const hasSave = SaveManager.hasSave();
     const idleChar = state.character
-      ? renderCharacter(state.character, 180, { instrument: INSTRUMENTS['trash-lid'] })
-      : renderCharacter('benny', 180, { instrument: INSTRUMENTS['trash-lid'] });
+      ? renderCharacter(state.character, 180, { instrument: INSTRUMENTS.drums })
+      : renderCharacter('benny', 180, { instrument: INSTRUMENTS.drums });
     return `
       <section class="screen title-screen">
         <div class="title-bg"></div>
         <div class="title-content">
           <img src="assets/brand/bandland-logo.png" alt="" class="brand-logo-hero" />
-          <p class="subtitle">From trash can lids to sold-out shows.</p>
+          <p class="subtitle">From street-corner drums to sold-out shows.</p>
           <div class="title-idle-character" id="title-idle-char">${idleChar}</div>
           <div class="title-actions">
             ${hasSave ? '<button class="btn btn-primary btn-lg" id="btn-continue">Continue</button>' : ''}
@@ -320,18 +315,18 @@ const Game = (() => {
     return `
       <section class="screen story-screen venue-street">
         <div class="story-panel">
-          <div class="lid-scene">
-            <div class="trash-can">🗑️</div>
-            <button class="lid-btn" id="btn-tap-lid" title="Tap the lid!">
-              <span class="lid-icon">🔘</span>
-              <span class="lid-label">Metal Lid</span>
+          <div class="lid-scene drum-scene">
+            <div class="trash-can">🥁</div>
+            <button class="lid-btn" id="btn-tap-drums" title="Tap the drums!">
+              <span class="lid-icon">🥁</span>
+              <span class="lid-label">Drum Kit</span>
             </button>
-            <div class="story-character small">${renderCharacter(state.character, 100, { instrument: INSTRUMENTS['trash-lid'] })}</div>
+            <div class="story-character small">${renderCharacter(state.character, 100, { instrument: INSTRUMENTS.drums })}</div>
           </div>
           <div class="story-text">
             <h2>Found It!</h2>
-            <p>A metal trash can lid, just sitting there. ${char.name} taps it gently… <em>CRASH!</em></p>
-            <p class="muted" id="lid-hint">👆 Tap the lid to hear it!</p>
+            <p>An old drum kit, just sitting there. ${char.name} taps the snare… <em>BAP!</em></p>
+            <p class="muted" id="drum-hint">👆 Tap the drums to hear them!</p>
           </div>
         </div>
       </section>
@@ -663,7 +658,7 @@ const Game = (() => {
     return `
       <section class="screen tune-screen">
         <h2 class="brand-label">Instrument Grip Preview</h2>
-        <p class="tune-hint-text">Use <code>?tune=1</code> or <code>tools/tune-instrument-grip.html</code> to fine-tune hand positions for all 24 instruments.</p>
+        <p class="tune-hint-text">Use <code>?tune=1</code> or <code>tools/tune-instrument-grip.html</code> to fine-tune hand positions for all 4 instruments.</p>
         <select id="tune-inst-select" class="tune-select">${options}</select>
         <div class="tune-preview-wrap">${renderCharacter(charId, 200, { instrument: inst })}</div>
         <button class="btn btn-primary" id="btn-back-title">Back to Title</button>
@@ -748,14 +743,15 @@ const Game = (() => {
       render();
     });
 
-    $('#btn-tap-lid')?.addEventListener('click', () => {
-      AudioEngine.playCrash();
-      const charEl = document.querySelector('.lid-scene .character-layered');
+    $('#btn-tap-drums')?.addEventListener('click', () => {
+      AudioEngine.playKick?.();
+      setTimeout(() => AudioEngine.playSnare?.(), 120);
+      const charEl = document.querySelector('.drum-scene .character-layered');
       if (charEl && typeof CharacterRig !== 'undefined') {
-        CharacterRig.applyPose(charEl, 'brass', 'hit');
+        CharacterRig.applyPose(charEl, 'drums', 'hit');
       }
-      const hint = $('#lid-hint');
-      if (hint) hint.textContent = 'Perfect! That crash/cymbal sound is GOLD.';
+      const hint = $('#drum-hint');
+      if (hint) hint.textContent = 'Perfect! Those drums are ready to rock.';
       setTimeout(() => {
         state.hasLid = true;
         persist();
@@ -826,6 +822,7 @@ const Game = (() => {
         }
         if (cat === 'songs' && state.inventories.songs?.includes(id)) {
           state.equippedSong = id;
+          state.loadedSong = null;
           persist();
           render();
           return;
@@ -894,9 +891,15 @@ const Game = (() => {
     const song = getActiveSong();
     const bpm = p.bpm;
     const venue = VENUES.find((v) => v.id === state.currentVenue);
+    const inst = getActiveInstrument();
+    const playerStem = getPlayerPartKey(inst);
 
     AudioEngine.initMix();
     AudioEngine.startCrowdAmbience?.(venue?.tier ?? 0);
+    if (typeof StemPlayer !== 'undefined' && song?.stems) {
+      StemPlayer.setPlayerStem(playerStem);
+      StemPlayer.start(bpm);
+    }
     BandAudio.setBand(state.bandMembers, song);
     BandAudio.setOnMemberPlay((member) => triggerBandmateAnimation(member));
     BandAudio.start(bpm);
@@ -916,6 +919,7 @@ const Game = (() => {
   function stopPerformanceLoop() {
     Metronome.stop();
     BandAudio.stop();
+    if (typeof StemPlayer !== 'undefined') StemPlayer.stop();
     AudioEngine.stopSustain?.();
     AudioEngine.stopCrowdAmbience?.();
     AudioEngine.setCrowdBooing?.(false);
@@ -992,12 +996,10 @@ const Game = (() => {
       void held.offsetWidth;
       if (rating !== 'miss') {
         const instAnim = {
-          'drum-kit': 'inst-play-drums',
-          'trash-lid': 'inst-play-cymbal',
-          tambourine: 'inst-play-shake',
+          drums: 'inst-play-drums',
         }[inst.id] || (inst.type === 'melodic' ? 'inst-play-melodic' : 'inst-play-percussion');
         held.classList.add(instAnim);
-        if (inst.id === 'drum-kit' && typeof InstrumentArt !== 'undefined' && !InstrumentArt.hasArt(inst)) {
+        if (inst.id === 'drums' && typeof InstrumentArt !== 'undefined' && !InstrumentArt.hasArt(inst)) {
           const mount = performer.querySelector('.held-mount');
           const hitType = rating === 'perfect' ? 'cymbal' : 'snare';
           InstrumentArt.triggerDrumHit(mount || held, hitType);
@@ -1038,6 +1040,12 @@ const Game = (() => {
       AudioEngine.loadCheerSample?.().catch(() => null),
       AudioEngine.loadBooSample?.().catch(() => null),
       typeof AudioSamples !== 'undefined' ? AudioSamples.loadInstrumentSamples(inst.subtype) : null,
+      ensureSongLoaded(state.equippedSong).then(async (song) => {
+        if (typeof StemPlayer !== 'undefined') {
+          await StemPlayer.load(song, { playerStemKey: getPlayerPartKey(inst) });
+        }
+        return song;
+      }),
     ]);
 
     await waitMs(600);
@@ -1048,9 +1056,11 @@ const Game = (() => {
     const appeal = crowdAppeal();
     const crowdCap = venue.crowdCap + Math.floor(appeal * 0.5);
     const bpm = getPerformanceBpm();
+    const song = getActiveSong();
+    const gigDuration = Math.max(15, Math.ceil(song.durationSec || 60));
 
     state.performance = {
-      timeLeft: 60,
+      timeLeft: gigDuration,
       crowd: Math.min(3 + Math.floor(appeal * 0.2), crowdCap),
       crowdCap,
       cheer: 0,
@@ -1299,7 +1309,6 @@ const Game = (() => {
   }
 
   function init() {
-    if (typeof ensureSongInstrumentParts === 'function') ensureSongInstrumentParts();
     if (new URLSearchParams(window.location.search).get('tune') === '1') {
       state.screen = 'tune';
       state.tuneInstId = Object.keys(INSTRUMENTS)[0];

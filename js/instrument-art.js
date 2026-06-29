@@ -2,13 +2,7 @@ const InstrumentArt = (() => {
   const O = '#1C1230';
   const ART_BASE = 'assets/instruments/';
 
-  const ART_IDS = new Set([
-    'trash-lid', 'tambourine', 'ukulele', 'electric-guitar', 'acoustic-guitar',
-    'bass-guitar', 'banjo', 'piano', 'keyboard',
-    'organ', 'trumpet', 'trombone', 'saxophone', 'violin', 'flute', 'harmonica',
-    'synth-lead', 'triangle', 'xylophone', 'accordion', 'bongo', 'clarinet',
-    'cowbell', 'drum-kit',
-  ]);
+  const ART_IDS = new Set(['drums', 'bass', 'electric-guitar', 'keys']);
 
   const pngFailed = new Set();
 
@@ -30,30 +24,10 @@ const InstrumentArt = (() => {
   }
 
   const PNG_FRAME = {
-    'trash-lid': { w: 800, h: 800, viewBox: '250 128 299 427' },
-    tambourine: { w: 800, h: 800, viewBox: '205 206 370 388' },
-    ukulele: { w: 800, h: 800, viewBox: '201 196 397 408' },
+    drums: { w: 800, h: 800, viewBox: '177 220 445 360' },
+    bass: { w: 409, h: 1024, viewBox: '25 29 359 995' },
     'electric-guitar': { w: 800, h: 800, viewBox: '181 133 438 398' },
-    'acoustic-guitar': { w: 409, h: 1024, viewBox: '21 42 386 922' },
-    'bass-guitar': { w: 409, h: 1024, viewBox: '25 29 359 995' },
-    banjo: { w: 409, h: 1024, viewBox: '26 101 358 822' },
-    piano: { w: 800, h: 800, viewBox: '201 184 397 431' },
-    keyboard: { w: 800, h: 800, viewBox: '177 243 445 314' },
-    organ: { w: 800, h: 800, viewBox: '216 204 367 391' },
-    trumpet: { w: 800, h: 800, viewBox: '190 228 420 344' },
-    trombone: { w: 800, h: 800, viewBox: '190 234 419 332' },
-    saxophone: { w: 800, h: 800, viewBox: '282 180 235 440' },
-    violin: { w: 800, h: 800, viewBox: '250 171 300 457' },
-    flute: { w: 800, h: 800, viewBox: '150 150 500 500' },
-    clarinet: { w: 800, h: 800, viewBox: '211 181 378 437' },
-    harmonica: { w: 800, h: 800, viewBox: '184 240 431 320' },
-    'synth-lead': { w: 800, h: 800, viewBox: '181 235 437 330' },
-    triangle: { w: 800, h: 800, viewBox: '221 207 358 385' },
-    xylophone: { w: 800, h: 800, viewBox: '192 243 416 313' },
-    accordion: { w: 800, h: 800, viewBox: '203 242 394 315' },
-    bongo: { w: 800, h: 800, viewBox: '200 240 399 319' },
-    cowbell: { w: 800, h: 800, viewBox: '208 228 383 344' },
-    'drum-kit': { w: 800, h: 800, viewBox: '177 220 445 360' },
+    keys: { w: 800, h: 800, viewBox: '201 184 397 431' },
   };
 
   function pngFrame(instId) {
@@ -119,8 +93,7 @@ const InstrumentArt = (() => {
     const map = {
       ukulele: { body: '#a06830', neck: '#6B4423', w: 20, h: 14, n: 4, rot: '-25' },
       'electric-guitar': { body: '#8B0000', neck: '#1a1a1a', w: 22, h: 16, n: 6, rot: '-20', electric: true },
-      'acoustic-guitar': { body: '#c8864a', neck: '#5a3818', w: 24, h: 18, n: 6, rot: '-22' },
-      'bass-guitar': { body: '#2a2a4a', neck: '#1a1a2e', w: 24, h: 14, n: 4, rot: '-18' },
+      bass: { body: '#2a2a4a', neck: '#1a1a2e', w: 24, h: 14, n: 4, rot: '-18' },
       banjo: { body: '#deb887', neck: '#6B4423', w: 20, h: 20, n: 5, rot: '-20', round: true },
       violin: { body: '#8B4513', neck: '#5a3018', w: 14, h: 22, n: 4, rot: '-30', violin: true },
     };
@@ -156,6 +129,7 @@ const InstrumentArt = (() => {
   function renderKeys(inst, anim) {
     const palettes = {
       piano: { body: '#1a1a2e', keys: '#f5f5f5', lid: '#2a2a4a' },
+      keys: { body: '#1a1a2e', keys: '#f5f5f5', lid: '#2a2a4a' },
       keyboard: { body: '#222', keys: '#eee', lid: '#333' },
       organ: { body: '#3d2010', keys: '#f8f8f8', lid: '#5a3020' },
       accordion: { body: '#c0392b', keys: '#fff', lid: '#e74c3c' },
@@ -176,7 +150,7 @@ const InstrumentArt = (() => {
           ${Array.from({ length: 7 }, (_, i) => `<rect x="${-22 + i * 7}" y="10" width="6" height="10" fill="${p.keys}"/>`).join('')}`)}`;
     } else {
       shape = `
-        ${layer('inst-lid', inst.id === 'piano' ? `<path d="M-32,-14 L32,-14 L28,0 L-28,0 Z" fill="${p.lid}" stroke="${O}" stroke-width="2"/>` : '')}
+        ${layer('inst-lid', (inst.id === 'piano' || inst.id === 'keys') ? `<path d="M-32,-14 L32,-14 L28,0 L-28,0 Z" fill="${p.lid}" stroke="${O}" stroke-width="2"/>` : '')}
         ${layer('inst-body', `<rect x="-32" y="-8" width="64" height="28" rx="4" fill="${p.body}" stroke="${O}" stroke-width="3"/>`)}
         ${layer('inst-keys', Array.from({ length: 10 }, (_, i) => `<rect x="${-28 + i * 6}" y="-2" width="5" height="16" fill="${i % 7 === 0 || i % 7 === 3 ? '#222' : p.keys}" stroke="${O}" stroke-width="0.5"/>`).join(''))}`;
     }
@@ -238,6 +212,7 @@ const InstrumentArt = (() => {
   }
 
   function renderPercussion(inst, anim) {
+    if (inst.id === 'drums') return renderDrumKit(anim);
     if (inst.id === 'trash-lid') return renderTrashLid(anim);
     if (inst.id === 'tambourine') return renderTambourine(anim);
     if (inst.id === 'drum-kit') return renderDrumKit(anim);
@@ -267,13 +242,11 @@ const InstrumentArt = (() => {
     if (!inst) return '';
     const anim = pose !== 'idle' ? `inst-${pose}` : '';
     const family = {
-      ukulele: 'strings', 'electric-guitar': 'strings', 'acoustic-guitar': 'strings',
-      'bass-guitar': 'strings', banjo: 'strings', violin: 'strings',
-      trumpet: 'brass', trombone: 'brass', saxophone: 'brass',
-      piano: 'keys', keyboard: 'keys', organ: 'keys', accordion: 'keys',
-      flute: 'woodwind', clarinet: 'woodwind', harmonica: 'woodwind',
-      'synth-lead': 'synth',
-    }[inst.id] || (inst.type === 'percussion' ? 'percussion' : null);
+      bass: 'strings',
+      'electric-guitar': 'strings',
+      keys: 'keys',
+      drums: 'percussion',
+    }[inst.id] || (inst.type === 'percussion' ? 'percussion' : 'strings');
 
     switch (family) {
       case 'strings': return renderStrings(inst, anim);

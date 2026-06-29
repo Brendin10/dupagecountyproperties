@@ -102,7 +102,7 @@ const VENUES = buildVenues();
 
 const SHOP_ITEMS = {
   instruments: typeof INSTRUMENT_SHOP_ITEMS !== 'undefined' ? INSTRUMENT_SHOP_ITEMS : [
-    { id: 'trash-lid', name: 'Trash Can Lid', emoji: '🥁', cost: 0, crowdBonus: 1, owned: true, starter: true },
+    { id: 'drums', name: 'Drums', emoji: '🥁', cost: 0, crowdBonus: 1, owned: true, starter: true },
   ],
   clothes: [
     { id: 'street-tee', name: 'Street Tee', emoji: '👕', cost: 20, crowdBonus: 2 },
@@ -118,13 +118,15 @@ const SHOP_ITEMS = {
     { id: 'chain-necklace', name: 'Chain Necklace', emoji: '📿', cost: 60, crowdBonus: 4 },
     { id: 'top-hat', name: 'Top Hat', emoji: '🎩', cost: 120, crowdBonus: 8 },
   ],
-  songs: SONG_LIST.map((s) => ({
-    id: s.id,
-    name: s.name,
-    emoji: s.emoji,
-    cost: s.cost,
-    crowdBonus: s.cost > 0 ? Math.floor(s.cost / 40) + 4 : 2,
-  })),
+  songs: typeof SONG_MANIFEST !== 'undefined'
+    ? SONG_MANIFEST.map((s) => ({
+      id: s.id,
+      name: s.name,
+      emoji: s.emoji,
+      cost: s.cost ?? 0,
+      crowdBonus: (s.cost ?? 0) > 0 ? Math.floor((s.cost ?? 0) / 40) + 4 : 2,
+    }))
+    : [],
 };
 
 const MAX_BAND_SLOTS = 30;
@@ -142,10 +144,8 @@ function buildBandSlotCosts() {
 const BAND_SLOT_COSTS = buildBandSlotCosts();
 
 const RECRUIT_POOL = [
-  { id: 'riff', name: 'Riff', emoji: '🎸', role: 'Guitar' },
+  { id: 'riff', name: 'Riff', emoji: '🎸', role: 'Lead' },
   { id: 'boom', name: 'Boom', emoji: '🥁', role: 'Drums' },
   { id: 'melody', name: 'Melody', emoji: '🎹', role: 'Keys' },
-  { id: 'vox', name: 'Vox', emoji: '🎤', role: 'Vocals' },
   { id: 'slap', name: 'Slap', emoji: '🎸', role: 'Bass' },
-  { id: 'ziggy', name: 'Ziggy', emoji: '🎺', role: 'Horns' },
 ];

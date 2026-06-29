@@ -9,6 +9,7 @@ const CharacterRig = (() => {
   };
 
   const ROLE_TO_HOLD = {
+    Lead: 'strum',
     Guitar: 'strum',
     Bass: 'strum',
     Drums: 'two-hand',

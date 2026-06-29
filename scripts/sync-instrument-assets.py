@@ -11,37 +11,17 @@ except ImportError:
 ROOT = Path(__file__).resolve().parents[1]
 DST = ROOT / "assets" / "instruments"
 
-# Prefer new upload folder; fall back to legacy assets/ root
 SRC_DIRS = [
     ROOT / "Assets" / "Instruments",
+    ROOT / "assets" / "instruments",
     ROOT / "assets",
 ]
 
 UPLOAD_MAP = {
-    "Trash Can Lid.png": "trash-lid.png",
-    "Tambourine.png": "tambourine.png",
-    "Ukulele.png": "ukulele.png",
+    "Drum Kit.png": "drums.png",
+    "Bass Guitar.png": "bass.png",
     "Electric Guitar.png": "electric-guitar.png",
-    "Acoustic Guitar.png": "acoustic-guitar.png",
-    "Bass Guitar.png": "bass-guitar.png",
-    "Banjo.png": "banjo.png",
-    "Piano.png": "piano.png",
-    "Keyboard.png": "keyboard.png",
-    "Organ.png": "organ.png",
-    "Trumpet.png": "trumpet.png",
-    "Trombone.png": "trombone.png",
-    "Saxophone.png": "saxophone.png",
-    "Violin.png": "violin.png",
-    "Flute.png": "flute.png",
-    "Harmonica.png": "harmonica.png",
-    "Clarinet.png": "clarinet.png",
-    "Accordion.png": "accordion.png",
-    "Synth Lead.png": "synth-lead.png",
-    "Triangle.png": "triangle.png",
-    "Xylophone.png": "xylophone.png",
-    "Cowbell.png": "cowbell.png",
-    "Bongos.png": "bongo.png",
-    "Drum Kit.png": "drum-kit.png",
+    "Piano.png": "keys.png",
 }
 
 MAX_EDGE = 1024
