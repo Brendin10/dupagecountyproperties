@@ -1,5 +1,7 @@
 const AudioSamples = (() => {
   const BASE = 'audio/instruments/';
+  const INSTRUMENT_AUDIO_V = 2;
+  const INSTRUMENT_EXTENSIONS = ['mp3', 'wav', 'ogg', 'm4a'];
 
   const SUBTYPE_SAMPLES = {
     electric: ['electric-strum.wav'],
@@ -28,14 +30,31 @@ const AudioSamples = (() => {
 
   const cache = new Map();
   const loading = new Map();
+  const instrumentCache = new Map();
+  const instrumentLoading = new Map();
   let hitCounter = 0;
 
   function getCtx() {
     return AudioEngine.getCtx();
   }
 
+  async function resumeCtx() {
+    const ac = getCtx();
+    if (ac.state === 'suspended') await ac.resume();
+    return ac;
+  }
+
+  async function decodeAudioBuffer(ac, buf) {
+    const copy = buf.slice(0);
+    return ac.decodeAudioData(copy);
+  }
+
   function sampleUrl(name) {
     return `${BASE}${name}`;
+  }
+
+  function instrumentSampleUrl(instId, ext) {
+    return `${BASE}${instId}.${ext}?v=${INSTRUMENT_AUDIO_V}`;
   }
 
   function loadBuffer(name) {
@@ -48,9 +67,7 @@ const AudioSamples = (() => {
         if (!r.ok) throw new Error(`sample ${name} ${r.status}`);
         return r.arrayBuffer();
       })
-      .then((buf) => new Promise((resolve, reject) => {
-        ac.decodeAudioData(buf, resolve, reject);
-      }))
+      .then((buf) => decodeAudioBuffer(ac, buf))
       .then((decoded) => {
         cache.set(name, decoded);
         loading.delete(name);
@@ -66,14 +83,58 @@ const AudioSamples = (() => {
     return promise;
   }
 
-  async function loadInstrumentSamples(subtype) {
-    if (!subtype) return [];
-    const names = SUBTYPE_SAMPLES[subtype] || [];
-    const results = await Promise.all(names.map(loadBuffer));
+  function loadInstrumentSample(instId) {
+    if (!instId) return Promise.resolve(null);
+    if (instrumentCache.has(instId)) return Promise.resolve(instrumentCache.get(instId));
+    if (instrumentLoading.has(instId)) return instrumentLoading.get(instId);
+
+    const promise = (async () => {
+      const ac = await resumeCtx();
+      for (const ext of INSTRUMENT_EXTENSIONS) {
+        try {
+          const r = await fetch(instrumentSampleUrl(instId, ext), { cache: 'no-store' });
+          if (!r.ok) continue;
+          const buf = await r.arrayBuffer();
+          const decoded = await decodeAudioBuffer(ac, buf);
+          instrumentCache.set(instId, decoded);
+          instrumentLoading.delete(instId);
+          return decoded;
+        } catch (err) {
+          console.warn(`Instrument sample unavailable: ${instId}.${ext}`, err);
+        }
+      }
+      instrumentLoading.delete(instId);
+      return null;
+    })();
+
+    instrumentLoading.set(instId, promise);
+    return promise;
+  }
+
+  async function ensureInstrumentSample(instId) {
+    if (!instId) return null;
+    return loadInstrumentSample(instId);
+  }
+
+  async function loadInstrumentSamples(subtype, instId = null) {
+    const loads = [];
+    if (subtype) {
+      const names = SUBTYPE_SAMPLES[subtype] || [];
+      loads.push(...names.map(loadBuffer));
+    }
+    if (instId) loads.push(loadInstrumentSample(instId));
+    const results = await Promise.all(loads);
     return results.filter(Boolean);
   }
 
-  function pickSample(subtype, noteEvent) {
+  function hasInstrumentSample(instId) {
+    return !!(instId && instrumentCache.has(instId));
+  }
+
+  function pickSample(subtype, noteEvent, instId = null) {
+    if (instId && instrumentCache.has(instId)) {
+      return instrumentCache.get(instId);
+    }
     const names = SUBTYPE_SAMPLES[subtype] || [];
     if (!names.length) return null;
     if (subtype === 'drums' && noteEvent?.hit) {
@@ -86,8 +147,9 @@ const AudioSamples = (() => {
     return cache.get(name) || null;
   }
 
-  function playInstrumentSample(subtype, noteEvent, vol = 0.55) {
-    const buffer = pickSample(subtype, noteEvent);
+  function playInstrumentSample(subtype, noteEvent, vol = 0.55, instId = null) {
+    const usedCustom = !!(instId && instrumentCache.has(instId));
+    const buffer = pickSample(subtype, noteEvent, instId);
     if (!buffer) return false;
 
     const ac = getCtx();
@@ -95,14 +157,14 @@ const AudioSamples = (() => {
     const src = ac.createBufferSource();
     src.buffer = buffer;
     const g = ac.createGain();
-    const pitch = 0.96 + Math.random() * 0.08;
+    const pitch = usedCustom ? 1 : 0.96 + Math.random() * 0.08;
     src.playbackRate.value = pitch;
     g.gain.setValueAtTime(vol, now);
     g.gain.exponentialRampToValueAtTime(0.001, now + Math.min(buffer.duration * 0.9, 0.8));
     src.connect(g);
     AudioEngine.connectToMix(g, (Math.random() - 0.5) * 0.3, noteEvent?.hit ? 'perc' : 'music');
     src.start(now);
-    return true;
+    return usedCustom ? 'custom' : true;
   }
 
   function preloadCommon() {
@@ -112,9 +174,12 @@ const AudioSamples = (() => {
 
   return {
     loadBuffer,
+    loadInstrumentSample,
+    ensureInstrumentSample,
     loadInstrumentSamples,
     playInstrumentSample,
     preloadCommon,
+    hasInstrumentSample,
     hasSample(subtype) {
       return !!(SUBTYPE_SAMPLES[subtype]?.length);
     },

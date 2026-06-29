@@ -6,6 +6,7 @@ const Metronome = (() => {
   let onBeat = null;
   let lastBeat = -1;
   let silent = false;
+  let beatSuspended = false;
 
   function start(bpmVal, beatCallback, options = {}) {
     bpm = bpmVal;
@@ -17,8 +18,16 @@ const Metronome = (() => {
     loop();
   }
 
+  function setBeatSuspended(v) {
+    beatSuspended = !!v;
+  }
+
   function loop() {
     if (!running) return;
+    if (beatSuspended) {
+      rafId = requestAnimationFrame(loop);
+      return;
+    }
     const elapsed = (performance.now() - startTime) / 1000;
     const beatDur = 60 / bpm;
     const beatIdx = Math.floor(elapsed / beatDur);
@@ -57,8 +66,15 @@ const Metronome = (() => {
     return running ? (performance.now() - startTime) / 1000 : 0;
   }
 
+  function seek(elapsedSec) {
+    if (!running) return;
+    const beatDur = 60 / bpm;
+    startTime = performance.now() - elapsedSec * 1000;
+    lastBeat = Math.floor(elapsedSec / beatDur) - 1;
+  }
+
   return {
-    start, stop, getPhase, getBeatDistance, ratePercussionHit, getElapsed,
+    start, stop, seek, setBeatSuspended, getPhase, getBeatDistance, ratePercussionHit, getElapsed,
     get bpm() { return bpm; },
     get running() { return running; },
   };

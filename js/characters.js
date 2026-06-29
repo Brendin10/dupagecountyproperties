@@ -48,17 +48,19 @@ function extractSvgInners(html) {
   return parts.join('');
 }
 
-function layeredCharacter(id, size, layers, frontArmsHtml, instrumentHtml = '', wearHtml = '') {
+function layeredCharacter(id, size, layers, frontArmsHtml, instrumentHtml = '', wearHtml = '', backArmsHtml = '') {
   const h = size * 1.35;
 
   if (instrumentHtml && frontArmsHtml) {
     const bodyParts = layers.map((layerHtml) => extractSvgInners(layerHtml)).join('');
     const wearInner = extractSvgInners(wearHtml);
+    const backArms = backArmsHtml ? `<g class="play-arms-back rigged-arms">${backArmsHtml}</g>` : '';
     return `<div class="character-layered ${id}-layered play-unified" style="width:${size}px;height:${h}px" aria-label="${id}">
       <svg viewBox="0 0 200 270" class="char-part-svg char-unified-svg" xmlns="http://www.w3.org/2000/svg">
         ${bodyParts}${wearInner}
+        ${backArms}
         <g class="play-instrument">${instrumentHtml}</g>
-        <g class="play-arms-front">${frontArmsHtml}</g>
+        <g class="play-arms-front rigged-arms">${frontArmsHtml}</g>
       </svg>
     </div>`;
   }
@@ -81,36 +83,32 @@ function rigArmsLayer(z, pose, layer, colors, options = {}) {
   return charLayer(`arms-${layer}`, z, inner, 'rigged-arms');
 }
 
-function staticFrontArms(id, inst) {
-  const colors = id === 'benny'
-    ? (typeof CharacterRig !== 'undefined' ? CharacterRig.bennyColors() : { fur: '#8E58FF', furLight: '#BC94FF', hand: '#D2B2FF' })
-    : (typeof CharacterRig !== 'undefined' ? CharacterRig.lizzyColors() : { fur: '#9458FF', furLight: '#C29AFF', hand: '#DAB6FF' });
-  const hold = inst?.hold || 'strum';
-  const O = OUTLINE;
-  const arm = (d, hx, hy) => `
-    <path d="${d}" fill="none" stroke="${colors.furLight}" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
-    <ellipse cx="${hx}" cy="${hy}" rx="10" ry="9" fill="${colors.hand}" stroke="${O}" stroke-width="2.5"/>`;
+function characterColors(id) {
+  if (id === 'benny') {
+    return typeof CharacterRig !== 'undefined' ? CharacterRig.bennyColors() : { fur: '#8E58FF', furLight: '#BC94FF', hand: '#D2B2FF' };
+  }
+  return typeof CharacterRig !== 'undefined' ? CharacterRig.lizzyColors() : { fur: '#9458FF', furLight: '#C29AFF', hand: '#DAB6FF' };
+}
 
-  if (hold === 'one-hand-up') {
-    return arm('M70 154 Q72 162 76 168', 76, 168)
-      + arm('M130 154 Q128 144 122 136', 122, 136);
-  }
-  if (hold === 'keys' || hold === 'two-hand') {
-    return arm('M70 154 Q74 164 78 172', 78, 172)
-      + arm('M130 154 Q126 164 122 172', 122, 172);
-  }
-  return arm('M68 154 Q76 162 84 168', 84, 168)
-    + arm('M132 154 Q124 160 118 162', 118, 162);
+function rigOptionsForInst(inst) {
+  return {
+    hideSticks: inst && typeof InstrumentArt !== 'undefined' && InstrumentArt.shouldHideSticks(inst),
+  };
 }
 
 function frontArmsForCharacter(id, pose, inst) {
-  if (inst) return staticFrontArms(id, inst);
-  const colors = id === 'benny'
-    ? (typeof CharacterRig !== 'undefined' ? CharacterRig.bennyColors() : { fur: '#8E58FF' })
-    : (typeof CharacterRig !== 'undefined' ? CharacterRig.lizzyColors() : { fur: '#9458FF' });
-  const hideSticks = inst && typeof InstrumentArt !== 'undefined' && InstrumentArt.shouldHideSticks(inst);
+  const colors = characterColors(id);
+  const hideSticks = rigOptionsForInst(inst).hideSticks;
   return typeof CharacterRig !== 'undefined'
     ? CharacterRig.renderRiggedArms(colors, pose, 'front', { hideSticks })
+    : '';
+}
+
+function backArmsForCharacter(id, pose, inst) {
+  if (!inst) return '';
+  const colors = characterColors(id);
+  return typeof CharacterRig !== 'undefined'
+    ? CharacterRig.renderRiggedArms(colors, pose, 'back', rigOptionsForInst(inst))
     : '';
 }
 
@@ -242,8 +240,9 @@ function renderCharacter(id, size, opts = {}) {
   const instInner = opts.instrument ? renderHeldInstrumentInner(opts.instrument, opts.pose || 'idle') : '';
   const wearHtml = typeof renderWearableLayers === 'function' ? renderWearableLayers(opts.equippedWear, id) : '';
   const frontArms = frontArmsForCharacter(id, playPose, opts.instrument);
-  if (id === 'benny') return layeredCharacter('benny', size, BENNY_LAYERS(size, playPose, opts.instrument), frontArms, instInner, wearHtml);
-  return layeredCharacter('lizzy', size, LIZZY_LAYERS(playPose, opts.instrument), frontArms, instInner, wearHtml);
+  const backArms = backArmsForCharacter(id, playPose, opts.instrument);
+  if (id === 'benny') return layeredCharacter('benny', size, BENNY_LAYERS(size, playPose, opts.instrument), frontArms, instInner, wearHtml, backArms);
+  return layeredCharacter('lizzy', size, LIZZY_LAYERS(playPose, opts.instrument), frontArms, instInner, wearHtml, backArms);
 }
 
 function renderCrowdMember(index) {

@@ -129,7 +129,7 @@ const SHOP_ITEMS = {
     : [],
 };
 
-const MAX_BAND_SLOTS = 30;
+const MAX_BAND_SLOTS = 7;
 
 function buildBandSlotCosts() {
   const costs = [0, 80, 200, 400];

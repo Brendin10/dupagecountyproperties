@@ -33,6 +33,7 @@ const SaveManager = {
       equippedInstrument: state.equippedInstrument,
       equippedSong: state.equippedSong,
       equippedWear: state.equippedWear,
+      gigBandIds: state.gigBandIds,
       savedAt: Date.now(),
     };
     try {
@@ -63,9 +64,12 @@ const SaveManager = {
       ...m,
       role: m.role === 'Guitar' ? 'Lead' : m.role,
     }));
+    if (state.bandMembers.length > MAX_BAND_SLOTS) {
+      state.bandMembers = state.bandMembers.slice(0, MAX_BAND_SLOTS);
+    }
     state.bandSlots = Math.min(Math.max(Math.floor(Number(data.bandSlots)) || 1, 1), MAX_BAND_SLOTS);
     if (state.bandSlots < state.bandMembers.length) {
-      state.bandSlots = Math.min(state.bandMembers.length, MAX_BAND_SLOTS);
+      state.bandSlots = state.bandMembers.length;
     }
     state.currentVenue = data.currentVenue ?? 'street-corner';
     if (state.currentVenue === 'concert-venue') state.currentVenue = 'small-concert-venue';
@@ -79,6 +83,7 @@ const SaveManager = {
     const rawSong = data.equippedSong ?? defaultSong;
     state.equippedSong = validSongs.has(rawSong) ? rawSong : defaultSong;
     state.equippedWear = data.equippedWear ?? { clothes: null, makeup: null, accessories: null };
+    state.gigBandIds = Array.isArray(data.gigBandIds) ? data.gigBandIds : [];
     return true;
   },
 

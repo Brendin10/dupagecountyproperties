@@ -92,7 +92,9 @@ python3 scripts/sync-all-assets.py
 
 ## Audio Samples
 
-Tap feedback and crowd audio use hybrid playback: short WAV samples in `audio/instruments/` plus procedural Web Audio synthesis as fallback. During gigs, **stem playback** (`js/stem-player.js`) plays the synced song stems; the player's equipped instrument stem is muted so hits use synth confirmation.
+Tap feedback and crowd audio use hybrid playback: short WAV samples in `audio/instruments/` plus procedural Web Audio synthesis as fallback. During gigs, **stem playback** (`js/stem-player.js`) plays synced song stems; the player's equipped instrument stem is muted so hits use synth confirmation.
+
+**Custom instrument recordings:** upload to `Assets/Instrument audio/` (or `Assets/Instrument Audio/`) named like the instrument (`Bass Guitar.mp3` or `bass.mp3`), then run `python3 scripts/sync-instrument-audio.py` to copy into `audio/instruments/{instrument-id}.{ext}`. Crowd cheer/boo clips live in `audio/`.
 
 ## Visual Assets
 

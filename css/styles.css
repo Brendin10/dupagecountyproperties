@@ -682,6 +682,120 @@ body {
   margin-bottom: 6px;
 }
 
+.hub-panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0;
+  margin: 0 0 6px;
+  background: none;
+  border: none;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.hub-panel-toggle:hover {
+  color: var(--text);
+}
+
+.hub-panel-chevron {
+  display: inline-block;
+  transition: transform 0.15s ease;
+  font-size: 0.7rem;
+}
+
+.hub-panel.open .hub-panel-chevron {
+  transform: rotate(90deg);
+}
+
+.hub-panel-count {
+  margin-left: auto;
+  font-size: 0.7rem;
+  opacity: 0.75;
+}
+
+.hub-panel-body {
+  display: none;
+}
+
+.hub-panel.open .hub-panel-body {
+  display: block;
+}
+
+.inv-chip.none-chip {
+  font-weight: 700;
+  color: var(--muted);
+  min-width: 44px;
+}
+
+.band-roster-gig {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.band-member-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.band-member-row.gig-active {
+  background: rgba(107, 203, 119, 0.12);
+  border: 1px solid rgba(107, 203, 119, 0.25);
+}
+
+.band-member-row .bandmate-chip {
+  flex: 1;
+  min-width: 0;
+}
+
+.gig-toggle-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 2px solid rgba(155, 107, 255, 0.4);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gig-toggle-btn.active {
+  border-color: var(--green);
+  background: rgba(107, 203, 119, 0.2);
+  color: var(--green);
+}
+
+.btn-drop-member {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 107, 107, 0.4);
+  background: rgba(255, 107, 107, 0.1);
+  color: #ff6b6b;
+  font-size: 0.75rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.btn-drop-member:hover {
+  background: rgba(255, 107, 107, 0.25);
+}
+
 .inv-items {
   display: flex;
   flex-wrap: wrap;
@@ -787,6 +901,15 @@ body {
   box-shadow: 0 0 20px rgba(255, 209, 102, 0.2);
 }
 
+.venue-card.venue-just-selected {
+  animation: venueSelectPulse 0.35s ease;
+}
+
+@keyframes venueSelectPulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 209, 102, 0.6); }
+  100% { box-shadow: 0 0 0 8px rgba(255, 209, 102, 0); }
+}
+
 .venue-card.locked {
   opacity: 0.5;
   cursor: not-allowed;
@@ -858,6 +981,64 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.shop-band-summary {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+
+.shop-band-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.shop-band-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  text-align: center;
+  background: var(--brand-bg);
+  border-radius: 12px;
+  border: 2px solid var(--brand-purple);
+  box-shadow: 0 0 12px var(--brand-purple-glow);
+}
+
+.shop-band-slot.filled,
+.shop-band-slot.open {
+  justify-content: flex-start;
+}
+
+.shop-band-slot.locked,
+.shop-band-slot.locked-next {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  text-align: left;
+}
+
+.shop-band-slot.locked .shop-info,
+.shop-band-slot.locked-next .shop-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.shop-slot-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.shop-band-slot.locked {
+  opacity: 0.55;
+}
+
+.shop-band-slot .bandmate-chip {
+  width: 100%;
 }
 
 .shop-item {
@@ -1176,6 +1357,11 @@ body {
   50% { transform: translateY(-4px); }
 }
 
+.crowd-row.crowd-steady .crowd-person {
+  animation: none;
+  transform: translateY(-2px);
+}
+
 .stage-lights {
   position: absolute;
   top: 0;
@@ -1195,8 +1381,28 @@ body {
   z-index: 3;
 }
 
-.performer.hit-flash {
-  animation: hitFlash 0.15s ease;
+.performer.hit-flash,
+#performer.hit-flash {
+  animation: none;
+}
+
+#performer {
+  position: relative;
+}
+
+#performer.hit-flash::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 14px;
+  pointer-events: none;
+  z-index: 20;
+  animation: hitFlashOverlay 0.15s ease;
+}
+
+@keyframes hitFlashOverlay {
+  0%, 100% { opacity: 0; box-shadow: none; }
+  50% { opacity: 1; box-shadow: 0 0 22px rgba(255, 215, 0, 0.75); background: rgba(255, 215, 0, 0.08); }
 }
 
 @keyframes hitFlash {
@@ -1279,12 +1485,16 @@ body {
 .lineup-slot.anim-keys,
 .lineup-slot.anim-sing,
 .lineup-slot.anim-horn,
-.lineup-slot.anim-hit {
+.lineup-slot.anim-hit,
+#performer.anim-keys,
+#performer.anim-sing,
+#performer.anim-horn,
+#performer.anim-hit {
   animation: bobPlay 0.24s ease;
 }
 
-#performer.hit-flash {
-  animation: hitFlash 0.15s ease;
+#performer.hit-flash::after {
+  animation: hitFlashOverlay 0.15s ease;
 }
 
 @keyframes drumHitBody {
@@ -1319,6 +1529,72 @@ body {
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4));
 }
 
+.play-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.rewind-btn {
+  background: linear-gradient(135deg, #4a2d7a, #2d1b4e);
+  border: 2px solid rgba(155, 107, 255, 0.5);
+  border-radius: 16px;
+  padding: 16px 18px;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 16px rgba(74, 45, 122, 0.45);
+  transition: transform 0.1s, opacity 0.15s;
+  color: #e8d5ff;
+  flex-shrink: 0;
+}
+
+.rewind-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+.rewind-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.rewind-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.rewind-btn.rewinding {
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.rewind-btn.rewinding span:first-child {
+  display: inline-block;
+  animation: rewindSpin 0.6s linear infinite;
+}
+
+@keyframes rewindSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+
+.perform-screen.rewinding .play-btn.rewind-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.perform-screen.rewinding .note-lane {
+  filter: sepia(0.15) brightness(0.92);
+}
+
+.play-controls .play-btn {
+  margin-top: 0;
+}
+
 .play-btn {
   margin-top: 8px;
   background: linear-gradient(135deg, var(--gold), #ffb347);
@@ -1335,6 +1611,7 @@ body {
   box-shadow: 0 6px 24px rgba(255, 209, 102, 0.4);
   transition: transform 0.1s;
   color: #3d2817;
+  touch-action: manipulation;
 }
 
 .play-btn:hover {
@@ -1342,7 +1619,7 @@ body {
 }
 
 .play-btn:active {
-  transform: scale(0.96);
+  filter: brightness(0.92);
 }
 
 .instrument-emoji {
@@ -1410,9 +1687,21 @@ body {
 .floater.perfect { color: var(--gold); }
 .floater.good { color: var(--green); }
 
+.floater.hot-streak {
+  font-size: 1.45rem;
+  text-shadow: 0 0 12px #ff9933, 0 0 4px rgba(255, 180, 60, 0.8);
+  animation: floatUpHot 1s ease forwards;
+}
+
 @keyframes floatUp {
   0% { opacity: 1; transform: translateY(0); }
   100% { opacity: 0; transform: translateY(-60px); }
+}
+
+@keyframes floatUpHot {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  50% { transform: translateY(-30px) scale(1.08); }
+  100% { opacity: 0; transform: translateY(-70px) scale(1); }
 }
 
 /* Results */
@@ -1566,6 +1855,78 @@ body {
   transform: translateX(-50%);
   z-index: 3;
   pointer-events: none;
+  overflow: hidden;
+}
+
+.hit-zone-sparkler {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.hit-zone-sparkler:not(.active) {
+  display: none;
+}
+
+.hit-zone-sparkler .hold-spark {
+  position: absolute;
+  top: 55%;
+  left: calc(15% + var(--i) * 7%);
+  width: 3px;
+  height: 3px;
+  margin: -1.5px 0 0 -1.5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 6px #fff, 0 0 10px currentColor;
+  animation: hold-spark-pop 0.55s ease-out infinite;
+  animation-delay: calc(var(--i) * -0.07s);
+}
+
+.hit-zone-sparkler.melodic .hold-spark {
+  color: #ffb347;
+  background: #ffe08a;
+}
+
+.hit-zone-sparkler.percussion .hold-spark {
+  color: #7ee8ff;
+  background: #d4f7ff;
+}
+
+.hit-zone-sparkler .hold-spark:nth-child(odd) {
+  animation-name: hold-spark-pop-alt;
+}
+
+.hit-zone-sparkler .hold-spark-particle {
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  background: var(--spark-color, #fff);
+  box-shadow:
+    0 0 4px #fff,
+    0 0 8px var(--spark-color, #fff),
+    0 0 14px var(--spark-color, #fff);
+  animation: holdSparkFly var(--dur, 0.45s) ease-out forwards;
+  pointer-events: none;
+}
+
+.hit-zone-sparkler .hold-spark-particle.melodic {
+  box-shadow: 0 0 6px #fff, 0 0 12px #ffb347, 0 0 18px #ff6b9d;
+}
+
+.hit-zone-sparkler .hold-spark-particle.percussion {
+  box-shadow: 0 0 6px #fff, 0 0 12px #7ee8ff, 0 0 18px #6bcbff;
+}
+
+.hit-zone-sparkler .hold-spark-particle.spark-hot {
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  box-shadow: 0 0 8px #fff, 0 0 16px #ff9933, 0 0 24px #ff6600;
 }
 
 .hit-zone-core {
@@ -1663,7 +2024,51 @@ body {
 }
 
 .note-gem.hold.active .gem-shape {
-  filter: drop-shadow(0 0 10px currentColor) brightness(1.3);
+  filter: drop-shadow(0 0 10px currentColor) brightness(1.2);
+}
+
+.note-gem.hold.holding {
+  z-index: 2;
+}
+
+.note-gem.hold.holding .gem-shape {
+  filter: brightness(1.15);
+}
+
+.note-gem.hold.holding::after {
+  opacity: 0.45;
+  animation: none;
+}
+
+@keyframes hold-spark-pop {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-6px + var(--i) * 1.5px), -22px) scale(0.2);
+    opacity: 0;
+  }
+}
+
+@keyframes hold-spark-pop-alt {
+  0% {
+    transform: translate(0, 0) scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(4px + var(--i) * 1px), -28px) scale(0.15);
+    opacity: 0;
+  }
+}
+
+@keyframes hold-gem-glow {
+  from {
+    filter: drop-shadow(0 0 10px currentColor) brightness(1.35);
+  }
+  to {
+    filter: drop-shadow(0 0 22px #fff) brightness(1.7);
+  }
 }
 
 .note-gem.hold::after {
@@ -1688,11 +2093,61 @@ body {
   color: #7ee8ff;
 }
 
-.hit-zone.holding .hit-zone-core {
+.hit-zone.holding.melodic .hit-zone-core {
   border-color: #ffb347;
-  background: rgba(255, 179, 71, 0.25);
-  box-shadow: 0 0 22px rgba(255, 179, 71, 0.55);
-  animation: hold-pulse 0.6s ease-in-out infinite alternate;
+  background: rgba(255, 179, 71, 0.28);
+  box-shadow:
+    0 0 14px rgba(255, 255, 255, 0.55),
+    0 0 26px rgba(255, 179, 71, 0.7),
+    0 0 38px rgba(255, 107, 157, 0.35);
+  animation: hold-pulse 0.35s ease-in-out infinite alternate;
+}
+
+.hit-zone.holding.percussion .hit-zone-core {
+  border-color: #7ee8ff;
+  background: rgba(126, 232, 255, 0.22);
+  box-shadow:
+    0 0 14px rgba(255, 255, 255, 0.55),
+    0 0 26px rgba(107, 203, 255, 0.65),
+    0 0 38px rgba(126, 232, 255, 0.4);
+  animation: hold-pulse 0.35s ease-in-out infinite alternate;
+}
+
+.hit-zone.holding:not(.melodic):not(.percussion) .hit-zone-core {
+  border-color: #ffe08a;
+  background: rgba(255, 224, 138, 0.3);
+  box-shadow:
+    0 0 16px rgba(255, 255, 255, 0.65),
+    0 0 28px rgba(255, 179, 71, 0.75),
+    0 0 44px rgba(255, 107, 157, 0.35);
+  animation: hold-pulse 0.35s ease-in-out infinite alternate;
+}
+
+.hit-zone.holding.melodic .hit-zone-pulse {
+  animation: hold-zone-sparkle-melodic 0.25s steps(2, end) infinite;
+}
+
+.hit-zone.holding.percussion .hit-zone-pulse {
+  animation: hold-zone-sparkle-percussion 0.25s steps(2, end) infinite;
+}
+
+.hit-zone.holding .hit-zone-pulse {
+  opacity: 1;
+}
+
+@keyframes hold-zone-sparkle-melodic {
+  0%, 100% { box-shadow: 0 0 12px #fff, 0 0 24px #ffb347; transform: scale(1); }
+  50% { box-shadow: 0 0 20px #fff, 0 0 36px #ffd166; transform: scale(1.06); }
+}
+
+@keyframes hold-zone-sparkle-percussion {
+  0%, 100% { box-shadow: 0 0 12px #fff, 0 0 24px #7ee8ff; transform: scale(1); }
+  50% { box-shadow: 0 0 20px #fff, 0 0 36px #6bcbff; transform: scale(1.06); }
+}
+
+@keyframes hold-zone-sparkle {
+  0%, 100% { box-shadow: 0 0 12px #fff, 0 0 24px #ffb347; transform: scale(1); }
+  50% { box-shadow: 0 0 20px #fff, 0 0 36px #ffd166; transform: scale(1.06); }
 }
 
 @keyframes hold-pulse {
@@ -1997,6 +2452,20 @@ body {
   100% { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity: 0; }
 }
 
+@keyframes holdSparkFly {
+  0% {
+    transform: translate(0, 0) scale(1.2);
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) scale(0.1);
+    opacity: 0;
+  }
+}
+
 .gem-burst-ring {
   position: absolute;
   top: 50%;
@@ -2011,9 +2480,43 @@ body {
 .gem-burst-ring.burst-perfect { border-color: var(--gold); box-shadow: 0 0 16px var(--gold); }
 .gem-burst-ring.burst-good { border-color: var(--green); box-shadow: 0 0 12px var(--green); }
 
+.gem-burst-ring.burst-hot {
+  animation: burstRingHot 0.55s ease-out forwards;
+  box-shadow: 0 0 24px #ff9933;
+}
+
+.gem-particle.burst-hot {
+  width: 7px;
+  height: 7px;
+}
+
 @keyframes burstRing {
   0% { transform: scale(0.5); opacity: 1; }
   100% { transform: scale(4); opacity: 0; }
+}
+
+@keyframes burstRingHot {
+  0% { transform: scale(0.5); opacity: 1; }
+  100% { transform: scale(4.8); opacity: 0; }
+}
+
+.hit-zone.flash-hot .hit-zone-core {
+  box-shadow: 0 0 32px var(--gold), 0 0 16px #ff9933;
+}
+
+.hit-zone.flash-hot.hit-pop .hit-zone-core {
+  animation: zonePopHot 0.32s ease;
+}
+
+@keyframes zonePopHot {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.22); }
+  100% { transform: scale(1); }
+}
+
+.band-on-fire #performer.hit-flash::after {
+  box-shadow: 0 0 32px rgba(255, 140, 0, 0.9), 0 0 18px rgba(255, 215, 0, 0.75);
+  background: rgba(255, 160, 40, 0.12);
 }
 
 .hit-zone.hit-pop .hit-zone-core {
@@ -2059,6 +2562,20 @@ body {
 
 .performer-wrap.band-on-fire {
   filter: drop-shadow(0 0 12px rgba(255, 100, 0, 0.4));
+}
+
+.rhythm-highway.on-fire .highway-track {
+  border-color: rgba(255, 140, 0, 0.75);
+  box-shadow: inset 0 0 24px rgba(255, 100, 0, 0.2), 0 0 20px rgba(255, 120, 0, 0.45);
+}
+
+.rhythm-highway.on-fire .highway-glow {
+  background: radial-gradient(ellipse, rgba(255, 120, 0, 0.35) 0%, transparent 70%);
+}
+
+.play-controls.on-fire .play-btn,
+#btn-play-note.on-fire {
+  box-shadow: 0 0 20px rgba(255, 120, 0, 0.55), 0 4px 16px rgba(255, 80, 0, 0.35);
 }
 
 @keyframes flameBob {
@@ -2270,58 +2787,194 @@ body {
   animation: rigBrassToot 0.24s ease;
 }
 
-/* Resting arm poses — hands reach toward instrument grips */
+/* Resting arm poses — grip-aligned via --rig-rest-* set by CharacterRig */
 .rig-pose-strum .rig-arm-L .rig-forearm-pose {
-  transform: rotate(38deg);
+  transform: rotate(var(--rig-rest-forearm, 38deg));
 }
 
 .rig-pose-strum .rig-arm-R .rig-forearm-pose {
-  transform: rotate(44deg);
+  transform: rotate(var(--rig-rest-forearm, 44deg));
 }
 
 .rig-pose-strum .rig-arm-L .rig-hand-pose {
-  transform: rotate(8deg);
+  transform: rotate(var(--rig-rest-hand, 8deg));
 }
 
 .rig-pose-strum .rig-arm-R .rig-hand-pose {
-  transform: rotate(6deg);
+  transform: rotate(var(--rig-rest-hand, 6deg));
 }
 
 .rig-pose-keys .rig-arm-L .rig-forearm-pose {
-  transform: rotate(26deg);
+  transform: rotate(var(--rig-rest-forearm, 26deg));
 }
 
 .rig-pose-keys .rig-arm-R .rig-forearm-pose {
-  transform: rotate(26deg);
+  transform: rotate(var(--rig-rest-forearm, 26deg));
 }
 
 .rig-pose-keys .rig-arm-L .rig-hand-pose,
 .rig-pose-keys .rig-arm-R .rig-hand-pose {
-  transform: rotate(0deg);
+  transform: rotate(var(--rig-rest-hand, 0deg));
 }
 
 .rig-pose-drums .rig-arm-L .rig-forearm-pose {
-  transform: rotate(20deg);
+  transform: rotate(var(--rig-rest-forearm, 20deg));
 }
 
 .rig-pose-drums .rig-arm-R .rig-forearm-pose {
-  transform: rotate(20deg);
+  transform: rotate(var(--rig-rest-forearm, 20deg));
 }
 
 .rig-pose-brass .rig-arm-L .rig-forearm-pose {
-  transform: rotate(8deg);
+  transform: rotate(var(--rig-rest-forearm, 8deg));
 }
 
 .rig-pose-brass .rig-arm-R .rig-forearm-pose {
-  transform: rotate(52deg);
+  transform: rotate(var(--rig-rest-forearm, 52deg));
 }
 
 .rig-pose-brass .rig-arm-R .rig-hand-pose {
-  transform: rotate(18deg);
+  transform: rotate(var(--rig-rest-hand, 18deg));
+}
+
+/* Button press — lighter strike when play is held down */
+.rig-pose-strum .rig-arm-L.rig-press .rig-forearm-pose,
+.rig-pose-strum .rig-arm-R.rig-press-alt .rig-forearm-pose {
+  animation: rigStrumPressL 0.2s ease;
+}
+
+.rig-pose-strum .rig-arm-R.rig-press .rig-forearm-pose,
+.rig-pose-strum .rig-arm-L.rig-press-alt .rig-forearm-pose {
+  animation: rigStrumPressR 0.2s ease;
+}
+
+.rig-pose-drums .rig-arm-L.rig-press .rig-forearm-pose,
+.rig-pose-drums .rig-arm-L.rig-press .rig-stick {
+  animation: rigDrumPressL 0.18s ease;
+}
+
+.rig-pose-drums .rig-arm-R.rig-press-alt .rig-forearm-pose,
+.rig-pose-drums .rig-arm-R.rig-press-alt .rig-stick {
+  animation: rigDrumPressR 0.18s ease;
+}
+
+.rig-pose-keys .rig-arm-L.rig-press .rig-hand-pose,
+.rig-pose-keys .rig-arm-R.rig-press-alt .rig-hand-pose {
+  animation: rigKeyPress 0.18s ease;
+}
+
+.rig-pose-brass .rig-arm-R.rig-press-alt .rig-hand-pose {
+  animation: rigBrassPress 0.2s ease;
+}
+
+/* Sustained playing while button held */
+.rig-playing.rig-pose-strum .rig-arm-L.rig-press .rig-forearm-pose,
+.rig-playing.rig-pose-strum .rig-arm-R.rig-press-alt .rig-forearm-pose {
+  animation: rigStrumSustainL 0.5s ease-in-out infinite alternate;
+}
+
+.rig-playing.rig-pose-strum .rig-arm-R.rig-press .rig-forearm-pose,
+.rig-playing.rig-pose-strum .rig-arm-L.rig-press-alt .rig-forearm-pose {
+  animation: rigStrumSustainR 0.5s ease-in-out infinite alternate;
+  animation-delay: 0.25s;
+}
+
+.rig-playing.rig-pose-keys .rig-arm-L.rig-press .rig-hand-pose,
+.rig-playing.rig-pose-keys .rig-arm-R.rig-press-alt .rig-hand-pose {
+  animation: rigKeySustain 0.45s ease-in-out infinite alternate;
+}
+
+.rig-playing.rig-pose-keys .rig-arm-R.rig-press .rig-hand-pose,
+.rig-playing.rig-pose-keys .rig-arm-L.rig-press-alt .rig-hand-pose {
+  animation: rigKeySustain 0.45s ease-in-out infinite alternate;
+  animation-delay: 0.22s;
+}
+
+.rig-playing.rig-pose-drums .rig-arm-L.rig-press .rig-forearm-pose,
+.rig-playing.rig-pose-drums .rig-arm-R.rig-press-alt .rig-forearm-pose {
+  animation: rigDrumSustainL 0.35s ease-in-out infinite alternate;
+}
+
+.rig-playing.rig-pose-drums .rig-arm-R.rig-press .rig-forearm-pose,
+.rig-playing.rig-pose-drums .rig-arm-L.rig-press-alt .rig-forearm-pose {
+  animation: rigDrumSustainR 0.35s ease-in-out infinite alternate;
+  animation-delay: 0.17s;
+}
+
+.rig-playing.rig-pose-drums .rig-stick.rig-stick-sustain {
+  animation: rigStickSustain 0.35s ease-in-out infinite alternate;
+}
+
+.rig-playing.rig-pose-brass .rig-arm-R.rig-press-alt .rig-hand-pose {
+  animation: rigBrassSustain 0.4s ease-in-out infinite alternate;
 }
 
 .rig-stick.rig-stick-hit {
   animation: rigStickHit 0.18s ease;
+}
+
+.rig-stick.rig-stick-sustain {
+  animation: rigStickSustain 0.35s ease-in-out infinite alternate;
+}
+
+@keyframes rigStrumPressL {
+  0%, 100% { transform: rotate(var(--rig-rest-forearm, 38deg)); }
+  50% { transform: rotate(calc(var(--rig-rest-forearm, 38deg) + 12deg)); }
+}
+
+@keyframes rigStrumPressR {
+  0%, 100% { transform: rotate(var(--rig-rest-forearm, 44deg)); }
+  50% { transform: rotate(calc(var(--rig-rest-forearm, 44deg) + 12deg)); }
+}
+
+@keyframes rigStrumSustainL {
+  from { transform: rotate(calc(var(--rig-rest-forearm, 38deg) + 4deg)); }
+  to { transform: rotate(calc(var(--rig-rest-forearm, 38deg) + 14deg)); }
+}
+
+@keyframes rigStrumSustainR {
+  from { transform: rotate(calc(var(--rig-rest-forearm, 44deg) + 4deg)); }
+  to { transform: rotate(calc(var(--rig-rest-forearm, 44deg) + 14deg)); }
+}
+
+@keyframes rigDrumPressL {
+  0%, 100% { transform: rotate(var(--rig-rest-forearm, 20deg)); }
+  50% { transform: rotate(calc(var(--rig-rest-forearm, 20deg) + 18deg)); }
+}
+
+@keyframes rigDrumPressR {
+  0%, 100% { transform: rotate(var(--rig-rest-forearm, 20deg)); }
+  50% { transform: rotate(calc(var(--rig-rest-forearm, 20deg) + 18deg)); }
+}
+
+@keyframes rigDrumSustainL {
+  from { transform: rotate(calc(var(--rig-rest-forearm, 20deg) + 6deg)); }
+  to { transform: rotate(calc(var(--rig-rest-forearm, 20deg) + 22deg)); }
+}
+
+@keyframes rigDrumSustainR {
+  from { transform: rotate(calc(var(--rig-rest-forearm, 20deg) + 6deg)); }
+  to { transform: rotate(calc(var(--rig-rest-forearm, 20deg) + 22deg)); }
+}
+
+@keyframes rigKeySustain {
+  from { transform: translateY(0) rotate(var(--rig-rest-hand, 0deg)); }
+  to { transform: translateY(5px) rotate(var(--rig-rest-hand, 0deg)); }
+}
+
+@keyframes rigBrassPress {
+  0%, 100% { transform: rotate(var(--rig-rest-hand, 18deg)); }
+  50% { transform: rotate(calc(var(--rig-rest-hand, 18deg) + 8deg)) translateY(3px); }
+}
+
+@keyframes rigBrassSustain {
+  from { transform: rotate(calc(var(--rig-rest-hand, 18deg) + 2deg)); }
+  to { transform: rotate(calc(var(--rig-rest-hand, 18deg) + 10deg)) translateY(2px); }
+}
+
+@keyframes rigStickSustain {
+  from { transform: rotate(4deg); }
+  to { transform: rotate(16deg); }
 }
 
 @keyframes rigStrumR {
@@ -2404,6 +3057,48 @@ body {
   width: 32px;
   height: auto;
   border-radius: 4px;
+}
+
+.loadout-row.loadout-wear {
+  display: flex;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.loadout-label {
+  min-width: 72px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.loadout-row.loadout-band {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.loadout-band-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.loadout-band-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  background: rgba(155, 107, 255, 0.15);
+  border-radius: 6px;
+  padding: 2px 6px 2px 2px;
+}
+
+.loadout-solo {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-style: italic;
 }
 
 #btn-perform {

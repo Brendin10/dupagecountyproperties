@@ -21,6 +21,15 @@ const Game = (() => {
     equippedInstrument: 'drums',
     equippedSong: 'street-jam',
     equippedWear: { clothes: null, makeup: null, accessories: null },
+    gigBandIds: [],
+    hubPanelsOpen: {
+      instruments: false,
+      songs: false,
+      clothes: false,
+      makeup: false,
+      accessories: false,
+      band: false,
+    },
     shopNotice: null,
     gigIntroRunning: false,
     loadedSong: null,
@@ -73,6 +82,27 @@ const Game = (() => {
 
   let activeHold = null;
 
+  const REWIND_SECONDS = 5;
+  const REWIND_ANIM_MS = REWIND_SECONDS * 1000;
+  const GIG_COUNTDOWN_SEC = 4;
+  const HOT_STREAK_COMBO = 10;
+  const HOT_STREAK_MULT = 1.5;
+  const SNAPSHOT_INTERVAL = 0.5;
+  const SNAPSHOT_RETENTION = 12;
+  let rewindSnapshots = [];
+  let lastSnapshotAt = -1;
+  let rewindCooldown = false;
+  let rewindActive = false;
+  let rewindAnimRaf = null;
+
+  function isHotStreak(p) {
+    return !!p?.onFire;
+  }
+
+  function hotStreakMult(p) {
+    return isHotStreak(p) ? HOT_STREAK_MULT : 1;
+  }
+
   const ROLE_ANIM = {
     Lead: 'anim-strum',
     Guitar: 'anim-strum',
@@ -104,8 +134,144 @@ const Game = (() => {
     }));
   }
 
+  const WEAR_CATS = ['clothes', 'makeup', 'accessories'];
+
+  function defaultHubPanelsOpen() {
+    return {
+      instruments: false,
+      songs: false,
+      clothes: false,
+      makeup: false,
+      accessories: false,
+      band: false,
+    };
+  }
+
+  function syncGigBandIds() {
+    if (!state.gigBandIds) state.gigBandIds = [];
+    const ids = state.bandMembers.map(getBandmateId);
+    state.gigBandIds = state.gigBandIds.filter((id) => ids.includes(id));
+    for (const id of ids) {
+      if (!state.gigBandIds.includes(id)) state.gigBandIds.push(id);
+    }
+  }
+
+  function getGigBandMembers() {
+    syncGigBandIds();
+    return state.bandMembers.filter((m) => state.gigBandIds.includes(getBandmateId(m)));
+  }
+
+  function toggleGigBandMember(id) {
+    syncGigBandIds();
+    const idx = state.gigBandIds.indexOf(id);
+    if (idx >= 0) state.gigBandIds.splice(idx, 1);
+    else state.gigBandIds.push(id);
+    persist();
+  }
+
+  function dropBandMember(id) {
+    const member = state.bandMembers.find((m) => getBandmateId(m) === id);
+    if (!member) return false;
+    if (!confirm(`Drop ${member.name} from your band? This frees a slot.`)) return false;
+    state.bandMembers = state.bandMembers.filter((m) => getBandmateId(m) !== id);
+    state.gigBandIds = (state.gigBandIds || []).filter((gid) => gid !== id);
+    normalizeBandMembers();
+    syncGigBandIds();
+    persist();
+    return true;
+  }
+
+  function getWearableItem(cat) {
+    const id = state.equippedWear?.[cat];
+    if (!id) return null;
+    return SHOP_ITEMS[cat]?.find((i) => i.id === id) || null;
+  }
+
+  function renderHubPanel(key, title, countLabel, bodyHtml) {
+    if (!state.hubPanelsOpen) state.hubPanelsOpen = defaultHubPanelsOpen();
+    const open = !!state.hubPanelsOpen[key];
+    return `
+      <div class="inv-section hub-panel ${open ? 'open' : ''}" data-hub-panel="${key}">
+        <button type="button" class="hub-panel-toggle" data-toggle-panel="${key}">
+          <span class="hub-panel-chevron">▸</span>
+          <span class="hub-panel-title">${title}</span>
+          ${countLabel ? `<span class="hub-panel-count">${countLabel}</span>` : ''}
+        </button>
+        <div class="hub-panel-body">${bodyHtml}</div>
+      </div>`;
+  }
+
+  function renderNoneChip(cat) {
+    const equipped = !state.equippedWear?.[cat];
+    return `<button type="button" class="inv-chip none-chip ${equipped ? 'equipped' : ''}" data-equip-cat="${cat}" data-equip="__none__" title="None">—</button>`;
+  }
+
+  function renderInventoryChips(cat) {
+    const items = ownedItems(cat);
+    const noneChip = WEAR_CATS.includes(cat) ? renderNoneChip(cat) : '';
+
+    if (!items.length && !WEAR_CATS.includes(cat)) {
+      return '<span class="inv-empty">Empty</span>';
+    }
+
+    const chips = items.map((i) => {
+      const equipped = (cat === 'instruments' && state.equippedInstrument === i.id)
+        || (cat === 'songs' && state.equippedSong === i.id)
+        || (WEAR_CATS.includes(cat) && state.equippedWear?.[cat] === i.id);
+      const equipAttr = (cat === 'instruments' || cat === 'songs' || WEAR_CATS.includes(cat)) ? i.id : '';
+      const chipInner = cat === 'instruments' && INSTRUMENTS[i.id]
+        ? (typeof renderInventoryItemThumb === 'function' ? renderInventoryItemThumb(cat, i, 36) : i.emoji)
+        : `<span class="brand-card-icon">${i.emoji}</span>`;
+      return `<button type="button" class="inv-chip ${equipped ? 'equipped' : ''}" data-equip-cat="${cat}" data-equip="${equipAttr}" title="${i.name}${equipped ? ' (on)' : ' — click to equip'}">${chipInner}</button>`;
+    }).join('');
+
+    return `<div class="inv-items">${noneChip}${chips}</div>`;
+  }
+
+  function renderGigLoadoutSummary({ compact } = {}) {
+    const inst = getActiveInstrument();
+    const song = getActiveSong();
+    const gigBand = getGigBandMembers();
+
+    if (compact) {
+      const wearParts = WEAR_CATS.map((cat) => {
+        const item = getWearableItem(cat);
+        return item ? item.name : null;
+      }).filter(Boolean);
+      const bandPart = gigBand.length ? gigBand.map((m) => m.name).join(', ') : 'Solo';
+      return [inst.name, song.name, ...wearParts, bandPart].join(' · ');
+    }
+
+    const wearRows = WEAR_CATS.map((cat) => {
+      const label = cat.charAt(0).toUpperCase() + cat.slice(1);
+      const item = getWearableItem(cat);
+      const text = item ? `${item.emoji} ${item.name}` : 'None';
+      return `<div class="loadout-row loadout-wear"><span class="loadout-label">${label}</span> <span>${text}</span></div>`;
+    }).join('');
+
+    const bandHtml = gigBand.length
+      ? gigBand.map((m) => `
+          <span class="loadout-band-member" title="${m.role}">
+            ${renderBandmateCharacter(m, 28)}
+            <span>${m.name}</span>
+          </span>`).join('')
+      : '<span class="loadout-solo">Solo</span>';
+
+    return `
+      <div class="loadout-row loadout-instrument">
+        ${typeof renderShopInstrumentPreview === 'function' ? renderShopInstrumentPreview(inst, 32) : inst.emoji}
+        <span>${inst.name}</span>
+      </div>
+      <div class="loadout-row"><span>${song.emoji}</span> ${song.name}</div>
+      ${wearRows}
+      <div class="loadout-row loadout-band">
+        <span class="loadout-label">Band</span>
+        <div class="loadout-band-list">${bandHtml}</div>
+      </div>`;
+  }
+
   function slotMax() {
-    return typeof MAX_BAND_SLOTS !== 'undefined' ? MAX_BAND_SLOTS : 30;
+    return typeof MAX_BAND_SLOTS !== 'undefined' ? MAX_BAND_SLOTS : 7;
   }
 
   function getSlotCosts() {
@@ -168,6 +334,8 @@ const Game = (() => {
     state.equippedSong = typeof SongLoader !== 'undefined' ? SongLoader.getDefaultSongId() : 'street-jam';
     state.loadedSong = null;
     state.equippedWear = { clothes: null, makeup: null, accessories: null };
+    state.gigBandIds = [];
+    state.hubPanelsOpen = defaultHubPanelsOpen();
   }
 
   const root = () => document.getElementById('screen-root');
@@ -182,8 +350,42 @@ const Game = (() => {
 
   function setScreen(name) {
     state.screen = name;
+    if (name === 'shop') state.shopTab = state.shopTab || 'instruments';
+    if (name === 'hub' || name === 'shop') preloadOwnedInstrumentAudio();
+    if (name === 'shop') preloadShopInstrumentAudio();
     updateHud();
     render();
+  }
+
+  function preloadOwnedInstrumentAudio() {
+    if (typeof AudioSamples === 'undefined') return;
+    ownedItems('instruments').forEach((item) => {
+      const inst = INSTRUMENTS[item.id];
+      if (inst) AudioSamples.loadInstrumentSamples(inst.subtype, inst.id);
+    });
+  }
+
+  function preloadShopInstrumentAudio() {
+    if (typeof AudioSamples === 'undefined') return;
+    const tab = state.shopTab || 'instruments';
+    if (tab !== 'instruments') return;
+    SHOP_ITEMS.instruments.forEach((item) => {
+      AudioSamples.loadInstrumentSample(item.id);
+    });
+  }
+
+  async function previewInstrumentSound(id) {
+    const inst = INSTRUMENTS[id];
+    if (!inst) return;
+    try {
+      await AudioEngine.resume?.();
+      if (typeof AudioSamples !== 'undefined') {
+        await AudioSamples.ensureInstrumentSample(id);
+      }
+      await AudioEngine.playInstrument(inst);
+    } catch (err) {
+      console.warn('Instrument preview failed', id, err);
+    }
   }
 
   function crowdAppeal() {
@@ -194,7 +396,7 @@ const Game = (() => {
         if (item) bonus += item.crowdBonus;
       }
     }
-    bonus += state.bandMembers.length * 8;
+    bonus += getGigBandMembers().length * 8;
     return bonus;
   }
 
@@ -218,6 +420,7 @@ const Game = (() => {
       state.equippedWear = state.equippedWear || { clothes: null, makeup: null, accessories: null };
       state.equippedWear[cat] = itemId;
     }
+    if (cat === 'instruments') previewInstrumentSound(itemId);
     updateHud();
     persist();
     return true;
@@ -240,6 +443,7 @@ const Game = (() => {
     if (!canRecruitBandmate()) return false;
     state.bandMembers.push(state.pendingRecruit);
     normalizeBandMembers();
+    syncGigBandIds();
     state.starMeter += 5;
     state.pendingRecruit = null;
     updateHud();
@@ -354,55 +558,51 @@ const Game = (() => {
     const inventorySections = ['instruments', 'songs', 'clothes', 'makeup', 'accessories'].map((cat) => {
       const items = ownedItems(cat);
       const label = cat === 'songs' ? 'Songs' : cat.charAt(0).toUpperCase() + cat.slice(1);
-      return `
-        <div class="inv-section">
-          <h4>${label}</h4>
-          <div class="inv-items">
-            ${items.length
-              ? items.map((i) => {
-                  const wearCats = ['clothes', 'makeup', 'accessories'];
-                  const equipped = (cat === 'instruments' && state.equippedInstrument === i.id)
-                    || (cat === 'songs' && state.equippedSong === i.id)
-                    || (wearCats.includes(cat) && state.equippedWear?.[cat] === i.id);
-                  const equipAttr = (cat === 'instruments' || cat === 'songs' || wearCats.includes(cat)) ? i.id : '';
-                  const chipInner = cat === 'instruments' && INSTRUMENTS[i.id]
-                    ? (typeof renderInventoryItemThumb === 'function' ? renderInventoryItemThumb(cat, i, 36) : i.emoji)
-                    : `<span class="brand-card-icon">${i.emoji}</span>`;
-                  return `<button type="button" class="inv-chip ${equipped ? 'equipped' : ''}" data-equip-cat="${cat}" data-equip="${equipAttr}" title="${i.name}${equipped ? ' (on)' : ' — click to preview'}">${chipInner}</button>`;
-                }).join('')
-              : '<span class="inv-empty">Empty</span>'}
-          </div>
-        </div>
-      `;
+      return renderHubPanel(cat, label, `(${items.length})`, renderInventoryChips(cat));
     }).join('');
 
     const openSlots = getOpenBandSlots();
     const slotCount = getBandSlotCount();
+    syncGigBandIds();
+    const gigBand = getGigBandMembers();
+    const gigCount = gigBand.length;
+    const rosterCount = state.bandMembers.length;
 
-    const bandSection = `
-      <div class="inv-section">
-        <h4>Band (${state.bandMembers.length}/${slotCount})</h4>
-        <p class="band-open-slots">${openSlots} open slot${openSlots === 1 ? '' : 's'} · play gigs to recruit</p>
-        <div class="inv-items band-roster">
-          ${state.bandMembers.map((m) => `
-                <div class="bandmate-chip" title="${m.role}">
-                  ${renderBandmateCharacter(m, 52)}
-                  <span>${m.name}</span>
-                </div>`).join('')}
-          ${Array.from({ length: openSlots }, (_, i) => `
-                <div class="bandmate-chip empty-slot" title="Open slot — recruit during gigs">
-                  <div class="empty-slot-icon">➕</div>
-                  <span>Open</span>
-                </div>`).join('')}
-          ${!state.bandMembers.length && !openSlots
-            ? '<span class="inv-empty">Solo act</span>'
-            : ''}
-        </div>
-      </div>
-    `;
+    const bandBody = `
+      <p class="band-open-slots">${openSlots} open slot${openSlots === 1 ? '' : 's'} · play gigs to recruit</p>
+      <div class="band-roster-gig">
+        ${state.bandMembers.map((m) => {
+          const id = getBandmateId(m);
+          const forGig = state.gigBandIds.includes(id);
+          return `
+            <div class="band-member-row ${forGig ? 'gig-active' : ''}">
+              <button type="button" class="gig-toggle-btn ${forGig ? 'active' : ''}" data-gig-toggle="${id}" title="${forGig ? 'Playing this gig' : 'Bench for this gig'}">${forGig ? '✓' : '○'}</button>
+              <div class="bandmate-chip" title="${m.role}">
+                ${renderBandmateCharacter(m, 52)}
+                <span>${m.name}</span>
+              </div>
+              <button type="button" class="btn-drop-member" data-drop-member="${id}" title="Drop from band">✕</button>
+            </div>`;
+        }).join('')}
+        ${Array.from({ length: openSlots }, () => `
+          <div class="bandmate-chip empty-slot" title="Open slot — recruit during gigs">
+            <div class="empty-slot-icon">➕</div>
+            <span>Open</span>
+          </div>`).join('')}
+        ${!state.bandMembers.length && !openSlots
+          ? '<span class="inv-empty">Solo act</span>'
+          : ''}
+      </div>`;
+
+    const bandSection = renderHubPanel(
+      'band',
+      'Band',
+      `(${gigCount}/${rosterCount} gig · ${rosterCount}/${slotCount})`,
+      bandBody,
+    );
 
     const inst = getActiveInstrument();
-    const song = getActiveSong();
+    const loadoutCompact = renderGigLoadoutSummary({ compact: true });
 
     return `
       <section class="screen hub-screen">
@@ -413,11 +613,7 @@ const Game = (() => {
             <p class="hub-appeal">Crowd Appeal: <strong>+${appeal}</strong></p>
             <div class="hub-loadout">
               <h4>Gig Loadout</h4>
-              <div class="loadout-row loadout-instrument">
-                ${typeof renderShopInstrumentPreview === 'function' ? renderShopInstrumentPreview(inst, 32) : inst.emoji}
-                <span>${inst.name}</span>
-              </div>
-              <div class="loadout-row"><span>${song.emoji}</span> ${song.name}</div>
+              ${renderGigLoadoutSummary()}
             </div>
             ${inventorySections}
             ${bandSection}
@@ -434,7 +630,7 @@ const Game = (() => {
             <div class="hub-actions">
               <button class="btn btn-primary btn-lg" id="btn-perform">
                 <span class="gig-loadout-preview">${typeof renderShopInstrumentPreview === 'function' ? renderShopInstrumentPreview(inst, 36) : inst.emoji}</span>
-                <span class="gig-loadout-text">Play Gig<br><small>${inst.name} · ${song.name}</small></span>
+                <span class="gig-loadout-text">Play Gig<br><small>${loadoutCompact}</small></span>
               </button>
               <button class="btn btn-secondary" id="btn-shop">🛍️ Shop</button>
             </div>
@@ -469,6 +665,65 @@ const Game = (() => {
     `;
   }
 
+  function renderShopBandSlots() {
+    const max = slotMax();
+    const slotCount = getBandSlotCount();
+    const costs = getSlotCosts();
+    const nextCost = nextBandSlotCost();
+    const atMax = slotCount >= max;
+    const members = state.bandMembers;
+
+    return Array.from({ length: max }, (_, idx) => {
+      const slotNum = idx + 1;
+      const member = members[idx];
+
+      if (member) {
+        return `
+          <div class="shop-band-slot brand-card filled">
+            <div class="bandmate-chip" title="${member.role}">
+              ${renderBandmateCharacter(member, 52)}
+              <span>${member.name}</span>
+            </div>
+            <span class="shop-slot-label">Slot ${slotNum}</span>
+          </div>`;
+      }
+
+      if (slotNum <= slotCount) {
+        return `
+          <div class="shop-band-slot brand-card open">
+            <div class="bandmate-chip empty-slot" title="Open slot — recruit during gigs">
+              <div class="empty-slot-icon">➕</div>
+              <span>Open</span>
+            </div>
+            <span class="shop-slot-label">Slot ${slotNum}</span>
+          </div>`;
+      }
+
+      if (slotNum === slotCount + 1 && !atMax && nextCost != null) {
+        return `
+          <div class="shop-band-slot brand-card locked-next">
+            <span class="brand-card-icon brand-card-icon-lg">🔒</span>
+            <div class="shop-info">
+              <strong class="brand-label">Slot ${slotNum}</strong>
+              <span>Unlock band member slot</span>
+            </div>
+            <button class="btn btn-buy" data-buy-slot="1" ${state.bandCash < nextCost ? 'disabled' : ''}>$${nextCost}</button>
+          </div>`;
+      }
+
+      const unlockCost = costs[slotNum - 1];
+      return `
+        <div class="shop-band-slot brand-card locked">
+          <span class="brand-card-icon">🔒</span>
+          <div class="shop-info">
+            <strong class="brand-label">Slot ${slotNum}</strong>
+            <span>${unlockCost != null ? `$${unlockCost} when unlocked` : 'Locked'}</span>
+          </div>
+          <span class="owned-badge">LOCKED</span>
+        </div>`;
+    }).join('');
+  }
+
   function renderShop() {
     const tabs = ['instruments', 'songs', 'clothes', 'makeup', 'accessories', 'band'];
     const tabButtons = tabs.map((t) => `
@@ -479,24 +734,14 @@ const Game = (() => {
 
     let content = '';
     if (state.shopTab === 'band') {
-      const nextCost = nextBandSlotCost();
       const openSlots = getOpenBandSlots();
       const slotCount = getBandSlotCount();
       const atMax = slotCount >= slotMax();
-      const canBuy = !atMax && nextCost != null;
       content = `
-        <div class="shop-list">
+        <div class="shop-list shop-band-list">
           ${state.shopNotice ? `<p class="shop-notice">${state.shopNotice}</p>` : ''}
-          <div class="shop-item brand-card">
-            <span class="brand-card-icon brand-card-icon-lg">👥</span>
-            <div class="shop-info">
-              <strong class="brand-label">Band Member Slot</strong>
-              <span>${state.bandMembers.length} bandmates · ${openSlots} open · ${slotCount} / ${slotMax()} slots</span>
-            </div>
-            ${canBuy
-              ? `<button class="btn btn-buy" data-buy-slot="1" ${state.bandCash < nextCost ? 'disabled' : ''}>$${nextCost}</button>`
-              : `<span class="owned-badge">${atMax ? 'MAX' : 'N/A'}</span>`}
-          </div>
+          <p class="shop-band-summary">${state.bandMembers.length} bandmates · ${openSlots} open · ${slotCount} / ${slotMax()} slots${atMax ? ' · MAX' : ''}</p>
+          <div class="shop-band-grid">${renderShopBandSlots()}</div>
         </div>
       `;
     } else {
@@ -541,8 +786,9 @@ const Game = (() => {
   }
 
   function renderStageLineup(inst) {
-    const left = state.bandMembers.filter((_, i) => i % 2 === 0);
-    const right = state.bandMembers.filter((_, i) => i % 2 === 1);
+    const gigBand = getGigBandMembers();
+    const left = gigBand.filter((_, i) => i % 2 === 0);
+    const right = gigBand.filter((_, i) => i % 2 === 1);
     const leftHtml = left.map((m, i) => `
       <div class="lineup-slot side" id="bandmate-${getBandmateId(m)}" style="--slot:${i}">
         ${renderBandmateCharacter(m, 88)}
@@ -588,10 +834,16 @@ const Game = (() => {
             ${renderStageLineup(inst)}
             <div class="performer-stack">
               ${RhythmLane.renderHtml(song.name)}
-              <button class="play-btn" id="btn-play-note">
-                <span class="instrument-emoji">${inst.emoji}</span>
-                <span>PLAY ${inst.name.toUpperCase()}!</span>
-              </button>
+              <div class="play-controls">
+                <button type="button" class="rewind-btn" id="btn-rewind" title="Rewind 5 seconds" disabled>
+                  <span aria-hidden="true">⏪</span>
+                  <span>5s</span>
+                </button>
+                <button class="play-btn" id="btn-play-note">
+                  <span class="instrument-emoji">${inst.emoji}</span>
+                  <span>PLAY ${inst.name.toUpperCase()}!</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -665,6 +917,32 @@ const Game = (() => {
       </section>`;
   }
 
+  function updateHubVenueSelection() {
+    if (state.screen !== 'hub') return false;
+    const venue = VENUES.find((v) => v.id === state.currentVenue);
+    if (!venue) return false;
+
+    document.querySelectorAll('.venue-card:not(.locked)').forEach((btn) => {
+      const isActive = btn.dataset.venue === state.currentVenue;
+      btn.classList.toggle('active', isActive);
+      if (isActive) {
+        btn.classList.remove('venue-just-selected');
+        void btn.offsetWidth;
+        btn.classList.add('venue-just-selected');
+        setTimeout(() => btn.classList.remove('venue-just-selected'), 400);
+      }
+    });
+
+    const preview = document.querySelector('.hub-venue-preview');
+    if (!preview) return false;
+    preview.innerHTML = `${renderVenueBackdrop(state.currentVenue)}<div class="hub-venue-label">${venue.name}</div>`;
+
+    if (parallaxCleanup) parallaxCleanup();
+    parallaxCleanup = initVenueParallax(preview) || null;
+
+    return true;
+  }
+
   function render() {
     state.shopTab = state.shopTab || 'instruments';
     let html = '';
@@ -682,6 +960,9 @@ const Game = (() => {
     }
     root().innerHTML = html;
     bindEvents();
+    if (state.screen === 'shop' && (state.shopTab || 'instruments') === 'instruments') {
+      preloadShopInstrumentAudio();
+    }
     if (parallaxCleanup) parallaxCleanup();
     parallaxCleanup = null;
     if (['hub', 'perform'].includes(state.screen)) {
@@ -693,6 +974,35 @@ const Game = (() => {
     if (state.screen === 'title') {
       startTitleIdleAnimation();
     }
+    syncPerformerInstrumentPose();
+  }
+
+  function syncPerformerInstrumentPose() {
+    if (!['hub', 'perform', 'tune'].includes(state.screen)) return;
+    let performer = document.getElementById('performer');
+    if (!performer && state.screen === 'hub') {
+      performer = document.querySelector('.hub-character .character-layered');
+    }
+    if (!performer && state.screen === 'tune') {
+      performer = document.querySelector('.tune-preview-wrap .character-layered');
+    }
+    const inst = getActiveInstrument();
+    if (!performer || !inst || typeof CharacterRig === 'undefined') return;
+    requestAnimationFrame(() => {
+      CharacterRig.syncInstrumentPose(performer, inst);
+    });
+  }
+
+  function triggerPlayPress(inst) {
+    const performer = document.getElementById('performer');
+    if (!performer || !inst || typeof CharacterRig === 'undefined') return;
+    CharacterRig.playInstrumentPress(performer, inst);
+  }
+
+  function triggerPlayRelease(inst) {
+    const performer = document.getElementById('performer');
+    if (!performer || typeof CharacterRig === 'undefined') return;
+    CharacterRig.playInstrumentRelease(performer, inst);
   }
 
   let titleIdleTimer = null;
@@ -710,9 +1020,23 @@ const Game = (() => {
     }, 2400);
   }
 
+  let shopPreviewListenerAttached = false;
+
   function bindEvents() {
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => document.querySelectorAll(sel);
+
+    if (!shopPreviewListenerAttached) {
+      root().addEventListener('click', (e) => {
+        const btn = e.target.closest('.shop-preview-btn[data-preview-inst]');
+        if (!btn) return;
+        const id = btn.dataset.previewInst;
+        if (!id || !INSTRUMENTS[id]) return;
+        e.stopPropagation();
+        previewInstrumentSound(id);
+      });
+      shopPreviewListenerAttached = true;
+    }
 
     $('#btn-start')?.addEventListener('click', () => {
       SaveManager.clear();
@@ -724,6 +1048,7 @@ const Game = (() => {
       const data = SaveManager.load();
       if (SaveManager.apply(state, data)) {
         normalizeBandMembers();
+        syncGigBandIds();
         state.tutorialStep = state.hasLid ? 1 : 0;
         setScreen(state.hasLid ? 'hub' : 'tutorial');
       }
@@ -763,7 +1088,7 @@ const Game = (() => {
       btn.addEventListener('click', () => {
         state.currentVenue = btn.dataset.venue;
         persist();
-        render();
+        if (!updateHubVenueSelection()) render();
       });
     });
 
@@ -778,6 +1103,7 @@ const Game = (() => {
       tab.addEventListener('click', () => {
         state.shopTab = tab.dataset.tab;
         state.shopNotice = null;
+        if (state.shopTab === 'instruments') preloadShopInstrumentAudio();
         render();
       });
     });
@@ -812,10 +1138,18 @@ const Game = (() => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.equip;
         const cat = btn.dataset.equipCat;
+        const wearCats = ['clothes', 'makeup', 'accessories'];
+        if (wearCats.includes(cat) && (id === '__none__' || !id)) {
+          state.equippedWear = state.equippedWear || { clothes: null, makeup: null, accessories: null };
+          state.equippedWear[cat] = null;
+          persist();
+          render();
+          return;
+        }
         if (!id) return;
         if (cat === 'instruments' && state.inventories.instruments.includes(id)) {
           state.equippedInstrument = id;
-          AudioEngine.playInstrument?.(INSTRUMENTS[id]);
+          previewInstrumentSound(id);
           persist();
           render();
           return;
@@ -829,28 +1163,54 @@ const Game = (() => {
         }
         if (['clothes', 'makeup', 'accessories'].includes(cat) && state.inventories[cat]?.includes(id)) {
           state.equippedWear = state.equippedWear || { clothes: null, makeup: null, accessories: null };
-          state.equippedWear[cat] = state.equippedWear[cat] === id ? null : id;
+          state.equippedWear[cat] = id;
           persist();
           render();
         }
       });
     });
 
-    $$('.shop-preview-btn[data-preview-inst]').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const id = btn.dataset.previewInst;
-        if (!id || !INSTRUMENTS[id]) return;
-        AudioEngine.resume();
-        AudioEngine.playInstrument(INSTRUMENTS[id]);
+    $$('[data-toggle-panel]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.togglePanel;
+        state.hubPanelsOpen = state.hubPanelsOpen || defaultHubPanelsOpen();
+        state.hubPanelsOpen[key] = !state.hubPanelsOpen[key];
+        render();
       });
     });
 
-    $('#btn-play-note')?.addEventListener('mousedown', (e) => { e.preventDefault(); onNotePress(); });
-    $('#btn-play-note')?.addEventListener('mouseup', onNoteRelease);
-    $('#btn-play-note')?.addEventListener('mouseleave', onNoteRelease);
-    $('#btn-play-note')?.addEventListener('touchstart', (e) => { e.preventDefault(); onNotePress(); }, { passive: false });
-    $('#btn-play-note')?.addEventListener('touchend', onNoteRelease);
+    $$('[data-gig-toggle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        toggleGigBandMember(btn.dataset.gigToggle);
+        render();
+      });
+    });
+
+    $$('[data-drop-member]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (dropBandMember(btn.dataset.dropMember)) render();
+      });
+    });
+
+    const playBtn = $('#btn-play-note');
+    playBtn?.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      playBtn.setPointerCapture(e.pointerId);
+      triggerPlayPress(getActiveInstrument());
+      onNotePress();
+    });
+    playBtn?.addEventListener('pointerup', (e) => {
+      playBtn.releasePointerCapture?.(e.pointerId);
+      onNoteRelease();
+      triggerPlayRelease(getActiveInstrument());
+    });
+    playBtn?.addEventListener('pointercancel', () => {
+      onNoteRelease();
+      triggerPlayRelease(getActiveInstrument());
+    });
+
+    $('#btn-rewind')?.addEventListener('click', rewindPerformance);
 
     $('#tune-inst-select')?.addEventListener('change', (e) => {
       state.tuneInstId = e.target.value;
@@ -866,6 +1226,10 @@ const Game = (() => {
     document.getElementById('performer')?.classList.toggle('on-fire', on);
     document.querySelectorAll('.lineup-slot.side').forEach((el) => el.classList.toggle('on-fire', on));
     document.querySelector('.performer-wrap')?.classList.toggle('band-on-fire', on);
+    document.getElementById('rhythm-highway')?.classList.toggle('on-fire', on);
+    document.querySelector('.play-controls')?.classList.toggle('on-fire', on);
+    document.getElementById('btn-play-note')?.classList.toggle('on-fire', on);
+    AudioEngine.setHotStreakCheering?.(on);
   }
 
   function endBooedOffStage() {
@@ -884,6 +1248,20 @@ const Game = (() => {
     setScreen('booed');
   }
 
+  function beginRhythmGameplay(bpm) {
+    const p = state.performance;
+    if (!p || p.rhythmActive) return;
+
+    p.rhythmActive = true;
+    p.rhythmStartAt = performance.now();
+    p.leadInBeat = (GIG_COUNTDOWN_SEC * bpm) / 60;
+
+    BandAudio.start(bpm);
+    Metronome.start(bpm, (beatIdx) => {
+      BandAudio.onBeat(beatIdx);
+    }, { silent: true });
+  }
+
   function startPerformanceLoop() {
     const p = state.performance;
     if (!p) return;
@@ -895,18 +1273,15 @@ const Game = (() => {
     const playerStem = getPlayerPartKey(inst);
 
     AudioEngine.initMix();
-    AudioEngine.startCrowdAmbience?.(venue?.tier ?? 0);
+    AudioEngine.startCrowdAmbience?.(venue?.tier ?? 0, { intro: true });
     if (typeof StemPlayer !== 'undefined' && song?.stems) {
       StemPlayer.setPlayerStem(playerStem);
       StemPlayer.start(bpm);
     }
-    BandAudio.setBand(state.bandMembers, song);
+    BandAudio.setBand(getGigBandMembers(), song);
     BandAudio.setOnMemberPlay((member) => triggerBandmateAnimation(member));
-    BandAudio.start(bpm);
 
-    Metronome.start(bpm, (beatIdx) => {
-      BandAudio.onBeat(beatIdx);
-    }, { silent: true });
+    beginRhythmGameplay(bpm);
 
     const uiLoop = () => {
       if (!state.performance || state.screen !== 'perform') return;
@@ -917,22 +1292,295 @@ const Game = (() => {
   }
 
   function stopPerformanceLoop() {
+    const performer = document.getElementById('performer');
+    if (performer && typeof CharacterRig !== 'undefined') {
+      CharacterRig.playInstrumentRelease(performer, getActiveInstrument());
+    }
     Metronome.stop();
     BandAudio.stop();
     if (typeof StemPlayer !== 'undefined') StemPlayer.stop();
     AudioEngine.stopSustain?.();
+    AudioEngine.stopRewindSfx?.();
     AudioEngine.stopCrowdAmbience?.();
     AudioEngine.setCrowdBooing?.(false);
     activeHold = null;
+    rewindSnapshots = [];
+    lastSnapshotAt = -1;
+    rewindCooldown = false;
+    rewindActive = false;
+    if (rewindAnimRaf) cancelAnimationFrame(rewindAnimRaf);
+    rewindAnimRaf = null;
+    Metronome.setBeatSuspended?.(false);
+    document.querySelector('.perform-screen')?.classList.remove('rewinding');
+    document.getElementById('btn-rewind')?.classList.remove('rewinding');
+    document.getElementById('btn-play-note')?.classList.remove('rewind-disabled');
     if (state.perfUiRaf) cancelAnimationFrame(state.perfUiRaf);
     if (state.perfInterval) clearInterval(state.perfInterval);
     state.perfInterval = null;
     state.perfUiRaf = null;
   }
 
-  function updatePerformanceUI() {
+  function captureRewindSnapshot(elapsed) {
     const p = state.performance;
     if (!p) return;
+
+    rewindSnapshots.push({
+      elapsed,
+      timeLeft: p.timeLeft,
+      crowd: p.crowd,
+      cheer: p.cheer,
+      sessionCash: p.sessionCash,
+      sessionStars: p.sessionStars,
+      peakCrowd: p.peakCrowd,
+      combo: p.combo,
+      missStreak: p.missStreak,
+      onFire: p.onFire,
+      booed: p.booed,
+      recruitRolls: p.recruitRolls,
+      hitBeats: [...p.hitBeats],
+      missedBeats: [...(p.missedBeats || [])],
+      bandCash: state.bandCash,
+      starMeter: state.starMeter,
+      pendingRecruit: state.pendingRecruit,
+      gigTimerStarted: p.gigTimerStarted,
+      countdownEnded: p.countdownEnded,
+    });
+
+    const cutoff = elapsed - SNAPSHOT_RETENTION;
+    while (rewindSnapshots.length && rewindSnapshots[0].elapsed < cutoff) {
+      rewindSnapshots.shift();
+    }
+    lastSnapshotAt = elapsed;
+  }
+
+  function findRewindSnapshot(targetElapsed) {
+    if (!rewindSnapshots.length) return null;
+    let best = rewindSnapshots[0];
+    for (const snap of rewindSnapshots) {
+      if (snap.elapsed <= targetElapsed) best = snap;
+      else break;
+    }
+    return best;
+  }
+
+  function applyRewindSnapshot(snapshot) {
+    const p = state.performance;
+    if (!p || !snapshot) return;
+
+    p.timeLeft = snapshot.timeLeft;
+    p.crowd = snapshot.crowd;
+    p.cheer = snapshot.cheer;
+    p.sessionCash = snapshot.sessionCash;
+    p.sessionStars = snapshot.sessionStars;
+    p.peakCrowd = snapshot.peakCrowd;
+    p.combo = snapshot.combo;
+    p.missStreak = snapshot.missStreak;
+    p.onFire = snapshot.onFire;
+    p.booed = snapshot.booed;
+    p.recruitRolls = snapshot.recruitRolls;
+    p.hitBeats = new Set(snapshot.hitBeats);
+    p.missedBeats = new Set(snapshot.missedBeats || []);
+    state.bandCash = snapshot.bandCash;
+    state.starMeter = snapshot.starMeter;
+    state.pendingRecruit = snapshot.pendingRecruit;
+    p.gigTimerStarted = snapshot.gigTimerStarted ?? false;
+    p.countdownEnded = snapshot.countdownEnded ?? false;
+
+    const beatDur = 60 / p.bpm;
+    Metronome.seek(snapshot.elapsed);
+    BandAudio.syncToBeat(Math.floor(snapshot.elapsed / beatDur));
+  }
+
+  function updateRewindButtonState() {
+    const btn = document.getElementById('btn-rewind');
+    if (!btn) return;
+    const p = state.performance;
+    const canRewind = !!p
+      && state.screen === 'perform'
+      && !p.booed
+      && !rewindCooldown
+      && !rewindActive
+      && rewindSnapshots.length > 0
+      && Metronome.running;
+    btn.disabled = !canRewind;
+  }
+
+  function rewindPerformance() {
+    const p = state.performance;
+    if (!p || state.screen !== 'perform' || p.booed || rewindCooldown || rewindActive || !Metronome.running) return;
+
+    const startElapsed = Metronome.getElapsed();
+    const targetElapsed = Math.max(0, startElapsed - REWIND_SECONDS);
+    const finalSnapshot = findRewindSnapshot(targetElapsed);
+    if (!finalSnapshot) return;
+
+    rewindActive = true;
+    rewindCooldown = true;
+
+    const rewindBtn = document.getElementById('btn-rewind');
+    const playBtn = document.getElementById('btn-play-note');
+    const performScreen = document.querySelector('.perform-screen');
+    if (rewindBtn) {
+      rewindBtn.disabled = true;
+      rewindBtn.classList.add('rewinding');
+    }
+    if (playBtn) playBtn.classList.add('rewind-disabled');
+    performScreen?.classList.add('rewinding');
+
+    activeHold = null;
+    AudioEngine.stopSustain?.();
+    const zone = document.getElementById('hit-zone');
+    if (zone) zone.classList.remove('holding');
+
+    const floaters = document.getElementById('floaters');
+    if (floaters) floaters.innerHTML = '';
+
+    AudioEngine.playRewindSfx?.(0.85, REWIND_SECONDS);
+    Metronome.setBeatSuspended?.(true);
+
+    const inst = getActiveInstrument();
+    const song = getActiveSong();
+    const partKey = getPlayerPartKey(inst);
+    const isMelodic = inst.type === 'melodic';
+    const animStart = performance.now();
+
+    const finishRewind = () => {
+      if (rewindAnimRaf) cancelAnimationFrame(rewindAnimRaf);
+      rewindAnimRaf = null;
+
+      AudioEngine.stopRewindSfx?.();
+      applyRewindSnapshot(finalSnapshot);
+      AudioEngine.setCrowdBooing?.(p.missStreak >= 3);
+      updateFireState();
+      updateHud();
+      updatePerformanceUI();
+      persist();
+
+      Metronome.setBeatSuspended?.(false);
+      rewindActive = false;
+      performScreen?.classList.remove('rewinding');
+      rewindBtn?.classList.remove('rewinding');
+      playBtn?.classList.remove('rewind-disabled');
+
+      setTimeout(() => {
+        rewindCooldown = false;
+        updateRewindButtonState();
+      }, 1000);
+    };
+
+    const scrubFrame = (now) => {
+      if (!state.performance || state.screen !== 'perform') {
+        AudioEngine.stopRewindSfx?.();
+        rewindActive = false;
+        Metronome.setBeatSuspended?.(false);
+        return;
+      }
+
+      const progress = Math.min(1, (now - animStart) / REWIND_ANIM_MS);
+      const eased = 1 - (1 - progress) ** 2;
+      const scrubElapsed = startElapsed + (targetElapsed - startElapsed) * eased;
+
+      Metronome.seek(scrubElapsed);
+
+      const displaySnap = findRewindSnapshot(scrubElapsed) || finalSnapshot;
+      RhythmLane.update(
+        song,
+        partKey,
+        scrubElapsed,
+        p.bpm,
+        isMelodic,
+        new Set(displaySnap.hitBeats),
+        new Set(displaySnap.missedBeats || []),
+        null,
+        p.leadInBeat ?? 0,
+        null,
+        displaySnap.onFire,
+      );
+
+      if (progress < 1) {
+        rewindAnimRaf = requestAnimationFrame(scrubFrame);
+      } else {
+        finishRewind();
+      }
+    };
+
+    rewindAnimRaf = requestAnimationFrame(scrubFrame);
+  }
+
+  function finalizeActiveHoldIfExpired() {
+    const p = state.performance;
+    if (!p || !activeHold) return;
+
+    const elapsed = Metronome.getElapsed();
+    const beatDur = 60 / p.bpm;
+    const currentBeat = elapsed / beatDur;
+    const { note, inst } = activeHold;
+    const endBeat = note.beat + (note.dur || 1);
+
+    if (currentBeat < endBeat) return;
+
+    const { rating } = rateHoldRelease(note, elapsed, p.bpm);
+    activeHold = null;
+    AudioEngine.stopSustain?.();
+    const zone = document.getElementById('hit-zone');
+    if (zone) zone.classList.remove('holding');
+    applyHitScore(rating, note, inst);
+  }
+
+  function checkMissedNotes() {
+    const p = state.performance;
+    if (!p || p.booed || rewindActive || !isRhythmScoringEnabled()) return;
+
+    const inst = getActiveInstrument();
+    const song = getActiveSong();
+    const partKey = getPlayerPartKey(inst);
+    const isMelodic = inst.type === 'melodic';
+    const elapsed = Metronome.getElapsed();
+    const beatDur = 60 / p.bpm;
+    const currentBeat = elapsed / beatDur;
+    const late = isMelodic ? 0.24 : 0.2;
+
+    const leadInBeat = p.leadInBeat ?? 0;
+
+    const part = song.parts[partKey] || [];
+    if (!p.missedBeats) p.missedBeats = new Set();
+
+    let earliestMiss = null;
+    for (const ev of part) {
+      const key = noteKey(ev);
+      if (p.hitBeats.has(key) || p.missedBeats.has(key)) continue;
+
+      const dur = ev.dur || 1;
+      const isHold = dur > 1.05;
+      const holdLate = isMelodic ? 0.5 : 0.45;
+      const missAfter = isHold ? ev.beat + dur + holdLate * 0.25 : ev.beat + late;
+
+      if (ev.beat < leadInBeat) {
+        if (currentBeat > missAfter) p.missedBeats.add(key);
+        continue;
+      }
+
+      const activeHoldKey = activeHold ? noteKey(activeHold.note) : null;
+      if (activeHoldKey === key) continue;
+
+      if (currentBeat <= missAfter) continue;
+
+      if (!earliestMiss || ev.beat < earliestMiss.beat) {
+        earliestMiss = { ...ev, key, isHold, dur };
+      }
+    }
+
+    if (!earliestMiss) return;
+
+    p.missedBeats.add(earliestMiss.key);
+    applyHitScore('miss', earliestMiss, inst);
+  }
+
+  function updatePerformanceUI() {
+    const p = state.performance;
+    if (!p || state._updatingPerfUi) return;
+    state._updatingPerfUi = true;
+
     const inst = getActiveInstrument();
     const song = getActiveSong();
     const partKey = getPlayerPartKey(inst);
@@ -942,7 +1590,43 @@ const Game = (() => {
     const timer = document.getElementById('perf-timer');
     if (timer) timer.textContent = `⏱ ${p.timeLeft}s`;
 
-    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic);
+    if (!p.rhythmActive) {
+      state._updatingPerfUi = false;
+      return;
+    }
+
+    if (rewindActive) {
+      state._updatingPerfUi = false;
+      return;
+    }
+
+    finalizeActiveHoldIfExpired();
+
+    const crowdRow = document.getElementById('crowd-row');
+    if (elapsed < GIG_COUNTDOWN_SEC) {
+      const left = Math.max(1, Math.ceil(GIG_COUNTDOWN_SEC - elapsed));
+      setRhythmHint(`Get ready… ${left}`, 'good');
+      crowdRow?.classList.add('crowd-steady');
+    } else if (!p.countdownEnded) {
+      p.countdownEnded = true;
+      p.gigTimerStarted = true;
+      AudioEngine.endCrowdIntro?.();
+      crowdRow?.classList.remove('crowd-steady');
+      setRhythmHint('Tap quick gems · hold long gems through the zone!', 'good');
+    }
+
+    checkMissedNotes();
+    if (!state.performance || state.screen !== 'perform') {
+      state._updatingPerfUi = false;
+      return;
+    }
+
+    if (elapsed - lastSnapshotAt >= SNAPSHOT_INTERVAL) {
+      captureRewindSnapshot(elapsed);
+    }
+    updateRewindButtonState();
+
+    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic, p.hitBeats, p.missedBeats, activeHold ? noteKey(activeHold.note) : null, p.leadInBeat ?? 0, activeHold?.note ?? null, p.onFire);
 
     const crowdPct = Math.min(100, (p.crowd / p.crowdCap) * 100);
     const cheerPct = Math.min(100, (p.cheer / p.cheerGoal) * 100);
@@ -958,11 +1642,12 @@ const Game = (() => {
     if (cashEl) cashEl.textContent = `+${Math.floor(p.sessionCash)} BandCash this gig`;
     const comboEl = document.getElementById('combo-display');
     if (comboEl) {
-      if (p.onFire) comboEl.textContent = `🔥 ON FIRE ×${p.combo}`;
+      if (p.onFire) comboEl.textContent = `🔥 HOT STREAK ×${p.combo}`;
       else if (p.missStreak >= 3) comboEl.textContent = `BOOED ×${p.missStreak}`;
       else comboEl.textContent = p.combo > 1 ? `COMBO ×${p.combo}` : '';
     }
     updateFireState();
+    state._updatingPerfUi = false;
   }
 
   function triggerBandmateAnimation(member) {
@@ -987,7 +1672,8 @@ const Game = (() => {
       performer.classList.add(anim);
       performer.classList.add('hit-flash');
       if (typeof CharacterRig !== 'undefined') {
-        CharacterRig.applyPoseFromInstrument(performer, inst, 'hit');
+        CharacterRig.playInstrumentHit(performer, inst);
+        if (activeHold) CharacterRig.playInstrumentSustain(performer, inst);
       }
     }
     const held = performer.querySelector('.held-play');
@@ -1011,6 +1697,10 @@ const Game = (() => {
   function setRhythmHint(text, rating) {
     const el = document.getElementById('rhythm-hint');
     if (!el) return;
+    if (!rating || !text.includes(rating)) {
+      el.textContent = text;
+      return;
+    }
     el.innerHTML = text.replace(rating, `<span class="rating-${rating}">${rating.toUpperCase()}</span>`);
   }
 
@@ -1039,7 +1729,8 @@ const Game = (() => {
     const preload = Promise.all([
       AudioEngine.loadCheerSample?.().catch(() => null),
       AudioEngine.loadBooSample?.().catch(() => null),
-      typeof AudioSamples !== 'undefined' ? AudioSamples.loadInstrumentSamples(inst.subtype) : null,
+      AudioEngine.loadRewindSample?.().catch(() => null),
+      typeof AudioSamples !== 'undefined' ? AudioSamples.loadInstrumentSamples(inst.subtype, inst.id) : null,
       ensureSongLoaded(state.equippedSong).then(async (song) => {
         if (typeof StemPlayer !== 'undefined') {
           await StemPlayer.load(song, { playerStemKey: getPlayerPartKey(inst) });
@@ -1079,9 +1770,16 @@ const Game = (() => {
       newUnlock: null,
       recruitRolls: 0,
       hitBeats: new Set(),
+      missedBeats: new Set(),
+      gigTimerStarted: false,
+      countdownEnded: false,
     };
 
     activeHold = null;
+    rewindSnapshots = [];
+    lastSnapshotAt = -1;
+    rewindCooldown = false;
+    rewindActive = false;
     stopPerformanceLoop();
     state.perfInterval = setInterval(tickPerformance, 1000);
     setScreen('perform');
@@ -1111,14 +1809,21 @@ const Game = (() => {
     });
   }
 
+  function isRhythmScoringEnabled() {
+    const p = state.performance;
+    if (!p || !p.rhythmActive || !Metronome.running) return false;
+    return Metronome.getElapsed() >= GIG_COUNTDOWN_SEC;
+  }
+
   function applyHitScore(rating, note, inst) {
     const p = state.performance;
     if (!p) return;
+    if (rating === 'miss' && !isRhythmScoringEnabled()) return;
 
     triggerPlayAnimation(inst, rating);
-    RhythmLane.flashHit(rating);
 
     if (rating === 'miss') {
+      RhythmLane.flashHit(rating, false);
       AudioEngine.playMiss();
       AudioEngine.stopSustain?.();
       p.combo = 0;
@@ -1142,7 +1847,6 @@ const Game = (() => {
       setRhythmHint(isMelodic ? 'miss — hit the gem in the zone!' : 'miss — hit the beat gem!', 'miss');
       spawnFloater(`-${starLoss.toFixed(1)} ★`, 'miss');
       updateHud();
-      updatePerformanceUI();
       return;
     }
 
@@ -1150,48 +1854,47 @@ const Game = (() => {
     AudioEngine.setCrowdBooing?.(false);
 
     const isMelodic = inst.type === 'melodic';
-    AudioEngine.playHitBurst?.(rating);
+    p.combo += 1;
+    if (p.combo >= HOT_STREAK_COMBO) p.onFire = true;
+    updateFireState();
+
+    const hot = isHotStreak(p);
+    const streak = hotStreakMult(p);
+    AudioEngine.playHitBurst?.(rating, streak);
     if (note) {
-      AudioEngine.playPartEvent(note, inst, rating === 'perfect' ? 0.48 : 0.38);
-      RhythmLane.explodeGem(note, rating, isMelodic);
+      AudioEngine.playPartEvent(note, inst, (rating === 'perfect' ? 0.48 : 0.38) * streak);
+      RhythmLane.explodeGem(note, rating, isMelodic, hot);
     } else {
       AudioEngine.playInstrument(inst);
-      RhythmLane.explodeGem({ beat: -1 }, rating, isMelodic);
+      RhythmLane.explodeGem({ beat: -1 }, rating, isMelodic, hot);
     }
-    p.combo += 1;
-    if (p.combo >= 10) p.onFire = true;
-    updateFireState();
+    RhythmLane.flashHit(rating, hot);
 
     const mult = rating === 'perfect' ? 1.5 : 1.0;
     const appeal = crowdAppeal();
-    const crowdGain = (rating === 'perfect' ? 0.7 : 0.35) * mult + appeal * 0.03;
+    const crowdGain = ((rating === 'perfect' ? 0.7 : 0.35) * mult + appeal * 0.03) * streak;
     p.crowd = Math.min(p.crowdCap, p.crowd + crowdGain);
-    p.cheer = Math.min(p.cheerGoal * 1.5, p.cheer + (rating === 'perfect' ? 4 : 2));
+    p.cheer = Math.min(p.cheerGoal * 1.5, p.cheer + (rating === 'perfect' ? 4 : 2) * streak);
 
-    if (p.cheer > p.cheerGoal * 0.5 && Math.random() < 0.12) AudioEngine.playCheer();
-    if (p.combo >= 5 && p.combo % 5 === 0) {
-      AudioEngine.playCheerLoud();
-      AudioEngine.boostCrowdCheer?.();
-    }
-
-    const tip = (1 + p.crowd * 0.12) * p.tipMultiplier * mult * (0.85 + Math.random() * 0.3);
+    const tip = (1 + p.crowd * 0.12) * p.tipMultiplier * mult * (0.85 + Math.random() * 0.3) * streak;
     p.sessionCash += tip;
     state.bandCash += tip;
 
-    const starGain = (0.12 + p.crowd * 0.02) * mult;
+    const starGain = (0.12 + p.crowd * 0.02) * mult * streak;
     p.sessionStars += starGain;
     state.starMeter += starGain;
 
     if (tip >= 2) {
       AudioEngine.playCoin();
-      spawnFloater(`+$${Math.floor(tip)}`, 'cash');
+      const tipLabel = hot ? `+$${Math.floor(tip)} ×${HOT_STREAK_MULT}` : `+$${Math.floor(tip)}`;
+      spawnFloater(tipLabel, 'cash', { hot });
     }
-    spawnFloater(rating.toUpperCase(), rating);
+    spawnFloater(rating.toUpperCase(), rating, { hot });
 
     p.peakCrowd = Math.max(p.peakCrowd, p.crowd);
     setRhythmHint(`${rating}!`, rating);
 
-    if (state.starMeter >= 20 && !state.pendingRecruit && p.recruitRolls < 2 && Math.random() < 0.08) {
+    if (state.starMeter >= 20 && canRecruitBandmate() && !state.pendingRecruit && p.recruitRolls < 2 && Math.random() < 0.08) {
       const recruit = RECRUIT_POOL[Math.floor(Math.random() * RECRUIT_POOL.length)];
       const recruitId = recruit.id || getBandmateId(recruit);
       if (!state.bandMembers.find((m) => getBandmateId(m) === recruitId)) {
@@ -1217,20 +1920,33 @@ const Game = (() => {
 
   function onNotePress() {
     const p = state.performance;
-    if (!p || activeHold) return;
+    if (!p || !p.rhythmActive || activeHold || rewindActive) return;
+    if (!isRhythmScoringEnabled()) return;
 
     const inst = getActiveInstrument();
     const song = getActiveSong();
     const partKey = getPlayerPartKey(inst);
     const elapsed = Metronome.getElapsed();
     const isMelodic = inst.type === 'melodic';
-    const notes = getUpcomingNotes(song, partKey, elapsed, p.bpm, RhythmLane.LOOKAHEAD);
-    const { rating, note, phase } = rateNotePress(notes, elapsed, p.bpm, isMelodic);
-
-    if (phase === 'hold-continue') return;
+    const notes = getUpcomingNotes(song, partKey, elapsed, p.bpm, RhythmLane.LOOKAHEAD, p.hitBeats, p.missedBeats, p.leadInBeat ?? 0);
+    const { rating, note, phase } = rateNotePress(notes, elapsed, p.bpm, isMelodic, p.hitBeats);
 
     if (!note || rating === 'miss') {
-      applyHitScore('miss', null, inst);
+      const tapLate = isMelodic ? 0.24 : 0.2;
+      const tapEarly = isMelodic ? 0.14 : 0.12;
+      const holdLate = isMelodic ? 0.5 : 0.45;
+      const holdEarly = isMelodic ? 0.42 : 0.38;
+      const beatDur = 60 / p.bpm;
+      const currentBeat = elapsed / beatDur;
+      const hittable = notes.some((n) => {
+        const dist = n.beat - currentBeat;
+        if (n.isHold) {
+          const inBody = currentBeat >= n.beat && currentBeat < n.endBeat;
+          return dist >= -holdLate && dist <= holdEarly || inBody;
+        }
+        return dist >= -tapLate && dist <= tapEarly;
+      });
+      if (hittable) applyHitScore('miss', null, inst);
       return;
     }
 
@@ -1243,7 +1959,8 @@ const Game = (() => {
       AudioEngine.startSustain?.(inst, note);
       const zone = document.getElementById('hit-zone');
       if (zone) zone.classList.add('holding');
-      triggerPlayAnimation(inst, 'good');
+      triggerPlayAnimation(inst, rating);
+      setRhythmHint('hold through the gem!', 'good');
       return;
     }
 
@@ -1253,7 +1970,7 @@ const Game = (() => {
 
   function onNoteRelease() {
     const p = state.performance;
-    if (!p || !activeHold) return;
+    if (!p || !activeHold || rewindActive) return;
 
     const { note, inst, pressElapsed } = activeHold;
     const elapsed = Metronome.getElapsed();
@@ -1269,11 +1986,11 @@ const Game = (() => {
     onNotePress();
   }
 
-  function spawnFloater(text, type) {
+  function spawnFloater(text, type, opts = {}) {
     const container = document.getElementById('floaters');
     if (!container) return;
     const el = document.createElement('div');
-    el.className = `floater ${type}`;
+    el.className = `floater ${type}${opts.hot ? ' hot-streak' : ''}`;
     el.textContent = text;
     el.style.left = `${40 + Math.random() * 20}%`;
     container.appendChild(el);
@@ -1282,7 +1999,12 @@ const Game = (() => {
 
   function tickPerformance() {
     const p = state.performance;
-    if (!p) return;
+    if (!p || rewindActive) return;
+
+    if (!p.gigTimerStarted) {
+      updatePerformanceUI();
+      return;
+    }
 
     p.timeLeft -= 1;
 

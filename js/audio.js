@@ -5,7 +5,7 @@ const AudioEngine = (() => {
   let percBus = null;
   let dryGain = null;
   let wetGain = null;
-  let reverbSend = null;
+  let crowdBus = null;
 
   const CHORD_ROOT = {
     C: 'C2', G: 'G1', Am: 'A1', F: 'F1', E: 'E2', B: 'B1',
@@ -56,7 +56,11 @@ const AudioEngine = (() => {
     return ctx;
   }
 
-  function resume() { return getCtx(); }
+  function resume() {
+    const ac = getCtx();
+    if (ac.state === 'suspended') return ac.resume().then(() => ac);
+    return Promise.resolve(ac);
+  }
 
   function initMix() {
     if (mixReady) return musicBus;
@@ -89,6 +93,10 @@ const AudioEngine = (() => {
     delayFilter.connect(wetGain);
 
     percBus.connect(dryGain);
+
+    crowdBus = ac.createGain();
+    crowdBus.gain.value = 0.64;
+    crowdBus.connect(ac.destination);
 
     dryGain.connect(ac.destination);
     wetGain.connect(ac.destination);
@@ -786,25 +794,37 @@ const AudioEngine = (() => {
     }
   }
 
-  function playPartEvent(event, roleOrInst, volScale = 1) {
+  async function playPartEvent(event, roleOrInst, volScale = 1) {
     const ac = getCtx();
     const now = ac.currentTime;
     const v = volScale;
     const subtype = resolveSubtype(roleOrInst);
-    const instId = typeof roleOrInst === 'object' ? roleOrInst.id : roleOrInst;
+    const instId = typeof roleOrInst === 'object' ? roleOrInst.id : null;
+    if (instId && typeof AudioSamples !== 'undefined') {
+      await AudioSamples.ensureInstrumentSample(instId);
+    }
     const sampleVol = v * 0.65;
 
     if (event.chord) {
+      let sampleResult = false;
       if (typeof AudioSamples !== 'undefined') {
-        AudioSamples.playInstrumentSample(subtype, event, sampleVol);
+        sampleResult = AudioSamples.playInstrumentSample(subtype, event, sampleVol, instId);
       }
-      playMelodicBySubtype(ac, now, subtype, event.chord, v * 0.22, instId);
+      const customSample = sampleResult === 'custom'
+        || (instId && typeof AudioSamples !== 'undefined' && AudioSamples.hasInstrumentSample(instId));
+      if (!customSample) {
+        playMelodicBySubtype(ac, now, subtype, event.chord, v * 0.22, instId);
+      }
       return;
     }
     if (event.note) {
+      let sampleResult = false;
       if (typeof AudioSamples !== 'undefined') {
-        AudioSamples.playInstrumentSample(subtype, event, sampleVol * 0.8);
+        sampleResult = AudioSamples.playInstrumentSample(subtype, event, sampleVol * 0.8, instId);
       }
+      const customSample = sampleResult === 'custom'
+        || (instId && typeof AudioSamples !== 'undefined' && AudioSamples.hasInstrumentSample(instId));
+      if (customSample) return;
       if (subtype === 'bass' || roleOrInst === 'Bass') {
         playBassNote(ac, now, event.note, 0.28 * v);
       } else if (subtype === 'brass' || subtype === 'sax' || subtype === 'flute' || roleOrInst === 'Horns') {
@@ -817,7 +837,7 @@ const AudioEngine = (() => {
     if (event.hit) {
       let samplePlayed = false;
       if (typeof AudioSamples !== 'undefined') {
-        samplePlayed = AudioSamples.playInstrumentSample(subtype, event, sampleVol);
+        samplePlayed = AudioSamples.playInstrumentSample(subtype, event, sampleVol, instId);
       }
       const accent = samplePlayed ? 0.35 : 1;
       switch (event.hit) {
@@ -837,19 +857,32 @@ const AudioEngine = (() => {
     }
   }
 
-  function playInstrument(instrument, chord) {
+  async function playInstrument(instrument, chord) {
     const ac = getCtx();
+    if (!instrument) {
+      const now = ac.currentTime;
+      playCymbal(ac, now, 0.45);
+      return;
+    }
+
+    await resume();
+    if (typeof AudioSamples !== 'undefined' && instrument.id) {
+      await AudioSamples.ensureInstrumentSample(instrument.id);
+    }
+
     const now = ac.currentTime;
-    if (!instrument) { playCymbal(ac, now, 0.45); return; }
     const c = chord || instrument.progression?.[0] || 'C';
     const event = instrument.type === 'percussion'
       ? { hit: instrument.subtype === 'drums' ? 'snare' : instrument.subtype === 'shake' ? 'shake' : 'cymbal' }
       : { chord: c };
     if (typeof AudioSamples !== 'undefined') {
-      const played = AudioSamples.playInstrumentSample(instrument.subtype, event, 0.58);
+      const played = AudioSamples.playInstrumentSample(instrument.subtype, event, 0.58, instrument.id);
       if (played) {
         if (instrument.type === 'percussion') return;
-        playMelodicBySubtype(ac, now, instrument.subtype, c, 0.18, instrument.id);
+        const customSample = played === 'custom' || AudioSamples.hasInstrumentSample(instrument.id);
+        if (!customSample) {
+          playMelodicBySubtype(ac, now, instrument.subtype, c, 0.18, instrument.id);
+        }
         return;
       }
     }
@@ -1095,14 +1128,84 @@ const AudioEngine = (() => {
     });
   }
 
-  const CHEER_URL = 'audio/crowd-cheer.mp3';
-  const BOO_URL = 'audio/crowd-boo.mp3';
+  function connectCrowd(node, pan = 0) {
+    initMix();
+    if (pan !== 0) {
+      const ac = getCtx();
+      const p = ac.createStereoPanner();
+      p.pan.value = Math.max(-1, Math.min(1, pan));
+      node.connect(p);
+      p.connect(crowdBus);
+      return p;
+    }
+    node.connect(crowdBus);
+    return node;
+  }
+
+  function playBufferClip(buffer, { start = 0, clipLen, vol, pan = 0, attack = 0.03 } = {}) {
+    if (!buffer) return;
+    const ac = getCtx();
+    const now = ac.currentTime;
+    const dur = buffer.duration;
+    const len = clipLen ?? dur;
+    const offset = Math.max(0, Math.min(start, Math.max(0, dur - 0.05)));
+    const playLen = Math.min(len, dur - offset);
+
+    const src = ac.createBufferSource();
+    src.buffer = buffer;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, now);
+    g.gain.linearRampToValueAtTime(vol, now + attack);
+    g.gain.setValueAtTime(vol * 0.92, now + playLen * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.001, now + playLen + 0.08);
+    connectCrowd(g, pan);
+    src.connect(g);
+    src.start(now, offset, playLen);
+  }
+
+  const CHEER_URLS = ['audio/storegraphic-crowd-cheers-314919.mp3'];
+  const BOO_URLS = ['audio/dragon-studio-crowd-booing-494319.mp3'];
+  const REWIND_URLS = ['audio/deandre_aaron-dj-turntable-rewind-429858.mp3'];
   let cheerBuffer = null;
   let cheerLoadPromise = null;
   let booBuffer = null;
   let booLoadPromise = null;
+  let rewindBuffer = null;
+  let rewindLoadPromise = null;
+  let activeRewindSfx = null;
   let crowdAmbience = null;
-  let useProceduralCrowd = false;
+  let useProceduralCheer = false;
+  let useProceduralBoo = false;
+
+  const BOO_DUCK_MULT = 0.8;
+  const BOO_DUCK_RAMP_SEC = 0.12;
+
+  function fetchDecodeSample(urls) {
+    initMix();
+    const ac = getCtx();
+    const list = Array.isArray(urls) ? urls : [urls];
+
+    const tryNext = (index) => {
+      if (index >= list.length) {
+        return Promise.reject(new Error(`crowd sample not found (${list.join(', ')})`));
+      }
+      const url = list[index];
+      return fetch(url)
+        .then((r) => {
+          if (!r.ok) throw new Error(`${url} ${r.status}`);
+          return r.arrayBuffer();
+        })
+        .then((buf) => new Promise((resolve, reject) => {
+          ac.decodeAudioData(buf, resolve, reject);
+        }))
+        .catch((err) => {
+          console.warn(`Crowd sample unavailable at ${url}`, err);
+          return tryNext(index + 1);
+        });
+    };
+
+    return tryNext(0);
+  }
 
   function noiseBuffer(ac, duration = 2) {
     const len = Math.floor(ac.sampleRate * duration);
@@ -1134,7 +1237,7 @@ const AudioEngine = (() => {
     noise.connect(bp);
     bp.connect(hp);
     hp.connect(ng);
-    connectToMix(ng, (Math.random() - 0.5) * 0.4, 'music');
+    connectCrowd(ng, (Math.random() - 0.5) * 0.4);
     noise.start(now);
     noise.stop(now + dur + 0.05);
 
@@ -1156,7 +1259,7 @@ const AudioEngine = (() => {
       vg.gain.exponentialRampToValueAtTime(0.001, t + 0.35 + Math.random() * 0.25);
       osc.connect(lp);
       lp.connect(vg);
-      connectToMix(vg, (Math.random() - 0.5) * 0.6, 'music');
+      connectCrowd(vg, (Math.random() - 0.5) * 0.6);
       osc.start(t);
       osc.stop(t + 0.5);
     }
@@ -1185,7 +1288,7 @@ const AudioEngine = (() => {
       g.gain.exponentialRampToValueAtTime(0.001, t + dur);
       osc.connect(bp);
       bp.connect(g);
-      connectToMix(g, (Math.random() - 0.5) * 0.5, 'music');
+      connectCrowd(g, (Math.random() - 0.5) * 0.5);
       osc.start(t);
       osc.stop(t + dur + 0.05);
     }
@@ -1201,32 +1304,23 @@ const AudioEngine = (() => {
     ng.gain.exponentialRampToValueAtTime(0.001, now + dur);
     noise.connect(lp);
     lp.connect(ng);
-    connectToMix(ng, 0, 'music');
+    connectCrowd(ng, 0);
     noise.start(now);
     noise.stop(now + dur + 0.05);
   }
 
   function loadCheerSample() {
     if (cheerBuffer) return Promise.resolve(cheerBuffer);
-    if (useProceduralCrowd) return Promise.reject(new Error('procedural crowd'));
+    if (useProceduralCheer) return Promise.reject(new Error('procedural cheer'));
     if (cheerLoadPromise) return cheerLoadPromise;
-    initMix();
-    const ac = getCtx();
-    cheerLoadPromise = fetch(CHEER_URL)
-      .then((r) => {
-        if (!r.ok) throw new Error(`crowd cheer ${r.status}`);
-        return r.arrayBuffer();
-      })
-      .then((buf) => new Promise((resolve, reject) => {
-        ac.decodeAudioData(buf, resolve, reject);
-      }))
+    cheerLoadPromise = fetchDecodeSample(CHEER_URLS)
       .then((decoded) => {
         cheerBuffer = decoded;
         return decoded;
       })
       .catch((err) => {
-        console.warn('Crowd cheer sample failed to load — using synth fallback', err);
-        useProceduralCrowd = true;
+        console.warn('Crowd cheer samples failed to load — using synth fallback', err);
+        useProceduralCheer = true;
         cheerLoadPromise = null;
         throw err;
       });
@@ -1235,29 +1329,73 @@ const AudioEngine = (() => {
 
   function loadBooSample() {
     if (booBuffer) return Promise.resolve(booBuffer);
-    if (useProceduralCrowd) return Promise.reject(new Error('procedural crowd'));
+    if (useProceduralBoo) return Promise.reject(new Error('procedural boo'));
     if (booLoadPromise) return booLoadPromise;
-    initMix();
-    const ac = getCtx();
-    booLoadPromise = fetch(BOO_URL)
-      .then((r) => {
-        if (!r.ok) throw new Error(`crowd boo ${r.status}`);
-        return r.arrayBuffer();
-      })
-      .then((buf) => new Promise((resolve, reject) => {
-        ac.decodeAudioData(buf, resolve, reject);
-      }))
+    booLoadPromise = fetchDecodeSample(BOO_URLS)
       .then((decoded) => {
         booBuffer = decoded;
         return decoded;
       })
       .catch((err) => {
-        console.warn('Crowd boo sample failed to load — using synth fallback', err);
-        useProceduralCrowd = true;
+        console.warn('Crowd boo samples failed to load — using synth fallback', err);
+        useProceduralBoo = true;
         booLoadPromise = null;
         throw err;
       });
     return booLoadPromise;
+  }
+
+  function loadRewindSample() {
+    if (rewindBuffer) return Promise.resolve(rewindBuffer);
+    if (rewindLoadPromise) return rewindLoadPromise;
+    rewindLoadPromise = fetchDecodeSample(REWIND_URLS)
+      .then((decoded) => {
+        rewindBuffer = decoded;
+        return decoded;
+      })
+      .catch((err) => {
+        console.warn('Rewind SFX failed to load', err);
+        rewindLoadPromise = null;
+        throw err;
+      });
+    return rewindLoadPromise;
+  }
+
+  function stopRewindSfx() {
+    if (!activeRewindSfx) return;
+    try {
+      activeRewindSfx.source.stop();
+    } catch (_) {}
+    activeRewindSfx = null;
+  }
+
+  function playRewindSfx(vol = 0.85, durationSec = 5) {
+    initMix();
+    const ac = getCtx();
+
+    const play = () => {
+      if (!rewindBuffer) return;
+      stopRewindSfx();
+      const now = ac.currentTime;
+      const clipLen = Math.min(durationSec, rewindBuffer.duration);
+      const src = ac.createBufferSource();
+      src.buffer = rewindBuffer;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(vol, now + 0.02);
+      g.gain.setValueAtTime(vol * 0.95, now + clipLen * 0.75);
+      g.gain.exponentialRampToValueAtTime(0.001, now + clipLen + 0.05);
+      connectToMix(g, 0, 'music');
+      src.connect(g);
+      src.onended = () => {
+        if (activeRewindSfx?.source === src) activeRewindSfx = null;
+      };
+      activeRewindSfx = { source: src };
+      src.start(now, 0, clipLen);
+    };
+
+    if (rewindBuffer) play();
+    else loadRewindSample().then(play).catch(() => {});
   }
 
   function tierNorm(tier) {
@@ -1269,7 +1407,7 @@ const AudioEngine = (() => {
     const ac = getCtx();
     const loud = !!opts.loud;
 
-    if (useProceduralCrowd) {
+    if (useProceduralCheer) {
       const tn = tierNorm(tier);
       const baseVol = loud ? 0.48 + tn * 0.32 : 0.22 + tn * 0.22;
       synthCrowdCheer(ac, ac.currentTime, tier, baseVol * volMult, loud);
@@ -1278,28 +1416,16 @@ const AudioEngine = (() => {
 
     const play = () => {
       if (!cheerBuffer) return;
-      const now = ac.currentTime;
       const tn = tierNorm(tier);
       const dur = cheerBuffer.duration;
       const clipLen = loud
-        ? Math.min(2.5 + tn * 2.5, dur * 0.6)
-        : Math.min(0.6 + tn * 1.2, dur * 0.25);
-      const maxStart = Math.max(0, dur - clipLen - 0.05);
-      const start = opts.start ?? Math.random() * maxStart;
-      const baseVol = loud ? 0.32 + tn * 0.28 : 0.1 + tn * 0.18;
+        ? Math.min(5 + tn * 2, dur)
+        : Math.min(2 + tn * 1.5, dur * 0.35);
+      const start = opts.start ?? 0;
+      const baseVol = loud ? 0.42 + tn * 0.22 : 0.22 + tn * 0.14;
       const vol = baseVol * volMult;
-      const pan = (Math.random() - 0.5) * (0.2 + tn * 0.5);
-
-      const src = ac.createBufferSource();
-      src.buffer = cheerBuffer;
-      const g = ac.createGain();
-      g.gain.setValueAtTime(0, now);
-      g.gain.linearRampToValueAtTime(vol, now + 0.03);
-      g.gain.setValueAtTime(vol * 0.9, now + clipLen * 0.65);
-      g.gain.exponentialRampToValueAtTime(0.001, now + clipLen + 0.1);
-      connectToMix(g, pan, 'music');
-      src.connect(g);
-      src.start(now, start, Math.min(clipLen, dur - start));
+      const pan = (Math.random() - 0.5) * (0.15 + tn * 0.35);
+      playBufferClip(cheerBuffer, { start, clipLen, vol, pan });
     };
 
     if (cheerBuffer) play();
@@ -1309,7 +1435,7 @@ const AudioEngine = (() => {
   }
 
   function scheduleCrowdCheer() {
-    if (!crowdAmbience || crowdAmbience.booing) return;
+    if (!crowdAmbience || crowdAmbience.booing || crowdAmbience.introMode) return;
     const { tier, cheerMult } = crowdAmbience;
     const tn = tierNorm(tier);
     const mult = cheerMult || 1;
@@ -1325,10 +1451,66 @@ const AudioEngine = (() => {
     crowdAmbience.cheerTimeout = setTimeout(scheduleCrowdCheer, nextDelay);
   }
 
-  function playHitBurst(rating = 'good') {
+  function scheduleHotStreakCheer() {
+    if (!crowdAmbience?.hotStreak || crowdAmbience.booing || crowdAmbience.introMode) return;
+    const { tier } = crowdAmbience;
+    const mult = 1.2 + Math.random() * 0.3;
+    playCrowdSample(tier, mult, { loud: true });
+    if (Math.random() < 0.4) {
+      setTimeout(() => {
+        if (crowdAmbience?.hotStreak && !crowdAmbience.booing) {
+          playCrowdSample(tier, mult * 0.9, { loud: true });
+        }
+      }, 100 + Math.random() * 80);
+    }
+    const nextDelay = 700 + Math.random() * 500;
+    crowdAmbience.hotStreakCheerTimeout = setTimeout(scheduleHotStreakCheer, nextDelay);
+  }
+
+  function resetGameplayDuck() {
+    initMix();
     const ac = getCtx();
     const now = ac.currentTime;
-    const peak = rating === 'perfect' ? 0.42 : 0.28;
+    [musicBus, percBus].forEach((bus) => {
+      if (!bus) return;
+      bus.gain.cancelScheduledValues(now);
+      bus.gain.setValueAtTime(1, now);
+    });
+  }
+
+  function applyGameplayDuck(active) {
+    initMix();
+    const ac = getCtx();
+    const now = ac.currentTime;
+    const target = active ? BOO_DUCK_MULT : 1;
+    [musicBus, percBus].forEach((bus) => {
+      if (!bus) return;
+      bus.gain.cancelScheduledValues(now);
+      bus.gain.setValueAtTime(bus.gain.value, now);
+      bus.gain.linearRampToValueAtTime(target, now + BOO_DUCK_RAMP_SEC);
+    });
+  }
+
+  function setHotStreakCheering(active) {
+    if (!crowdAmbience) return;
+    if (!!crowdAmbience.hotStreak === !!active) return;
+    crowdAmbience.hotStreak = active;
+    if (active) {
+      playCheerLoud();
+      scheduleHotStreakCheer();
+    } else {
+      if (crowdAmbience.hotStreakCheerTimeout) {
+        clearTimeout(crowdAmbience.hotStreakCheerTimeout);
+        crowdAmbience.hotStreakCheerTimeout = null;
+      }
+      crowdAmbience.cheerMult = 1;
+    }
+  }
+
+  function playHitBurst(rating = 'good', volMult = 1) {
+    const ac = getCtx();
+    const now = ac.currentTime;
+    const peak = (rating === 'perfect' ? 0.42 : 0.28) * volMult;
 
     playKick(ac, now, peak * 0.85);
     playSnare(ac, now, peak * 0.55);
@@ -1376,32 +1558,17 @@ const AudioEngine = (() => {
     const ac = getCtx();
     const tier = crowdAmbience?.tier ?? 3;
 
-    if (useProceduralCrowd) {
+    if (useProceduralBoo) {
       synthCrowdBoo(ac, ac.currentTime, tier, (0.35 + tierNorm(tier) * 0.3) * volMult);
       return;
     }
 
     const play = () => {
       if (!booBuffer) return;
-      const now = ac.currentTime;
       const tn = tierNorm(tier);
-      const dur = booBuffer.duration;
-      const clipLen = Math.min(1.2 + tn * 0.8, dur);
-      const maxStart = Math.max(0, dur - clipLen - 0.02);
-      const start = Math.random() * maxStart;
-      const vol = (0.28 + tn * 0.28) * volMult;
-      const pan = (Math.random() - 0.5) * (0.35 + tn * 0.4);
-
-      const src = ac.createBufferSource();
-      src.buffer = booBuffer;
-      const g = ac.createGain();
-      g.gain.setValueAtTime(0, now);
-      g.gain.linearRampToValueAtTime(vol, now + 0.02);
-      g.gain.setValueAtTime(vol * 0.9, now + clipLen * 0.7);
-      g.gain.exponentialRampToValueAtTime(0.001, now + clipLen + 0.08);
-      connectToMix(g, pan, 'music');
-      src.connect(g);
-      src.start(now, start, Math.min(clipLen, dur - start));
+      const vol = (0.5 + tn * 0.2) * volMult;
+      const pan = (Math.random() - 0.5) * (0.25 + tn * 0.3);
+      playBufferClip(booBuffer, { start: 0, clipLen: booBuffer.duration, vol, pan, attack: 0.02 });
     };
 
     if (booBuffer) play();
@@ -1410,13 +1577,22 @@ const AudioEngine = (() => {
     });
   }
 
-  function startCrowdAmbience(tier = 0) {
+  function scheduleIntroCrowdBed() {
+    if (!crowdAmbience || !crowdAmbience.introMode) return;
+    const { tier } = crowdAmbience;
+    playCrowdSample(tier, 0.42, { loud: true });
+    crowdAmbience.introTimeout = setTimeout(scheduleIntroCrowdBed, 2400);
+  }
+
+  function startCrowdAmbience(tier = 0, opts = {}) {
     stopCrowdAmbience();
     initMix();
+    const introMode = opts.intro === true;
+
     loadCheerSample().then(() => {
-      playCrowdSample(tier, 0.75);
+      playCrowdSample(tier, introMode ? 0.5 : 0.75);
     }).catch(() => {
-      playCrowdSample(tier, 0.75);
+      playCrowdSample(tier, introMode ? 0.5 : 0.75);
     });
     loadBooSample().catch(() => {});
 
@@ -1426,20 +1602,40 @@ const AudioEngine = (() => {
 
     crowdAmbience = {
       tier, booing: false, cheerMult: 1, booInterval, cheerTimeout: null,
+      introMode, introTimeout: null,
+      hotStreak: false, hotStreakCheerTimeout: null,
     };
-    crowdAmbience.cheerTimeout = setTimeout(scheduleCrowdCheer, 1800);
+
+    if (introMode) {
+      crowdAmbience.introTimeout = setTimeout(scheduleIntroCrowdBed, 1200);
+    }
+  }
+
+  function endCrowdIntro() {
+    if (!crowdAmbience || !crowdAmbience.introMode) return;
+    crowdAmbience.introMode = false;
+    if (crowdAmbience.introTimeout) {
+      clearTimeout(crowdAmbience.introTimeout);
+      crowdAmbience.introTimeout = null;
+    }
   }
 
   function stopCrowdAmbience() {
     if (!crowdAmbience) return;
     clearInterval(crowdAmbience.booInterval);
     if (crowdAmbience.cheerTimeout) clearTimeout(crowdAmbience.cheerTimeout);
+    if (crowdAmbience.introTimeout) clearTimeout(crowdAmbience.introTimeout);
+    if (crowdAmbience.hotStreakCheerTimeout) clearTimeout(crowdAmbience.hotStreakCheerTimeout);
+    resetGameplayDuck();
     crowdAmbience = null;
   }
 
   function setCrowdBooing(active) {
     if (!crowdAmbience) return;
+    const wasBooing = !!crowdAmbience.booing;
+    if (wasBooing === !!active) return;
     crowdAmbience.booing = active;
+    applyGameplayDuck(active);
     if (active) {
       loadBooSample().then(() => {
         playBoo(1.1);
@@ -1476,7 +1672,7 @@ const AudioEngine = (() => {
     resume, getCtx, initMix, getMix, connectToMix,
     playCrash, playCheer, playCheerLoud, playCoin, playMiss, playTick, playHitBurst,
     playInstrument, playPartEvent, playSongPad, startSustain, stopSustain,
-    startCrowdAmbience, stopCrowdAmbience, setCrowdBooing, boostCrowdCheer, playBoo, playCrowdSample, loadCheerSample, loadBooSample,
+    startCrowdAmbience, stopCrowdAmbience, endCrowdIntro, setCrowdBooing, setHotStreakCheering, boostCrowdCheer, playBoo, playCrowdSample, loadCheerSample, loadBooSample, loadRewindSample, playRewindSfx, stopRewindSfx,
     playLiveBass, playLiveShimmer, playLiveStrum, playDanceBeat, playDrumStyleBeat, playFourOnFloorKick,
     playKick, playSnare, playHihat, playCymbal, playShake,
     playChord, playGuitarChord, playBassNote, playKeysChord, playHornNote, playVocal,
