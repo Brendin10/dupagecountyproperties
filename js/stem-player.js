@@ -10,6 +10,8 @@ const StemPlayer = (() => {
   let fullMixVolume = 0.85;
   let fullMixGain = null;
   let stemBus = null;
+  let sustainSource = null;
+  let sustainGain = null;
 
   const STEM_KEYS = ['Bass', 'Drums', 'Lead', 'Keys', 'Full'];
 
@@ -59,6 +61,88 @@ const StemPlayer = (() => {
     return stemBus;
   }
 
+  function noteTimeSec(note, songObj, bpm) {
+    if (note?.timeSec != null) return note.timeSec;
+    const beatDur = 60 / bpm;
+    return (note.beat * beatDur) + (songObj?.beatOffset || 0);
+  }
+
+  function sliceDuration(note, songObj, bpm) {
+    const beatDur = 60 / bpm;
+    const noteDur = (note.dur || 1) * beatDur;
+    if (note.hit === 'kick') return Math.min(noteDur, 0.35);
+    if (note.hit === 'snare') return Math.min(noteDur, 0.42);
+    if (note.hit) return Math.min(noteDur, 0.28);
+    return Math.min(noteDur, 1.25);
+  }
+
+  function playHit(stemKey, note, songObj, bpm, volScale = 1) {
+    const buf = buffers[stemKey];
+    if (!buf || !note) return false;
+
+    const ac = getCtx();
+    const bus = ensureBus();
+    const now = ac.currentTime;
+    const offset = Math.min(Math.max(noteTimeSec(note, songObj, bpm), 0), Math.max(0, buf.duration - 0.02));
+    let duration = sliceDuration(note, songObj, bpm);
+    duration = Math.min(duration, buf.duration - offset);
+    if (duration <= 0.01) return false;
+
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    const gain = ac.createGain();
+    const vol = (note.hit ? 0.92 : 0.78) * volScale;
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.96);
+    src.connect(gain);
+    gain.connect(bus);
+    src.start(now, offset, duration);
+    return true;
+  }
+
+  function startSustain(stemKey, note, songObj, bpm, volScale = 1) {
+    stopSustain();
+    const buf = buffers[stemKey];
+    if (!buf || !note) return false;
+
+    const ac = getCtx();
+    const bus = ensureBus();
+    const now = ac.currentTime;
+    const offset = Math.min(Math.max(noteTimeSec(note, songObj, bpm), 0), Math.max(0, buf.duration - 0.02));
+    const beatDur = 60 / bpm;
+    let duration = Math.min((note.dur || 1) * beatDur, buf.duration - offset);
+    if (duration <= 0.05) return false;
+
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    const gain = ac.createGain();
+    const vol = 0.72 * volScale;
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(vol, now + 0.03);
+    src.connect(gain);
+    gain.connect(bus);
+    src.start(now, offset, duration);
+    sustainSource = src;
+    sustainGain = gain;
+    return true;
+  }
+
+  function stopSustain() {
+    if (!sustainSource) return;
+    const ac = getCtx();
+    const now = ac.currentTime;
+    if (sustainGain) {
+      try {
+        sustainGain.gain.cancelScheduledValues(now);
+        sustainGain.gain.setValueAtTime(sustainGain.gain.value, now);
+        sustainGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+      } catch { /* already stopped */ }
+    }
+    try { sustainSource.stop(now + 0.07); } catch { /* already stopped */ }
+    sustainSource = null;
+    sustainGain = null;
+  }
+
   function start(bpm, elapsedOffset = 0) {
     if (!song || !Object.keys(buffers).length) return false;
     stop({ keepSong: true });
@@ -69,43 +153,33 @@ const StemPlayer = (() => {
     startElapsed = elapsedOffset;
     running = true;
 
-    const PLAYBACK_KEYS = ['Full'];
+    const buf = buffers.Full;
+    if (!buf) return false;
 
-    PLAYBACK_KEYS.forEach((key) => {
-      const buf = buffers[key];
-      if (!buf) return;
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    src.loop = false;
 
-      const src = ac.createBufferSource();
-      src.buffer = buf;
-      src.loop = false;
+    const gain = ac.createGain();
+    gain.connect(fullMixGain);
+    gain.gain.value = 1;
+    src.connect(gain);
 
-      const gain = ac.createGain();
-      gain.connect(fullMixGain);
-      gain.gain.value = 1;
-      src.connect(gain);
+    const offset = Math.min(Math.max(elapsedOffset, 0), buf.duration);
+    src.start(startCtxTime, offset);
 
-      const offset = Math.min(Math.max(elapsedOffset, 0), buf.duration);
-      src.start(startCtxTime, offset);
-
-      sources[key] = src;
-      gains[key] = gain;
-    });
+    sources.Full = src;
+    gains.Full = gain;
 
     return true;
   }
 
   function setPlayerStem(stemKey) {
     playerStemKey = stemKey ?? null;
-    if (!running) return;
-    STEM_KEYS.forEach((key) => {
-      if (!gains[key] || key === 'Full') return;
-      gains[key].gain.value = (playerStemKey && key === playerStemKey) ? 0 : 0.72;
-    });
   }
 
-  function duckPlayerStem(duck = true) {
-    if (!playerStemKey || !gains[playerStemKey]) return;
-    gains[playerStemKey].gain.value = duck ? 0 : 0.72;
+  function duckPlayerStem() {
+    /* Individual stems are not played during gigs; kept for API compatibility. */
   }
 
   function getElapsed() {
@@ -116,12 +190,16 @@ const StemPlayer = (() => {
 
   function stop(options = {}) {
     running = false;
+    stopSustain();
     Object.values(sources).forEach((src) => {
       try { src.stop(); } catch { /* already stopped */ }
     });
     sources = {};
     gains = {};
-    if (!options.keepSong) song = null;
+    if (!options.keepSong) {
+      song = null;
+      buffers = {};
+    }
   }
 
   function isRunning() {
@@ -136,6 +214,9 @@ const StemPlayer = (() => {
     load,
     start,
     stop,
+    playHit,
+    startSustain,
+    stopSustain,
     setPlayerStem,
     duckPlayerStem,
     getElapsed,

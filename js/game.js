@@ -353,41 +353,51 @@ const Game = (() => {
   function setScreen(name) {
     state.screen = name;
     if (name === 'shop') state.shopTab = state.shopTab || 'instruments';
-    if (name === 'hub' || name === 'shop') preloadOwnedInstrumentAudio();
-    if (name === 'shop') preloadShopInstrumentAudio();
     updateHud();
     render();
   }
 
-  function preloadOwnedInstrumentAudio() {
-    if (typeof AudioSamples === 'undefined') return;
-    ownedItems('instruments').forEach((item) => {
-      const inst = INSTRUMENTS[item.id];
-      if (inst) AudioSamples.loadInstrumentSamples(inst.subtype, inst.id);
-    });
+  function useStemHitAudio() {
+    const song = getActiveSong();
+    return !!(song?.stemBacked && typeof StemPlayer !== 'undefined' && StemPlayer.hasStems?.());
   }
 
-  function preloadShopInstrumentAudio() {
-    if (typeof AudioSamples === 'undefined') return;
-    const tab = state.shopTab || 'instruments';
-    if (tab !== 'instruments') return;
-    SHOP_ITEMS.instruments.forEach((item) => {
-      AudioSamples.loadInstrumentSample(item.id);
-    });
+  function stopInstrumentSustain() {
+    if (typeof StemPlayer !== 'undefined') StemPlayer.stopSustain();
+    AudioEngine.stopSustain?.();
   }
 
-  async function previewInstrumentSound(id) {
-    const inst = INSTRUMENTS[id];
-    if (!inst) return;
-    try {
-      await AudioEngine.resume?.();
-      if (typeof AudioSamples !== 'undefined') {
-        await AudioSamples.ensureInstrumentSample(id);
-      }
-      await AudioEngine.playInstrument(inst);
-    } catch (err) {
-      console.warn('Instrument preview failed', id, err);
+  function startInstrumentSustain(inst, note, volScale = 1) {
+    const song = getActiveSong();
+    const p = state.performance;
+    if (useStemHitAudio()) {
+      const stemKey = typeof getPlayerStemKey === 'function' ? getPlayerStemKey(inst) : getPlayerPartKey(inst);
+      StemPlayer.startSustain(stemKey, note, song, p?.bpm ?? song.bpm, volScale);
+      return;
     }
+    AudioEngine.startSustain?.(inst, note);
+  }
+
+  function playInstrumentHit(note, inst, volScale = 1) {
+    if (!note) return;
+    const song = getActiveSong();
+    const p = state.performance;
+    if (useStemHitAudio()) {
+      const stemKey = typeof getPlayerStemKey === 'function' ? getPlayerStemKey(inst) : getPlayerPartKey(inst);
+      StemPlayer.playHit(stemKey, note, song, p?.bpm ?? song.bpm, volScale);
+      return;
+    }
+    AudioEngine.playPartEvent(note, inst, volScale);
+  }
+
+  function exitGigToHub() {
+    stopPerformanceLoop();
+    if (typeof StemPlayer !== 'undefined') StemPlayer.stop();
+    state.performance = null;
+    activeHold = null;
+    setCurtainState('idle');
+    persist();
+    setScreen('hub');
   }
 
   function crowdAppeal() {
@@ -422,7 +432,6 @@ const Game = (() => {
       state.equippedWear = state.equippedWear || { clothes: null, makeup: null, accessories: null };
       state.equippedWear[cat] = itemId;
     }
-    if (cat === 'instruments') previewInstrumentSound(itemId);
     updateHud();
     persist();
     return true;
@@ -759,7 +768,7 @@ const Game = (() => {
             const previewInst = instObj ? item.id : '';
             return `
               <div class="shop-item brand-card ${owned ? 'owned' : ''}">
-                <button type="button" class="shop-preview-btn" data-preview-inst="${previewInst}" data-preview-cat="${state.shopTab}" title="${instObj ? 'Tap to preview sound' : item.name}">${preview}</button>
+                <button type="button" class="shop-preview-btn" data-preview-inst="${previewInst}" data-preview-cat="${state.shopTab}" title="${item.name}">${preview}</button>
                 <div class="shop-info">
                   <strong class="brand-label">${item.name}</strong>
                   <span>+${item.crowdBonus} crowd appeal</span>
@@ -963,7 +972,7 @@ const Game = (() => {
     root().innerHTML = html;
     bindEvents();
     if (state.screen === 'shop' && (state.shopTab || 'instruments') === 'instruments') {
-      preloadShopInstrumentAudio();
+      /* Instrument preview sounds removed — hits use uploaded song stems during gigs. */
     }
     if (parallaxCleanup) parallaxCleanup();
     parallaxCleanup = null;
@@ -1032,10 +1041,7 @@ const Game = (() => {
       root().addEventListener('click', (e) => {
         const btn = e.target.closest('.shop-preview-btn[data-preview-inst]');
         if (!btn) return;
-        const id = btn.dataset.previewInst;
-        if (!id || !INSTRUMENTS[id]) return;
         e.stopPropagation();
-        previewInstrumentSound(id);
       });
       shopPreviewListenerAttached = true;
     }
@@ -1096,6 +1102,10 @@ const Game = (() => {
     $('#btn-perform')?.addEventListener('click', startPerformance);
     $('#btn-shop')?.addEventListener('click', () => setScreen('shop'));
     $('#btn-back-hub')?.addEventListener('click', () => {
+      if (['results', 'booed', 'perform'].includes(state.screen)) {
+        exitGigToHub();
+        return;
+      }
       persist();
       setScreen('hub');
     });
@@ -1104,7 +1114,6 @@ const Game = (() => {
       tab.addEventListener('click', () => {
         state.shopTab = tab.dataset.tab;
         state.shopNotice = null;
-        if (state.shopTab === 'instruments') preloadShopInstrumentAudio();
         render();
       });
     });
@@ -1150,7 +1159,6 @@ const Game = (() => {
         if (!id) return;
         if (cat === 'instruments' && state.inventories.instruments.includes(id)) {
           state.equippedInstrument = id;
-          previewInstrumentSound(id);
           persist();
           render();
           return;
@@ -1300,7 +1308,7 @@ const Game = (() => {
     Metronome.stop();
     BandAudio.stop();
     if (typeof StemPlayer !== 'undefined') StemPlayer.stop();
-    AudioEngine.stopSustain?.();
+    stopInstrumentSustain();
     AudioEngine.stopRewindSfx?.();
     AudioEngine.stopCrowdAmbience?.();
     AudioEngine.setCrowdBooing?.(false);
@@ -1429,7 +1437,7 @@ const Game = (() => {
     performScreen?.classList.add('rewinding');
 
     activeHold = null;
-    AudioEngine.stopSustain?.();
+    stopInstrumentSustain();
     const zone = document.getElementById('hit-zone');
     if (zone) zone.classList.remove('holding');
 
@@ -1523,7 +1531,7 @@ const Game = (() => {
 
     const { rating } = rateHoldRelease(note, elapsed, p.bpm);
     activeHold = null;
-    AudioEngine.stopSustain?.();
+    stopInstrumentSustain();
     const zone = document.getElementById('hit-zone');
     if (zone) zone.classList.remove('holding');
     applyHitScore(rating, note, inst);
@@ -1735,7 +1743,6 @@ const Game = (() => {
       AudioEngine.loadCheerSample?.().catch(() => null),
       AudioEngine.loadBooSample?.().catch(() => null),
       AudioEngine.loadRewindSample?.().catch(() => null),
-      typeof AudioSamples !== 'undefined' ? AudioSamples.loadInstrumentSamples(inst.subtype, inst.id) : null,
       ensureSongLoaded(state.equippedSong).then(async (song) => {
         if (typeof StemPlayer !== 'undefined') {
           await StemPlayer.load(song, { playerStemKey: typeof getPlayerStemKey === 'function' ? getPlayerStemKey(inst) : getPlayerPartKey(inst) });
@@ -1830,7 +1837,7 @@ const Game = (() => {
     if (rating === 'miss') {
       RhythmLane.flashHit(rating, false);
       AudioEngine.playMiss();
-      AudioEngine.stopSustain?.();
+      stopInstrumentSustain();
       p.combo = 0;
       p.onFire = false;
       p.missStreak = (p.missStreak || 0) + 1;
@@ -1867,10 +1874,9 @@ const Game = (() => {
     const streak = hotStreakMult(p);
     AudioEngine.playHitBurst?.(rating, streak);
     if (note) {
-      AudioEngine.playPartEvent(note, inst, (rating === 'perfect' ? 0.48 : 0.38) * streak);
+      playInstrumentHit(note, inst, (rating === 'perfect' ? 0.48 : 0.38) * streak);
       RhythmLane.explodeGem(note, rating, isMelodic, hot);
     } else {
-      AudioEngine.playInstrument(inst);
       RhythmLane.explodeGem({ beat: -1 }, rating, isMelodic, hot);
     }
     RhythmLane.flashHit(rating, hot);
@@ -1961,7 +1967,7 @@ const Game = (() => {
     if (note.isHold && phase === 'hold-start') {
       p.hitBeats.add(key);
       activeHold = { note, inst, pressElapsed: elapsed };
-      AudioEngine.startSustain?.(inst, note);
+      startInstrumentSustain(inst, note);
       const zone = document.getElementById('hit-zone');
       if (zone) zone.classList.add('holding');
       triggerPlayAnimation(inst, rating);
@@ -1981,7 +1987,7 @@ const Game = (() => {
     const elapsed = Metronome.getElapsed();
     const { rating } = rateHoldRelease(note, elapsed, p.bpm);
     activeHold = null;
-    AudioEngine.stopSustain?.();
+    stopInstrumentSustain();
     const zone = document.getElementById('hit-zone');
     if (zone) zone.classList.remove('holding');
     applyHitScore(rating, note, inst);

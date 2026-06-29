@@ -190,7 +190,7 @@ def analyze_drums(audio: np.ndarray, sr: int, grid: np.ndarray) -> list[dict]:
         else:
             continue
         beat = int(np.argmin(np.abs(grid - t)))
-        events.append({"beat": beat, "hit": hit, "dur": 1})
+        events.append({"beat": beat, "hit": hit, "dur": 1, "timeSec": round(float(t), 4)})
     deduped = {}
     for ev in events:
         key = (ev["beat"], ev["hit"])
@@ -219,7 +219,7 @@ def analyze_bass(audio: np.ndarray, sr: int, grid: np.ndarray) -> list[dict]:
         if freq <= 0:
             continue
         beat = int(np.argmin(np.abs(grid - t)))
-        events.append({"beat": beat, "note": freq_to_note(freq), "dur": 1})
+        events.append({"beat": beat, "note": freq_to_note(freq), "dur": 1, "timeSec": round(float(t), 4)})
     deduped = {}
     for ev in events:
         deduped[ev["beat"]] = ev
@@ -244,7 +244,7 @@ def analyze_melodic(audio: np.ndarray, sr: int, grid: np.ndarray) -> list[dict]:
             freqs = np.fft.rfftfreq(len(chunk), 1 / sr)
             peak = freqs[np.argmax(spec)]
             chord = freq_to_note(float(peak))[:-1] if peak > 0 else "C"
-        events.append({"beat": beat, "chord": chord, "dur": 1})
+        events.append({"beat": beat, "chord": chord, "dur": 1, "timeSec": round(float(t), 4)})
     deduped = {}
     for ev in events:
         if ev["beat"] not in deduped:
