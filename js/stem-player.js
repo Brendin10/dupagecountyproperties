@@ -43,7 +43,7 @@ const StemPlayer = (() => {
       buffers[key] = await decodeUrl(ac, `${url}${sep}v=${bust}`);
     });
     await Promise.all(loads);
-    return Object.keys(buffers).length > 0;
+    return hasFullMix();
   }
 
   function ensureBus() {
@@ -206,8 +206,20 @@ const StemPlayer = (() => {
     return running;
   }
 
+  function hasFullMix() {
+    return !!buffers.Full;
+  }
+
+  function hasStem(stemKey) {
+    return !!buffers[stemKey];
+  }
+
+  function isLoaded() {
+    return hasFullMix();
+  }
+
   function hasStems() {
-    return Object.keys(buffers).length > 0;
+    return STEM_KEYS.some((key) => key !== 'Full' && buffers[key]);
   }
 
   return {
@@ -222,5 +234,8 @@ const StemPlayer = (() => {
     getElapsed,
     isRunning,
     hasStems,
+    hasFullMix,
+    hasStem,
+    isLoaded,
   };
 })();

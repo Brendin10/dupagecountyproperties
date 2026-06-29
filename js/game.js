@@ -33,6 +33,7 @@ const Game = (() => {
     shopNotice: null,
     gigIntroRunning: false,
     loadedSong: null,
+    stemsReady: false,
   };
 
   let parallaxCleanup = null;
@@ -50,9 +51,11 @@ const Game = (() => {
       return state.loadedSong;
     }
     const id = state.equippedSong || (typeof SongLoader !== 'undefined' ? SongLoader.getDefaultSongId() : 'rebel-pulse');
-    return typeof SongLoader !== 'undefined' && SongLoader.getCached(id)
-      ? SongLoader.getCached(id)
-      : getSong(id);
+    if (typeof SongLoader !== 'undefined') {
+      const cached = SongLoader.getCached(id);
+      if (cached) return cached;
+    }
+    return getSong(id);
   }
 
   async function ensureSongLoaded(songId) {
@@ -338,6 +341,7 @@ const Game = (() => {
     state.equippedWear = { clothes: null, makeup: null, accessories: null };
     state.gigBandIds = [];
     state.hubPanelsOpen = defaultHubPanelsOpen();
+    state.stemsReady = false;
   }
 
   const root = () => document.getElementById('screen-root');
@@ -359,45 +363,62 @@ const Game = (() => {
 
   function useStemHitAudio() {
     const song = getActiveSong();
-    return !!(song?.stemBacked && typeof StemPlayer !== 'undefined' && StemPlayer.hasStems?.());
+    return !!(song?.stemBacked && state.stemsReady && typeof StemPlayer !== 'undefined' && StemPlayer.isLoaded?.());
+  }
+
+  function getPlayerStemForInstrument(inst) {
+    return typeof getPlayerStemKey === 'function' ? getPlayerStemKey(inst) : getPlayerPartKey(inst);
   }
 
   function stopInstrumentSustain() {
     if (typeof StemPlayer !== 'undefined') StemPlayer.stopSustain();
-    AudioEngine.stopSustain?.();
   }
 
   function startInstrumentSustain(inst, note, volScale = 1) {
+    if (!useStemHitAudio()) return;
     const song = getActiveSong();
     const p = state.performance;
-    if (useStemHitAudio()) {
-      const stemKey = typeof getPlayerStemKey === 'function' ? getPlayerStemKey(inst) : getPlayerPartKey(inst);
-      StemPlayer.startSustain(stemKey, note, song, p?.bpm ?? song.bpm, volScale);
-      return;
-    }
-    AudioEngine.startSustain?.(inst, note);
+    const stemKey = getPlayerStemForInstrument(inst);
+    StemPlayer.startSustain(stemKey, note, song, p?.bpm ?? song.bpm, volScale);
   }
 
   function playInstrumentHit(note, inst, volScale = 1) {
-    if (!note) return;
+    if (!note || !useStemHitAudio()) return;
     const song = getActiveSong();
     const p = state.performance;
-    if (useStemHitAudio()) {
-      const stemKey = typeof getPlayerStemKey === 'function' ? getPlayerStemKey(inst) : getPlayerPartKey(inst);
-      StemPlayer.playHit(stemKey, note, song, p?.bpm ?? song.bpm, volScale);
-      return;
-    }
-    AudioEngine.playPartEvent(note, inst, volScale);
+    const stemKey = getPlayerStemForInstrument(inst);
+    StemPlayer.playHit(stemKey, note, song, p?.bpm ?? song.bpm, volScale);
   }
 
   function exitGigToHub() {
     stopPerformanceLoop();
-    if (typeof StemPlayer !== 'undefined') StemPlayer.stop();
     state.performance = null;
+    state.stemsReady = false;
     activeHold = null;
     setCurtainState('idle');
     persist();
     setScreen('hub');
+  }
+
+  function resetPerformanceTimers() {
+    Metronome.stop();
+    BandAudio.stop();
+    if (typeof StemPlayer !== 'undefined') StemPlayer.stopSustain();
+    AudioEngine.stopRewindSfx?.();
+    AudioEngine.stopCrowdAmbience?.();
+    AudioEngine.setCrowdBooing?.(false);
+    activeHold = null;
+    rewindSnapshots = [];
+    lastSnapshotAt = -1;
+    rewindCooldown = false;
+    rewindActive = false;
+    if (rewindAnimRaf) cancelAnimationFrame(rewindAnimRaf);
+    rewindAnimRaf = null;
+    Metronome.setBeatSuspended?.(false);
+    if (state.perfUiRaf) cancelAnimationFrame(state.perfUiRaf);
+    state.perfUiRaf = null;
+    if (state.perfInterval) clearInterval(state.perfInterval);
+    state.perfInterval = null;
   }
 
   function crowdAppeal() {
@@ -427,6 +448,7 @@ const Game = (() => {
     if (cat === 'songs') {
       state.equippedSong = itemId;
       state.loadedSong = null;
+      state.stemsReady = false;
     }
     if (['clothes', 'makeup', 'accessories'].includes(cat)) {
       state.equippedWear = state.equippedWear || { clothes: null, makeup: null, accessories: null };
@@ -971,9 +993,6 @@ const Game = (() => {
     }
     root().innerHTML = html;
     bindEvents();
-    if (state.screen === 'shop' && (state.shopTab || 'instruments') === 'instruments') {
-      /* Instrument preview sounds removed — hits use uploaded song stems during gigs. */
-    }
     if (parallaxCleanup) parallaxCleanup();
     parallaxCleanup = null;
     if (['hub', 'perform'].includes(state.screen)) {
@@ -1031,19 +1050,29 @@ const Game = (() => {
     }, 2400);
   }
 
-  let shopPreviewListenerAttached = false;
+  let navigationListenerAttached = false;
 
   function bindEvents() {
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => document.querySelectorAll(sel);
 
-    if (!shopPreviewListenerAttached) {
+    if (!navigationListenerAttached) {
       root().addEventListener('click', (e) => {
-        const btn = e.target.closest('.shop-preview-btn[data-preview-inst]');
-        if (!btn) return;
-        e.stopPropagation();
+        const backBtn = e.target.closest('#btn-back-hub');
+        if (backBtn) {
+          e.preventDefault();
+          if (['results', 'booed', 'perform'].includes(state.screen)) {
+            exitGigToHub();
+          } else {
+            persist();
+            setScreen('hub');
+          }
+          return;
+        }
+        const shopPreview = e.target.closest('.shop-preview-btn[data-preview-inst]');
+        if (shopPreview) e.stopPropagation();
       });
-      shopPreviewListenerAttached = true;
+      navigationListenerAttached = true;
     }
 
     $('#btn-start')?.addEventListener('click', () => {
@@ -1101,14 +1130,6 @@ const Game = (() => {
 
     $('#btn-perform')?.addEventListener('click', startPerformance);
     $('#btn-shop')?.addEventListener('click', () => setScreen('shop'));
-    $('#btn-back-hub')?.addEventListener('click', () => {
-      if (['results', 'booed', 'perform'].includes(state.screen)) {
-        exitGigToHub();
-        return;
-      }
-      persist();
-      setScreen('hub');
-    });
 
     $$('.shop-tab').forEach((tab) => {
       tab.addEventListener('click', () => {
@@ -1166,6 +1187,7 @@ const Game = (() => {
         if (cat === 'songs' && state.inventories.songs?.includes(id)) {
           state.equippedSong = id;
           state.loadedSong = null;
+          state.stemsReady = false;
           persist();
           render();
           return;
@@ -1283,8 +1305,8 @@ const Game = (() => {
 
     AudioEngine.initMix();
     AudioEngine.startCrowdAmbience?.(venue?.tier ?? 0, { intro: true });
-    if (typeof StemPlayer !== 'undefined' && song?.stems) {
-      StemPlayer.setPlayerStem(playerStem);
+    if (typeof StemPlayer !== 'undefined' && state.stemsReady) {
+      StemPlayer.setPlayerStem(getPlayerStemForInstrument(inst));
       StemPlayer.start(bpm);
     }
     BandAudio.setBand(getGigBandMembers(), song);
@@ -1305,28 +1327,12 @@ const Game = (() => {
     if (performer && typeof CharacterRig !== 'undefined') {
       CharacterRig.playInstrumentRelease(performer, getActiveInstrument());
     }
-    Metronome.stop();
-    BandAudio.stop();
+    resetPerformanceTimers();
     if (typeof StemPlayer !== 'undefined') StemPlayer.stop();
-    stopInstrumentSustain();
-    AudioEngine.stopRewindSfx?.();
-    AudioEngine.stopCrowdAmbience?.();
-    AudioEngine.setCrowdBooing?.(false);
-    activeHold = null;
-    rewindSnapshots = [];
-    lastSnapshotAt = -1;
-    rewindCooldown = false;
-    rewindActive = false;
-    if (rewindAnimRaf) cancelAnimationFrame(rewindAnimRaf);
-    rewindAnimRaf = null;
-    Metronome.setBeatSuspended?.(false);
+    state.stemsReady = false;
     document.querySelector('.perform-screen')?.classList.remove('rewinding');
     document.getElementById('btn-rewind')?.classList.remove('rewinding');
     document.getElementById('btn-play-note')?.classList.remove('rewind-disabled');
-    if (state.perfUiRaf) cancelAnimationFrame(state.perfUiRaf);
-    if (state.perfInterval) clearInterval(state.perfInterval);
-    state.perfInterval = null;
-    state.perfUiRaf = null;
   }
 
   function captureRewindSnapshot(elapsed) {
@@ -1744,8 +1750,11 @@ const Game = (() => {
       AudioEngine.loadBooSample?.().catch(() => null),
       AudioEngine.loadRewindSample?.().catch(() => null),
       ensureSongLoaded(state.equippedSong).then(async (song) => {
+        state.stemsReady = false;
         if (typeof StemPlayer !== 'undefined') {
-          await StemPlayer.load(song, { playerStemKey: typeof getPlayerStemKey === 'function' ? getPlayerStemKey(inst) : getPlayerPartKey(inst) });
+          state.stemsReady = await StemPlayer.load(song, {
+            playerStemKey: getPlayerStemForInstrument(inst),
+          });
         }
         return song;
       }),
@@ -1792,7 +1801,7 @@ const Game = (() => {
     lastSnapshotAt = -1;
     rewindCooldown = false;
     rewindActive = false;
-    stopPerformanceLoop();
+    resetPerformanceTimers();
     state.perfInterval = setInterval(tickPerformance, 1000);
     setScreen('perform');
 

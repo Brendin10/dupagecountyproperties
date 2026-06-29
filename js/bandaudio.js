@@ -25,7 +25,7 @@ const BandAudio = (() => {
   function setBand(bandMembers, songObj) {
     members = bandMembers || [];
     song = songObj;
-    stemBacked = !!(song?.stemBacked && typeof StemPlayer !== 'undefined' && StemPlayer.hasStems?.());
+    stemBacked = !!song?.stemBacked;
   }
 
   function setOnMemberPlay(fn) {
