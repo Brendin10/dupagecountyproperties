@@ -1,5 +1,6 @@
 const InstrumentGrips = (() => {
   const PNG_BOOST = {
+    'trash-lid': 2.68,
     drums: 2.22,
     bass: 1.14,
     'electric-guitar': 2.01,
@@ -28,9 +29,22 @@ const InstrumentGrips = (() => {
       rot: 0,
       depth: 'sandwich',
     },
+    'one-hand-up': {
+      gripL: { x: 84, y: 158 },
+      gripR: { x: 116, y: 136 },
+      art: { w: 88, h: 108, anchorX: 0.28, anchorY: 0.55 },
+      rot: -22,
+      depth: 'sandwich',
+    },
   };
 
   const OVERRIDES = {
+    'trash-lid': {
+      gripL: { x: 98, y: 136 },
+      gripR: { x: 118, y: 128 },
+      art: { w: 140, h: 140, anchorX: 0.5, anchorY: 0.55 },
+      rot: -4,
+    },
     drums: {
       gripL: { x: 64, y: 172 },
       gripR: { x: 136, y: 172 },

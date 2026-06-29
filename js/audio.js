@@ -46,6 +46,7 @@ const AudioEngine = (() => {
     bass: 'bass',
     keys: 'piano',
     'electric-guitar': 'electric',
+    'trash-lid': 'cymbal',
   };
 
   let activeSustain = null;

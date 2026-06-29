@@ -18,6 +18,7 @@ SRC_DIRS = [
 ]
 
 UPLOAD_MAP = {
+    "Trash Can Lid.png": "trash-lid.png",
     "Drum Kit.png": "drums.png",
     "Bass Guitar.png": "bass.png",
     "Electric Guitar.png": "electric-guitar.png",

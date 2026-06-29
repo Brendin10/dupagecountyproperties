@@ -1,4 +1,15 @@
 const INSTRUMENTS = {
+  'trash-lid': {
+    id: 'trash-lid',
+    name: 'Trash Can Lid',
+    emoji: '🥁',
+    type: 'percussion',
+    subtype: 'cymbal',
+    hold: 'one-hand-up',
+    cost: 0,
+    crowdBonus: 1,
+    starter: true,
+  },
   drums: {
     id: 'drums',
     name: 'Drums',
@@ -6,9 +17,8 @@ const INSTRUMENTS = {
     type: 'percussion',
     subtype: 'drums',
     hold: 'two-hand',
-    cost: 0,
-    crowdBonus: 1,
-    starter: true,
+    cost: 450,
+    crowdBonus: 20,
   },
   bass: {
     id: 'bass',
@@ -48,7 +58,6 @@ const INSTRUMENTS = {
 const VALID_INSTRUMENT_IDS = new Set(Object.keys(INSTRUMENTS));
 
 const LEGACY_INSTRUMENT_MAP = {
-  'trash-lid': 'drums',
   'drum-kit': 'drums',
   tambourine: 'drums',
   bongo: 'drums',
@@ -63,9 +72,9 @@ const LEGACY_INSTRUMENT_MAP = {
 };
 
 function migrateInstrumentId(id) {
-  if (!id) return 'drums';
+  if (!id) return 'trash-lid';
   if (VALID_INSTRUMENT_IDS.has(id)) return id;
-  return LEGACY_INSTRUMENT_MAP[id] || 'drums';
+  return LEGACY_INSTRUMENT_MAP[id] || 'trash-lid';
 }
 
 const INSTRUMENT_SHOP_ITEMS = Object.values(INSTRUMENTS)
@@ -83,9 +92,9 @@ const INSTRUMENT_SHOP_ITEMS = Object.values(INSTRUMENTS)
 function getEquippedInstrument(state) {
   const raw = state.equippedInstrument
     || state.inventories.instruments[state.inventories.instruments.length - 1]
-    || 'drums';
+    || 'trash-lid';
   const id = migrateInstrumentId(raw);
-  return INSTRUMENTS[id] || INSTRUMENTS.drums;
+  return INSTRUMENTS[id] || INSTRUMENTS['trash-lid'];
 }
 
 function renderHeldInstrumentInner(inst, pose = 'idle') {

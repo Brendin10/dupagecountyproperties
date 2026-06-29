@@ -156,6 +156,10 @@ def freq_to_note(freq: float) -> str:
     return f"{name}{octave}"
 
 
+def filter_drum_events(events: list[dict]) -> list[dict]:
+    return [ev for ev in events if ev.get("hit") in ("kick", "snare")]
+
+
 def analyze_drums(audio: np.ndarray, sr: int, grid: np.ndarray) -> list[dict]:
     times = onset_times(audio, sr)
     if times.size == 0:
@@ -175,7 +179,9 @@ def analyze_drums(audio: np.ndarray, sr: int, grid: np.ndarray) -> list[dict]:
         total = low + mid + high + 1e-9
         centroid = float(np.sum(freqs * spec) / (spec.sum() + 1e-9))
         duration_ms = len(chunk) / sr * 1000
-        if high / total > 0.55 and duration_ms < 80 and centroid > 3500:
+        if high / total > 0.48 and duration_ms < 100 and centroid > 3200:
+            continue
+        if high / total > 0.62:
             continue
         if low / total > 0.42:
             hit = "kick"
@@ -189,7 +195,7 @@ def analyze_drums(audio: np.ndarray, sr: int, grid: np.ndarray) -> list[dict]:
     for ev in events:
         key = (ev["beat"], ev["hit"])
         deduped[key] = ev
-    return sorted(deduped.values(), key=lambda e: e["beat"])
+    return filter_drum_events(sorted(deduped.values(), key=lambda e: e["beat"]))
 
 
 def analyze_bass(audio: np.ndarray, sr: int, grid: np.ndarray) -> list[dict]:
@@ -300,6 +306,7 @@ def sync_song(song_id: str, song_dir: Path) -> dict | None:
         "durationSec": round(duration_sec, 3),
         "beatCount": beat_count,
         "beatOffset": beat_offset,
+        "fullMixVolume": float(meta.get("fullMixVolume", 0.1)),
         "stems": stem_paths,
     }
 

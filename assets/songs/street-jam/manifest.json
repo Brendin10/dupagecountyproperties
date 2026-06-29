@@ -7,6 +7,7 @@
   "durationSec": 60.0,
   "beatCount": 118,
   "beatOffset": 0.0,
+  "fullMixVolume": 0.1,
   "stems": {
     "Bass": "bass.wav",
     "Drums": "drums.wav",

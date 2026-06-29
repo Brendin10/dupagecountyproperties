@@ -174,11 +174,11 @@ const RhythmLane = (() => {
     return `${note.beat}:${note.chord || ''}:${note.note || ''}:${note.hit || ''}`;
   }
 
-  function update(song, partKey, elapsed, bpm, isMelodic, hitBeats, missedBeats, holdingKey, leadInBeat = 0, heldNote = null, onFire = false) {
+  function update(song, partKey, elapsed, bpm, isMelodic, hitBeats, missedBeats, holdingKey, leadInBeat = 0, heldNote = null, onFire = false, instrument = null) {
     const lane = document.getElementById('note-lane');
     if (!lane) return;
 
-    let notes = getUpcomingNotes(song, partKey, elapsed, bpm, LOOKAHEAD, hitBeats, missedBeats, leadInBeat);
+    let notes = getUpcomingNotes(song, partKey, elapsed, bpm, LOOKAHEAD, hitBeats, missedBeats, leadInBeat, instrument);
     if (holdingKey && heldNote && noteKeyFor(heldNote) === holdingKey) {
       const visible = notes.some((n) => noteKeyFor(n) === holdingKey);
       if (!visible) {

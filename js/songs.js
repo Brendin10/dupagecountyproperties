@@ -1,9 +1,12 @@
 const INSTRUMENT_STEM_MAP = {
+  'trash-lid': 'Drums',
   drums: 'Drums',
   bass: 'Bass',
   'electric-guitar': 'Lead',
   keys: 'Keys',
 };
+
+const TRASH_LID_STEM_KEY = null;
 
 function buildSections(totalBeats) {
   const introLen = Math.round(totalBeats * 0.12);
@@ -35,18 +38,40 @@ function getPlayerPartKey(instrument) {
   return INSTRUMENT_STEM_MAP[instrument?.id] || 'Drums';
 }
 
-function getPartEvents(song, partKey, beat) {
-  const part = song.parts?.[partKey];
+function getPlayerStemKey(instrument) {
+  if (instrument?.id === 'trash-lid') return TRASH_LID_STEM_KEY;
+  return getPlayerPartKey(instrument);
+}
+
+function filterPartForInstrument(part, instrument) {
+  if (!part?.length || !instrument) return part || [];
+  if (instrument.id === 'trash-lid') {
+    return part
+      .filter((ev) => ev.hit === 'snare')
+      .map((ev) => ({ ...ev, hit: 'cymbal', label: 'cymbal' }));
+  }
+  if (getPlayerPartKey(instrument) === 'Drums') {
+    return part.filter((ev) => !ev.hit || ev.hit === 'kick' || ev.hit === 'snare');
+  }
+  return part;
+}
+
+function getPartEvents(song, partKey, beat, instrument = null) {
+  const raw = song.parts?.[partKey];
+  const part = instrument ? filterPartForInstrument(raw, instrument) : raw;
   if (!part || beat < 0 || beat >= song.totalBeats) return [];
   return part.filter((e) => e.beat === Math.floor(beat));
 }
 
 function eventLabel(ev) { return ev.chord || ev.note || ev.hit || '•'; }
 
-function getUpcomingNotes(song, partKey, elapsed, bpm, lookAhead, hitBeats, missedBeats, leadInBeat = 0) {
+function getUpcomingNotes(song, partKey, elapsed, bpm, lookAhead, hitBeats, missedBeats, leadInBeat = 0, instrument = null) {
   const la = lookAhead ?? 3;
   const beatDur = 60 / bpm;
-  const part = song.parts?.[partKey] || [];
+  const rawPart = song.parts?.[partKey] || [];
+  const part = instrument ? filterPartForInstrument(rawPart, instrument) : (
+    partKey === 'Drums' ? rawPart.filter((ev) => !ev.hit || ev.hit === 'kick' || ev.hit === 'snare') : rawPart
+  );
   const currentBeat = elapsed / beatDur;
   const notes = [];
   for (const ev of part) {

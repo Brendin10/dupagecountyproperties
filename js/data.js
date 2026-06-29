@@ -102,7 +102,7 @@ const VENUES = buildVenues();
 
 const SHOP_ITEMS = {
   instruments: typeof INSTRUMENT_SHOP_ITEMS !== 'undefined' ? INSTRUMENT_SHOP_ITEMS : [
-    { id: 'drums', name: 'Drums', emoji: '🥁', cost: 0, crowdBonus: 1, owned: true, starter: true },
+    { id: 'trash-lid', name: 'Trash Can Lid', emoji: '🥁', cost: 0, crowdBonus: 1, owned: true, starter: true },
   ],
   clothes: [
     { id: 'street-tee', name: 'Street Tee', emoji: '👕', cost: 20, crowdBonus: 2 },

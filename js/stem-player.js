@@ -7,6 +7,7 @@ const StemPlayer = (() => {
   let startCtxTime = 0;
   let startElapsed = 0;
   let playerStemKey = 'Drums';
+  let fullMixVolume = 0.1;
   let fullMixGain = null;
   let stemBus = null;
 
@@ -27,7 +28,8 @@ const StemPlayer = (() => {
     stop();
     song = songObj;
     buffers = {};
-    playerStemKey = options.playerStemKey || 'Drums';
+    playerStemKey = options.playerStemKey !== undefined ? options.playerStemKey : 'Drums';
+    fullMixVolume = songObj?.fullMixVolume ?? 0.1;
 
     if (!song?.stems) return false;
     const ac = getCtx();
@@ -51,9 +53,9 @@ const StemPlayer = (() => {
     }
     if (!fullMixGain) {
       fullMixGain = ac.createGain();
-      fullMixGain.gain.value = 0.18;
       fullMixGain.connect(stemBus);
     }
+    fullMixGain.gain.value = fullMixVolume;
     return stemBus;
   }
 
@@ -76,8 +78,8 @@ const StemPlayer = (() => {
       src.loop = false;
 
       const gain = ac.createGain();
-      let vol = key === 'Full' ? 0.22 : 0.72;
-      if (key === playerStemKey) vol = 0;
+      let vol = key === 'Full' ? 1 : 0.72;
+      if (playerStemKey && key === playerStemKey) vol = 0;
       if (key === 'Full') {
         gain.connect(fullMixGain);
       } else {
@@ -97,16 +99,16 @@ const StemPlayer = (() => {
   }
 
   function setPlayerStem(stemKey) {
-    playerStemKey = stemKey || 'Drums';
+    playerStemKey = stemKey ?? null;
     if (!running) return;
     STEM_KEYS.forEach((key) => {
       if (!gains[key] || key === 'Full') return;
-      gains[key].gain.value = key === playerStemKey ? 0 : 0.72;
+      gains[key].gain.value = (playerStemKey && key === playerStemKey) ? 0 : 0.72;
     });
   }
 
   function duckPlayerStem(duck = true) {
-    if (!gains[playerStemKey]) return;
+    if (!playerStemKey || !gains[playerStemKey]) return;
     gains[playerStemKey].gain.value = duck ? 0 : 0.72;
   }
 

@@ -7,7 +7,7 @@ const Game = (() => {
     hasLid: false,
     tutorialStep: 0,
     inventories: {
-      instruments: ['drums'],
+      instruments: ['trash-lid'],
       clothes: [],
       makeup: [],
       accessories: [],
@@ -18,7 +18,7 @@ const Game = (() => {
     currentVenue: 'street-corner',
     performance: null,
     pendingRecruit: null,
-    equippedInstrument: 'drums',
+    equippedInstrument: 'trash-lid',
     equippedSong: 'street-jam',
     equippedWear: { clothes: null, makeup: null, accessories: null },
     gigBandIds: [],
@@ -40,9 +40,9 @@ const Game = (() => {
   function getActiveInstrument() {
     const raw = state.equippedInstrument
       || state.inventories.instruments[state.inventories.instruments.length - 1]
-      || 'drums';
+      || 'trash-lid';
     const id = typeof migrateInstrumentId === 'function' ? migrateInstrumentId(raw) : raw;
-    return INSTRUMENTS[id] || INSTRUMENTS.drums;
+    return INSTRUMENTS[id] || INSTRUMENTS['trash-lid'];
   }
 
   function getActiveSong() {
@@ -67,6 +67,7 @@ const Game = (() => {
   }
 
   const INST_ANIM = {
+    'trash-lid': 'anim-cymbal',
     drums: 'anim-drums',
     bass: 'anim-strum',
     'electric-guitar': 'anim-strum',
@@ -74,6 +75,7 @@ const Game = (() => {
   };
 
   const SUBTYPE_ANIM = {
+    cymbal: 'anim-cymbal',
     drums: 'anim-drums',
     bass: 'anim-strum',
     electric: 'anim-strum',
@@ -319,7 +321,7 @@ const Game = (() => {
     state.hasLid = false;
     state.tutorialStep = 0;
     state.inventories = {
-      instruments: ['drums'],
+      instruments: ['trash-lid'],
       clothes: [],
       makeup: [],
       accessories: [],
@@ -330,7 +332,7 @@ const Game = (() => {
     state.currentVenue = 'street-corner';
     state.performance = null;
     state.pendingRecruit = null;
-    state.equippedInstrument = 'drums';
+    state.equippedInstrument = 'trash-lid';
     state.equippedSong = typeof SongLoader !== 'undefined' ? SongLoader.getDefaultSongId() : 'street-jam';
     state.loadedSong = null;
     state.equippedWear = { clothes: null, makeup: null, accessories: null };
@@ -458,14 +460,14 @@ const Game = (() => {
   function renderTitle() {
     const hasSave = SaveManager.hasSave();
     const idleChar = state.character
-      ? renderCharacter(state.character, 180, { instrument: INSTRUMENTS.drums })
-      : renderCharacter('benny', 180, { instrument: INSTRUMENTS.drums });
+      ? renderCharacter(state.character, 180, { instrument: INSTRUMENTS['trash-lid'] })
+      : renderCharacter('benny', 180, { instrument: INSTRUMENTS['trash-lid'] });
     return `
       <section class="screen title-screen">
         <div class="title-bg"></div>
         <div class="title-content">
           <img src="assets/brand/bandland-logo.png" alt="" class="brand-logo-hero" />
-          <p class="subtitle">From street-corner drums to sold-out shows.</p>
+          <p class="subtitle">From trash can lids to sold-out shows.</p>
           <div class="title-idle-character" id="title-idle-char">${idleChar}</div>
           <div class="title-actions">
             ${hasSave ? '<button class="btn btn-primary btn-lg" id="btn-continue">Continue</button>' : ''}
@@ -519,18 +521,18 @@ const Game = (() => {
     return `
       <section class="screen story-screen venue-street">
         <div class="story-panel">
-          <div class="lid-scene drum-scene">
-            <div class="trash-can">🥁</div>
-            <button class="lid-btn" id="btn-tap-drums" title="Tap the drums!">
-              <span class="lid-icon">🥁</span>
-              <span class="lid-label">Drum Kit</span>
+          <div class="lid-scene">
+            <div class="trash-can">🗑️</div>
+            <button class="lid-btn" id="btn-tap-lid" title="Tap the lid!">
+              <span class="lid-icon">🔘</span>
+              <span class="lid-label">Metal Lid</span>
             </button>
-            <div class="story-character small">${renderCharacter(state.character, 100, { instrument: INSTRUMENTS.drums })}</div>
+            <div class="story-character small">${renderCharacter(state.character, 100, { instrument: INSTRUMENTS['trash-lid'] })}</div>
           </div>
           <div class="story-text">
             <h2>Found It!</h2>
-            <p>An old drum kit, just sitting there. ${char.name} taps the snare… <em>BAP!</em></p>
-            <p class="muted" id="drum-hint">👆 Tap the drums to hear them!</p>
+            <p>A metal trash can lid, just sitting there. ${char.name} taps it gently… <em>CRASH!</em></p>
+            <p class="muted" id="lid-hint">👆 Tap the lid to hear it!</p>
           </div>
         </div>
       </section>
@@ -1068,15 +1070,14 @@ const Game = (() => {
       render();
     });
 
-    $('#btn-tap-drums')?.addEventListener('click', () => {
-      AudioEngine.playKick?.();
-      setTimeout(() => AudioEngine.playSnare?.(), 120);
-      const charEl = document.querySelector('.drum-scene .character-layered');
+    $('#btn-tap-lid')?.addEventListener('click', () => {
+      AudioEngine.playCrash();
+      const charEl = document.querySelector('.lid-scene .character-layered');
       if (charEl && typeof CharacterRig !== 'undefined') {
-        CharacterRig.applyPose(charEl, 'drums', 'hit');
+        CharacterRig.applyPose(charEl, 'brass', 'hit');
       }
-      const hint = $('#drum-hint');
-      if (hint) hint.textContent = 'Perfect! Those drums are ready to rock.';
+      const hint = $('#lid-hint');
+      if (hint) hint.textContent = 'Perfect! That crash/cymbal sound is GOLD.';
       setTimeout(() => {
         state.hasLid = true;
         persist();
@@ -1270,7 +1271,7 @@ const Game = (() => {
     const bpm = p.bpm;
     const venue = VENUES.find((v) => v.id === state.currentVenue);
     const inst = getActiveInstrument();
-    const playerStem = getPlayerPartKey(inst);
+    const playerStem = typeof getPlayerStemKey === 'function' ? getPlayerStemKey(inst) : getPlayerPartKey(inst);
 
     AudioEngine.initMix();
     AudioEngine.startCrowdAmbience?.(venue?.tier ?? 0, { intro: true });
@@ -1495,6 +1496,7 @@ const Game = (() => {
         p.leadInBeat ?? 0,
         null,
         displaySnap.onFire,
+        inst,
       );
 
       if (progress < 1) {
@@ -1542,7 +1544,9 @@ const Game = (() => {
 
     const leadInBeat = p.leadInBeat ?? 0;
 
-    const part = song.parts[partKey] || [];
+    const part = typeof filterPartForInstrument === 'function'
+      ? filterPartForInstrument(song.parts?.[partKey], inst)
+      : (song.parts?.[partKey] || []);
     if (!p.missedBeats) p.missedBeats = new Set();
 
     let earliestMiss = null;
@@ -1626,7 +1630,7 @@ const Game = (() => {
     }
     updateRewindButtonState();
 
-    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic, p.hitBeats, p.missedBeats, activeHold ? noteKey(activeHold.note) : null, p.leadInBeat ?? 0, activeHold?.note ?? null, p.onFire);
+    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic, p.hitBeats, p.missedBeats, activeHold ? noteKey(activeHold.note) : null, p.leadInBeat ?? 0, activeHold?.note ?? null, p.onFire, inst);
 
     const crowdPct = Math.min(100, (p.crowd / p.crowdCap) * 100);
     const cheerPct = Math.min(100, (p.cheer / p.cheerGoal) * 100);
@@ -1683,6 +1687,7 @@ const Game = (() => {
       if (rating !== 'miss') {
         const instAnim = {
           drums: 'inst-play-drums',
+          'trash-lid': 'inst-play-cymbal',
         }[inst.id] || (inst.type === 'melodic' ? 'inst-play-melodic' : 'inst-play-percussion');
         held.classList.add(instAnim);
         if (inst.id === 'drums' && typeof InstrumentArt !== 'undefined' && !InstrumentArt.hasArt(inst)) {
@@ -1733,7 +1738,7 @@ const Game = (() => {
       typeof AudioSamples !== 'undefined' ? AudioSamples.loadInstrumentSamples(inst.subtype, inst.id) : null,
       ensureSongLoaded(state.equippedSong).then(async (song) => {
         if (typeof StemPlayer !== 'undefined') {
-          await StemPlayer.load(song, { playerStemKey: getPlayerPartKey(inst) });
+          await StemPlayer.load(song, { playerStemKey: typeof getPlayerStemKey === 'function' ? getPlayerStemKey(inst) : getPlayerPartKey(inst) });
         }
         return song;
       }),
@@ -1928,7 +1933,7 @@ const Game = (() => {
     const partKey = getPlayerPartKey(inst);
     const elapsed = Metronome.getElapsed();
     const isMelodic = inst.type === 'melodic';
-    const notes = getUpcomingNotes(song, partKey, elapsed, p.bpm, RhythmLane.LOOKAHEAD, p.hitBeats, p.missedBeats, p.leadInBeat ?? 0);
+    const notes = getUpcomingNotes(song, partKey, elapsed, p.bpm, RhythmLane.LOOKAHEAD, p.hitBeats, p.missedBeats, p.leadInBeat ?? 0, inst);
     const { rating, note, phase } = rateNotePress(notes, elapsed, p.bpm, isMelodic, p.hitBeats);
 
     if (!note || rating === 'miss') {

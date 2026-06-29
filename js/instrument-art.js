@@ -2,7 +2,7 @@ const InstrumentArt = (() => {
   const O = '#1C1230';
   const ART_BASE = 'assets/instruments/';
 
-  const ART_IDS = new Set(['drums', 'bass', 'electric-guitar', 'keys']);
+  const ART_IDS = new Set(['trash-lid', 'drums', 'bass', 'electric-guitar', 'keys']);
 
   const pngFailed = new Set();
 
@@ -24,6 +24,7 @@ const InstrumentArt = (() => {
   }
 
   const PNG_FRAME = {
+    'trash-lid': { w: 800, h: 800, viewBox: '250 128 299 427' },
     drums: { w: 800, h: 800, viewBox: '177 220 445 360' },
     bass: { w: 409, h: 1024, viewBox: '25 29 359 995' },
     'electric-guitar': { w: 800, h: 800, viewBox: '181 133 438 398' },

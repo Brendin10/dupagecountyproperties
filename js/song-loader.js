@@ -57,6 +57,7 @@ const SongLoader = (() => {
       stemMap: { ...INSTRUMENT_STEM_MAP },
       stemBacked: true,
       beatOffset: manifest.beatOffset || 0,
+      fullMixVolume: manifest.fullMixVolume ?? 0.1,
     };
 
     cache.set(songId, song);

@@ -2,11 +2,11 @@ const SAVE_KEY = 'bandland_save_v2';
 
 function migrateSaveInventories(inventories) {
   const inv = inventories || {};
-  if (!inv.instruments) inv.instruments = ['drums'];
+  if (!inv.instruments) inv.instruments = ['trash-lid'];
   inv.instruments = [...new Set(
     inv.instruments.map((id) => (typeof migrateInstrumentId === 'function' ? migrateInstrumentId(id) : id))
   )];
-  if (!inv.instruments.includes('drums')) inv.instruments.unshift('drums');
+  if (!inv.instruments.includes('trash-lid')) inv.instruments.unshift('trash-lid');
 
   const defaultSong = typeof SongLoader !== 'undefined' ? SongLoader.getDefaultSongId() : 'street-jam';
   if (!inv.songs) inv.songs = [defaultSong];
@@ -75,7 +75,7 @@ const SaveManager = {
     if (state.currentVenue === 'concert-venue') state.currentVenue = 'small-concert-venue';
     state.equippedInstrument = typeof migrateInstrumentId === 'function'
       ? migrateInstrumentId(data.equippedInstrument)
-      : (data.equippedInstrument ?? 'drums');
+      : (data.equippedInstrument ?? 'trash-lid');
     const defaultSong = typeof SongLoader !== 'undefined' ? SongLoader.getDefaultSongId() : 'street-jam';
     const validSongs = typeof SONG_MANIFEST !== 'undefined'
       ? new Set(SONG_MANIFEST.map((s) => s.id))
