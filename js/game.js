@@ -1301,7 +1301,6 @@ const Game = (() => {
     const bpm = p.bpm;
     const venue = VENUES.find((v) => v.id === state.currentVenue);
     const inst = getActiveInstrument();
-    const playerStem = typeof getPlayerStemKey === 'function' ? getPlayerStemKey(inst) : getPlayerPartKey(inst);
 
     AudioEngine.initMix();
     AudioEngine.startCrowdAmbience?.(venue?.tier ?? 0, { intro: true });
