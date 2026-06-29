@@ -11,7 +11,7 @@ const Game = (() => {
       clothes: [],
       makeup: [],
       accessories: [],
-      songs: ['street-jam'],
+      songs: ['rebel-pulse'],
     },
     bandMembers: [],
     bandSlots: 1,
@@ -19,7 +19,7 @@ const Game = (() => {
     performance: null,
     pendingRecruit: null,
     equippedInstrument: 'trash-lid',
-    equippedSong: 'street-jam',
+    equippedSong: 'rebel-pulse',
     equippedWear: { clothes: null, makeup: null, accessories: null },
     gigBandIds: [],
     hubPanelsOpen: {
@@ -49,7 +49,7 @@ const Game = (() => {
     if (state.loadedSong && state.loadedSong.id === (state.equippedSong || SongLoader?.getDefaultSongId?.())) {
       return state.loadedSong;
     }
-    const id = state.equippedSong || (typeof SongLoader !== 'undefined' ? SongLoader.getDefaultSongId() : 'street-jam');
+    const id = state.equippedSong || (typeof SongLoader !== 'undefined' ? SongLoader.getDefaultSongId() : 'rebel-pulse');
     return typeof SongLoader !== 'undefined' && SongLoader.getCached(id)
       ? SongLoader.getCached(id)
       : getSong(id);
@@ -325,7 +325,7 @@ const Game = (() => {
       clothes: [],
       makeup: [],
       accessories: [],
-      songs: [typeof SongLoader !== 'undefined' ? SongLoader.getDefaultSongId() : 'street-jam'],
+      songs: [typeof SongLoader !== 'undefined' ? SongLoader.getDefaultSongId() : 'rebel-pulse'],
     };
     state.bandMembers = [];
     state.bandSlots = 1;
@@ -333,7 +333,7 @@ const Game = (() => {
     state.performance = null;
     state.pendingRecruit = null;
     state.equippedInstrument = 'trash-lid';
-    state.equippedSong = typeof SongLoader !== 'undefined' ? SongLoader.getDefaultSongId() : 'street-jam';
+    state.equippedSong = typeof SongLoader !== 'undefined' ? SongLoader.getDefaultSongId() : 'rebel-pulse';
     state.loadedSong = null;
     state.equippedWear = { clothes: null, makeup: null, accessories: null };
     state.gigBandIds = [];

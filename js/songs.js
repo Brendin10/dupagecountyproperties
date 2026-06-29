@@ -6,8 +6,6 @@ const INSTRUMENT_STEM_MAP = {
   keys: 'Keys',
 };
 
-const TRASH_LID_STEM_KEY = null;
-
 function buildSections(totalBeats) {
   const introLen = Math.round(totalBeats * 0.12);
   const outroLen = Math.round(totalBeats * 0.12);
@@ -39,17 +37,11 @@ function getPlayerPartKey(instrument) {
 }
 
 function getPlayerStemKey(instrument) {
-  if (instrument?.id === 'trash-lid') return TRASH_LID_STEM_KEY;
   return getPlayerPartKey(instrument);
 }
 
 function filterPartForInstrument(part, instrument) {
   if (!part?.length || !instrument) return part || [];
-  if (instrument.id === 'trash-lid') {
-    return part
-      .filter((ev) => ev.hit === 'snare')
-      .map((ev) => ({ ...ev, hit: 'cymbal', label: 'cymbal' }));
-  }
   if (getPlayerPartKey(instrument) === 'Drums') {
     return part.filter((ev) => !ev.hit || ev.hit === 'kick' || ev.hit === 'snare');
   }
@@ -194,14 +186,14 @@ function getSong(id) {
     }
   }
   return {
-    id: 'street-jam',
-    name: 'Street Jam',
-    emoji: '🎶',
+    id: 'rebel-pulse',
+    name: 'Rebel Pulse',
+    emoji: '⚡',
     cost: 0,
-    bpm: 118,
-    totalBeats: 118,
+    bpm: 120,
+    totalBeats: 120,
     durationSec: 60,
-    sections: buildSections(118),
+    sections: buildSections(120),
     parts: {},
     stems: {},
     stemBacked: true,

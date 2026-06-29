@@ -12,7 +12,7 @@ const SongLoader = (() => {
 
   function getDefaultSongId() {
     const catalog = loadSongCatalog();
-    return catalog[0]?.id || 'street-jam';
+    return catalog[0]?.id || 'rebel-pulse';
   }
 
   async function fetchJson(url) {

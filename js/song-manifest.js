@@ -4,18 +4,9 @@ const SONG_MANIFEST = [
     "id": "rebel-pulse",
     "name": "Rebel Pulse",
     "emoji": "\u26a1",
-    "cost": 350,
+    "cost": 0,
     "bpm": 120.19,
     "durationSec": 60.0,
     "beatCount": 120
-  },
-  {
-    "id": "street-jam",
-    "name": "Street Jam",
-    "emoji": "\ud83c\udfb6",
-    "cost": 0,
-    "bpm": 118.0,
-    "durationSec": 60.0,
-    "beatCount": 118
   }
 ];

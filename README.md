@@ -71,10 +71,9 @@ python3 scripts/sync-instrument-assets.py
 
 4. Bump the cache version in `index.html` (`?v=…` and `SONG_ASSET_VERSION`) and deploy.
 
-The bundled example song **Street Jam** lives in `Assets/Songs/street-jam/`. Regenerate its source stems with:
+The starter song **Rebel Pulse** lives in `Assets/Songs/rebel-pulse/`. Add more songs under `Assets/Songs/{song-id}/` and run:
 
 ```bash
-python3 scripts/generate-example-song.py
 python3 scripts/sync-song-assets.py
 ```
 
