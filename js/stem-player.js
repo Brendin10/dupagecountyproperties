@@ -7,7 +7,7 @@ const StemPlayer = (() => {
   let startCtxTime = 0;
   let startElapsed = 0;
   let playerStemKey = 'Drums';
-  let fullMixVolume = 0.1;
+  let fullMixVolume = 0.85;
   let fullMixGain = null;
   let stemBus = null;
 
@@ -29,7 +29,7 @@ const StemPlayer = (() => {
     song = songObj;
     buffers = {};
     playerStemKey = options.playerStemKey !== undefined ? options.playerStemKey : 'Drums';
-    fullMixVolume = songObj?.fullMixVolume ?? 0.1;
+    fullMixVolume = songObj?.fullMixVolume ?? 0.85;
 
     if (!song?.stems) return false;
     const ac = getCtx();
@@ -64,12 +64,14 @@ const StemPlayer = (() => {
     stop({ keepSong: true });
 
     const ac = getCtx();
-    const bus = ensureBus();
+    ensureBus();
     startCtxTime = ac.currentTime + 0.05;
     startElapsed = elapsedOffset;
     running = true;
 
-    STEM_KEYS.forEach((key) => {
+  const PLAYBACK_KEYS = ['Full'];
+
+    PLAYBACK_KEYS.forEach((key) => {
       const buf = buffers[key];
       if (!buf) return;
 
@@ -78,14 +80,8 @@ const StemPlayer = (() => {
       src.loop = false;
 
       const gain = ac.createGain();
-      let vol = key === 'Full' ? 1 : 0.72;
-      if (playerStemKey && key === playerStemKey) vol = 0;
-      if (key === 'Full') {
-        gain.connect(fullMixGain);
-      } else {
-        gain.connect(bus);
-      }
-      gain.gain.value = vol;
+      gain.connect(fullMixGain);
+      gain.gain.value = 1;
       src.connect(gain);
 
       const offset = Math.min(Math.max(elapsedOffset, 0), buf.duration);

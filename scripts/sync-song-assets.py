@@ -306,7 +306,7 @@ def sync_song(song_id: str, song_dir: Path) -> dict | None:
         "durationSec": round(duration_sec, 3),
         "beatCount": beat_count,
         "beatOffset": beat_offset,
-        "fullMixVolume": float(meta.get("fullMixVolume", 0.1)),
+        "fullMixVolume": float(meta.get("fullMixVolume", 0.85)),
         "stems": stem_paths,
     }
 
