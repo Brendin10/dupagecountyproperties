@@ -390,10 +390,49 @@ const Game = (() => {
     StemPlayer.playHit(stemKey, note, song, p?.bpm ?? song.bpm, volScale);
   }
 
+  function handleBackToHub() {
+    if (['results', 'booed', 'perform'].includes(state.screen)) {
+      exitGigToHub();
+      return;
+    }
+    persist();
+    setScreen('hub');
+  }
+
+  function finishGigScreen(screenName) {
+    resetPerformanceTimers();
+    if (typeof StemPlayer !== 'undefined') {
+      StemPlayer.stopSustain();
+      StemPlayer.stop();
+    }
+    state.stemsReady = false;
+    state.gigIntroRunning = false;
+    setCurtainState('idle');
+    setScreen(screenName);
+  }
+
+  function startPerformanceBacking() {
+    const p = state.performance;
+    if (!p || p.backingStarted || !state.stemsReady || typeof StemPlayer === 'undefined') return;
+
+    const song = getActiveSong();
+    const leadInBeat = p.leadInBeat ?? 0;
+    const audioOffset = typeof getChartAudioTime === 'function'
+      ? getChartAudioTime(song, leadInBeat, p.bpm)
+      : GIG_COUNTDOWN_SEC;
+
+    StemPlayer.setPlayerStem(getPlayerStemForInstrument(getActiveInstrument()));
+    if (StemPlayer.start(p.bpm, audioOffset)) {
+      p.backingStarted = true;
+    }
+  }
+
   function exitGigToHub() {
-    stopPerformanceLoop();
+    resetPerformanceTimers();
+    if (typeof StemPlayer !== 'undefined') StemPlayer.stop();
     state.performance = null;
     state.stemsReady = false;
+    state.gigIntroRunning = false;
     activeHold = null;
     setCurtainState('idle');
     persist();
@@ -808,7 +847,7 @@ const Game = (() => {
     return `
       <section class="screen shop-screen">
         <div class="shop-header">
-          <button class="btn btn-ghost" id="btn-back-hub">← Back</button>
+          <button class="btn btn-ghost" data-action="back-hub">← Back</button>
           <img src="assets/brand/bandland-logo.png" alt="Bandland" class="brand-logo" />
           <h2 class="brand-label">Shop</h2>
         </div>
@@ -908,7 +947,7 @@ const Game = (() => {
           <h1 class="booed-title">YOU GOT BOOED OFF STAGE</h1>
           <p class="booed-sub">Five misses in a row — the crowd wasn't feeling it.</p>
           <p class="booed-tip">Keep practicing those gems and come back stronger!</p>
-          <button class="btn btn-primary btn-lg" id="btn-back-hub">Back to Map</button>
+          <button type="button" class="btn btn-primary btn-lg" data-action="back-hub">Back to Map</button>
         </div>
       </section>
     `;
@@ -927,7 +966,7 @@ const Game = (() => {
         ${p.newUnlock
           ? `<p class="unlock-msg">🔓 New venue unlocked: <strong>${p.newUnlock}</strong>!</p>`
           : ''}
-        <button class="btn btn-primary btn-lg" id="btn-back-hub">Back to Map</button>
+        <button type="button" class="btn btn-primary btn-lg" data-action="back-hub">Back to Map</button>
       </section>
     `;
   }
@@ -1052,21 +1091,25 @@ const Game = (() => {
 
   let navigationListenerAttached = false;
 
+  function bindBackToHubButtons() {
+    root().querySelectorAll('[data-action="back-hub"]').forEach((btn) => {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        handleBackToHub();
+      };
+    });
+  }
+
   function bindEvents() {
     const $ = (sel) => document.querySelector(sel);
     const $$ = (sel) => document.querySelectorAll(sel);
 
     if (!navigationListenerAttached) {
-      root().addEventListener('click', (e) => {
-        const backBtn = e.target.closest('#btn-back-hub');
+      document.addEventListener('click', (e) => {
+        const backBtn = e.target.closest('[data-action="back-hub"]');
         if (backBtn) {
           e.preventDefault();
-          if (['results', 'booed', 'perform'].includes(state.screen)) {
-            exitGigToHub();
-          } else {
-            persist();
-            setScreen('hub');
-          }
+          handleBackToHub();
           return;
         }
         const shopPreview = e.target.closest('.shop-preview-btn[data-preview-inst]');
@@ -1074,6 +1117,8 @@ const Game = (() => {
       });
       navigationListenerAttached = true;
     }
+
+    bindBackToHubButtons();
 
     $('#btn-start')?.addEventListener('click', () => {
       SaveManager.clear();
@@ -1268,7 +1313,11 @@ const Game = (() => {
     if (!p || p.booed) return;
     p.booed = true;
     p.onFire = false;
-    stopPerformanceLoop();
+    resetPerformanceTimers();
+    if (typeof StemPlayer !== 'undefined') StemPlayer.stop();
+    state.stemsReady = false;
+    state.gigIntroRunning = false;
+    setCurtainState('idle');
     AudioEngine.setCrowdBooing?.(true);
     AudioEngine.playBoo?.();
     setTimeout(() => AudioEngine.playBoo?.(), 200);
@@ -1304,10 +1353,6 @@ const Game = (() => {
 
     AudioEngine.initMix();
     AudioEngine.startCrowdAmbience?.(venue?.tier ?? 0, { intro: true });
-    if (typeof StemPlayer !== 'undefined' && state.stemsReady) {
-      StemPlayer.setPlayerStem(getPlayerStemForInstrument(inst));
-      StemPlayer.start(bpm);
-    }
     BandAudio.setBand(getGigBandMembers(), song);
     BandAudio.setOnMemberPlay((member) => triggerBandmateAnimation(member));
 
@@ -1627,6 +1672,7 @@ const Game = (() => {
     } else if (!p.countdownEnded) {
       p.countdownEnded = true;
       p.gigTimerStarted = true;
+      startPerformanceBacking();
       AudioEngine.endCrowdIntro?.();
       crowdRow?.classList.remove('crowd-steady');
       setRhythmHint('Tap quick gems · hold long gems through the zone!', 'good');
@@ -1793,6 +1839,7 @@ const Game = (() => {
       missedBeats: new Set(),
       gigTimerStarted: false,
       countdownEnded: false,
+      backingStarted: false,
     };
 
     activeHold = null;
@@ -2032,21 +2079,22 @@ const Game = (() => {
     }
 
     if (p.timeLeft <= 0) {
-      stopPerformanceLoop();
-
-      const prevMax = VENUES.filter((v) => venueUnlocked(v)).length;
-      updateHud();
-      const newMax = VENUES.filter((v) => venueUnlocked(v)).length;
-      if (newMax > prevMax) {
-        const newest = VENUES.filter((v) => venueUnlocked(v)).pop();
-        p.newUnlock = newest?.name;
+      if (!p.gigFinished) {
+        p.gigFinished = true;
+        const prevMax = VENUES.filter((v) => venueUnlocked(v)).length;
+        updateHud();
+        const newMax = VENUES.filter((v) => venueUnlocked(v)).length;
+        if (newMax > prevMax) {
+          const newest = VENUES.filter((v) => venueUnlocked(v)).pop();
+          p.newUnlock = newest?.name;
+        }
+        persist();
+        finishGigScreen('results');
       }
-
-      persist();
-      setScreen('results');
-    } else {
-      updatePerformanceUI();
+      return;
     }
+
+    updatePerformanceUI();
   }
 
   function init() {

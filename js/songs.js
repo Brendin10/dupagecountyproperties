@@ -163,6 +163,19 @@ function rateHoldRelease(activeNote, elapsed, bpm) {
 function rateNoteHit(notes, elapsed, bpm, isMelodic, hitBeats) { return rateNotePress(notes, elapsed, bpm, isMelodic, hitBeats); }
 function noteKey(note) { return `${note.beat}:${note.chord || ''}:${note.note || ''}:${note.hit || ''}`; }
 
+function getChartAudioTime(song, beat, bpm) {
+  if (!song?.parts) {
+    const beatDur = 60 / bpm;
+    return (beat * beatDur) + (song?.beatOffset || 0);
+  }
+  for (const key of ['Drums', 'Bass', 'Lead', 'Keys']) {
+    const ev = song.parts[key]?.find((e) => e.beat === beat);
+    if (ev?.timeSec != null) return ev.timeSec;
+  }
+  const beatDur = 60 / bpm;
+  return (beat * beatDur) + (song.beatOffset || 0);
+}
+
 function getSong(id) {
   if (typeof SongLoader !== 'undefined') {
     const cached = SongLoader.getCached(id);
