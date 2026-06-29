@@ -69,7 +69,7 @@ const StemPlayer = (() => {
     startElapsed = elapsedOffset;
     running = true;
 
-  const PLAYBACK_KEYS = ['Full'];
+    const PLAYBACK_KEYS = ['Full'];
 
     PLAYBACK_KEYS.forEach((key) => {
       const buf = buffers[key];
