@@ -32,6 +32,7 @@ const Game = (() => {
     },
     shopNotice: null,
     gigIntroRunning: false,
+    suppressPerformUntil: 0,
     loadedSong: null,
     stemsReady: false,
   };
@@ -100,6 +101,7 @@ const Game = (() => {
   let rewindActive = false;
   let rewindAnimRaf = null;
   let playPointerId = null;
+  let gigIntroToken = 0;
 
   function isHotStreak(p) {
     return !!p?.onFire;
@@ -401,6 +403,11 @@ const Game = (() => {
     playPointerId = null;
   }
 
+  function abortGigIntro() {
+    gigIntroToken += 1;
+    state.gigIntroRunning = false;
+  }
+
   function hideGigResultsOverlay() {
     const layer = document.getElementById('gig-results-layer');
     if (!layer) return;
@@ -409,45 +416,57 @@ const Game = (() => {
     layer.innerHTML = '';
   }
 
-  function bindGigResultsExit(layer) {
-    const go = (e) => {
-      e?.preventDefault?.();
-      exitGigToHub();
-    };
-    layer.querySelectorAll('[data-action="back-hub"]').forEach((btn) => {
-      btn.onclick = go;
-    });
-  }
-
-  function showGigResultsOverlay() {
+  function openGigResultsOverlay(html) {
     const layer = document.getElementById('gig-results-layer');
     if (!layer) {
-      setScreen('results');
+      root().innerHTML = html;
+      bindEvents();
       return;
     }
-
-    dismissStageCurtain();
-    layer.innerHTML = renderResultsMarkup();
+    layer.innerHTML = html;
     layer.classList.remove('hidden');
     layer.setAttribute('aria-hidden', 'false');
     bindGigResultsExit(layer);
-    state.screen = 'results';
-    updateHud();
+  }
 
-    // Hub is rendered underneath so Back to Map reveals the venue map immediately.
+  function bindGigResultsExit(layer) {
+    layer.querySelectorAll('[data-action="back-hub"]').forEach((btn) => {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+        setTimeout(() => exitGigToHub(), 0);
+      };
+    });
+  }
+
+  function teardownGigSession() {
+    abortGigIntro();
+    resetPerformanceTimers();
+    if (typeof StemPlayer !== 'undefined') {
+      StemPlayer.setOnFullMixEnd?.(null);
+      StemPlayer.stopSustain();
+      StemPlayer.stop();
+    }
     state.performance = null;
+    state.stemsReady = false;
+    state.gigIntroRunning = false;
     activeHold = null;
     playPointerId = null;
-    state.screen = 'hub';
-    render();
-    state.screen = 'results';
-    updateHud();
+    dismissStageCurtain();
+  }
+
+  function showGigResultsOverlay() {
+    const resultsHtml = renderResultsMarkup();
+    teardownGigSession();
+    setScreen('hub');
+    openGigResultsOverlay(resultsHtml);
   }
 
   function handleBackToHub() {
     const layer = document.getElementById('gig-results-layer');
     if (layer && !layer.classList.contains('hidden')) {
-      exitGigToHub();
+      setTimeout(() => exitGigToHub(), 0);
       return;
     }
     if (['results', 'booed', 'perform'].includes(state.screen)) {
@@ -465,20 +484,14 @@ const Game = (() => {
       p.gigFinished = true;
     }
     releasePerformInput();
-    resetPerformanceTimers();
-    if (typeof StemPlayer !== 'undefined') {
-      StemPlayer.setOnFullMixEnd?.(null);
-      StemPlayer.stopSustain();
-      StemPlayer.stop();
-    }
-    state.stemsReady = false;
-    state.gigIntroRunning = false;
     dismissStageCurtain();
 
     if (screenName === 'results') {
       showGigResultsOverlay();
       return;
     }
+
+    teardownGigSession();
     setScreen(screenName);
   }
 
@@ -506,21 +519,10 @@ const Game = (() => {
 
   function exitGigToHub() {
     hideGigResultsOverlay();
-    state.performance = null;
-    activeHold = null;
-    playPointerId = null;
-    resetPerformanceTimers();
-    if (typeof StemPlayer !== 'undefined') {
-      StemPlayer.setOnFullMixEnd?.(null);
-      StemPlayer.stop();
-    }
-    state.stemsReady = false;
-    state.gigIntroRunning = false;
-    dismissStageCurtain();
+    teardownGigSession();
+    state.suppressPerformUntil = performance.now() + 500;
     persist();
-    state.screen = 'hub';
-    updateHud();
-    render();
+    setScreen('hub');
   }
 
   function resetPerformanceTimers() {
@@ -1188,6 +1190,14 @@ const Game = (() => {
   let navigationListenerAttached = false;
 
   function onBackHubNavigation(e) {
+    const resultsBtn = e.target.closest('#gig-results-layer [data-action="back-hub"]');
+    if (resultsBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      setTimeout(() => exitGigToHub(), 0);
+      return;
+    }
     const backBtn = e.target.closest('[data-action="back-hub"]');
     if (!backBtn) return;
     e.preventDefault();
@@ -1276,7 +1286,8 @@ const Game = (() => {
       });
     });
 
-    $('#btn-perform')?.addEventListener('click', startPerformance);
+    const performBtn = $('#btn-perform');
+    if (performBtn) performBtn.onclick = () => startPerformance();
     $('#btn-shop')?.addEventListener('click', () => setScreen('shop'));
 
     $$('.shop-tab').forEach((tab) => {
@@ -1422,11 +1433,7 @@ const Game = (() => {
     p.onFire = false;
     p.rhythmActive = false;
     releasePerformInput();
-    resetPerformanceTimers();
-    if (typeof StemPlayer !== 'undefined') StemPlayer.stop();
-    state.stemsReady = false;
-    state.gigIntroRunning = false;
-    dismissStageCurtain();
+    teardownGigSession();
     AudioEngine.setCrowdBooing?.(true);
     AudioEngine.playBoo?.();
     setTimeout(() => AudioEngine.playBoo?.(), 200);
@@ -1919,6 +1926,7 @@ const Game = (() => {
   }
 
   async function runGigIntroSequence() {
+    const introToken = ++gigIntroToken;
     const btn = document.getElementById('btn-perform');
     if (btn) btn.disabled = true;
 
@@ -1943,8 +1951,10 @@ const Game = (() => {
       ]);
 
       await waitMs(600);
+      if (introToken !== gigIntroToken) return;
       setCurtainState('loading', 'Tuning up…');
       await preload;
+      if (introToken !== gigIntroToken) return;
 
       const venue = VENUES.find((v) => v.id === state.currentVenue);
       const appeal = crowdAppeal();
@@ -1986,9 +1996,11 @@ const Game = (() => {
       rewindActive = false;
       resetPerformanceTimers();
       state.perfInterval = setInterval(tickPerformance, 1000);
+      if (introToken !== gigIntroToken) return;
       setScreen('perform');
 
       await waitMs(80);
+      if (introToken !== gigIntroToken) return;
       setCurtainState('opening');
       const performContent = document.querySelector('.perform-content');
       if (performContent) {
@@ -1997,21 +2009,25 @@ const Game = (() => {
       }
 
       await waitMs(800);
+      if (introToken !== gigIntroToken) return;
       setCurtainState('done');
       startPerformanceLoop();
 
       await waitMs(300);
     } finally {
-      dismissStageCurtain();
-      if (btn) btn.disabled = false;
+      if (introToken === gigIntroToken) {
+        dismissStageCurtain();
+        if (btn) btn.disabled = false;
+      }
     }
   }
 
   function startPerformance() {
+    if (state.suppressPerformUntil && performance.now() < state.suppressPerformUntil) return;
     if (state.gigIntroRunning) return;
     state.gigIntroRunning = true;
     runGigIntroSequence().finally(() => {
-      state.gigIntroRunning = false;
+      if (state.performance) state.gigIntroRunning = false;
     });
   }
 
