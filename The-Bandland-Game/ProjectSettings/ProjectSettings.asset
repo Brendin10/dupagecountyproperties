@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!129 &1
+PlayerSettings:
+  productGUID: a1b2c3d4e5f6789012345678abcdef02
+  companyName: Bandland
+  productName: Bandland
+  defaultScreenWidth: 1920
+  defaultScreenHeight: 1080
+  defaultIsNativeResolution: 1
+  runInBackground: 1
+  fullscreenMode: 3
+  bundleVersion: 0.1.0
+  applicationIdentifier:
+    Standalone: com.Bandland.Bandland
+  apiCompatibilityLevel: 6
+  activeInputHandler: 0
