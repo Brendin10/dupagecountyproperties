@@ -99,6 +99,7 @@ const Game = (() => {
   let rewindCooldown = false;
   let rewindActive = false;
   let rewindAnimRaf = null;
+  let playPointerId = null;
 
   function isHotStreak(p) {
     return !!p?.onFire;
@@ -390,7 +391,61 @@ const Game = (() => {
     StemPlayer.playHit(stemKey, note, song, p?.bpm ?? song.bpm, volScale);
   }
 
+  function releasePerformInput() {
+    onNoteRelease();
+    activeHold = null;
+    const playBtn = document.getElementById('btn-play-note');
+    if (playBtn && playPointerId != null) {
+      try { playBtn.releasePointerCapture(playPointerId); } catch { /* released */ }
+    }
+    playPointerId = null;
+  }
+
+  function hideGigResultsOverlay() {
+    const layer = document.getElementById('gig-results-layer');
+    if (!layer) return;
+    layer.classList.add('hidden');
+    layer.setAttribute('aria-hidden', 'true');
+    layer.innerHTML = '';
+  }
+
+  function bindGigResultsExit(layer) {
+    const go = (e) => {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      exitGigToHub();
+    };
+    layer.querySelectorAll('[data-action="back-hub"]').forEach((btn) => {
+      btn.onclick = go;
+    });
+  }
+
+  function showGigResultsOverlay() {
+    const layer = document.getElementById('gig-results-layer');
+    if (!layer) {
+      state.screen = 'results';
+      updateHud();
+      render();
+      return;
+    }
+
+    releasePerformInput();
+    dismissStageCurtain();
+    layer.innerHTML = renderResultsMarkup();
+    layer.classList.remove('hidden');
+    layer.setAttribute('aria-hidden', 'false');
+    bindGigResultsExit(layer);
+    state.screen = 'results';
+    updateHud();
+    root().innerHTML = '<section class="screen results-placeholder" aria-hidden="true"></section>';
+  }
+
   function handleBackToHub() {
+    const layer = document.getElementById('gig-results-layer');
+    if (layer && !layer.classList.contains('hidden')) {
+      exitGigToHub();
+      return;
+    }
     if (['results', 'booed', 'perform'].includes(state.screen)) {
       exitGigToHub();
       return;
@@ -405,15 +460,21 @@ const Game = (() => {
       p.rhythmActive = false;
       p.gigFinished = true;
     }
+    releasePerformInput();
     resetPerformanceTimers();
     if (typeof StemPlayer !== 'undefined') {
+      StemPlayer.setOnFullMixEnd?.(null);
       StemPlayer.stopSustain();
       StemPlayer.stop();
     }
     state.stemsReady = false;
     state.gigIntroRunning = false;
-    activeHold = null;
     dismissStageCurtain();
+
+    if (screenName === 'results') {
+      showGigResultsOverlay();
+      return;
+    }
     setScreen(screenName);
   }
 
@@ -431,10 +492,17 @@ const Game = (() => {
     StemPlayer.setPlayerStemAudible?.(true);
     if (StemPlayer.startPerformance(stemKey, audioOffset)) {
       p.backingStarted = true;
+      StemPlayer.setOnFullMixEnd?.(() => {
+        if (!state.performance || state.screen !== 'perform' || state.performance.gigFinished) return;
+        state.performance.timeLeft = 0;
+        tickPerformance();
+      });
     }
   }
 
   function exitGigToHub() {
+    hideGigResultsOverlay();
+    releasePerformInput();
     resetPerformanceTimers();
     if (typeof StemPlayer !== 'undefined') StemPlayer.stop();
     state.performance = null;
@@ -954,19 +1022,19 @@ const Game = (() => {
           <h1 class="booed-title">YOU GOT BOOED OFF STAGE</h1>
           <p class="booed-sub">Five misses in a row — the crowd wasn't feeling it.</p>
           <p class="booed-tip">Keep practicing those gems and come back stronger!</p>
-          <button type="button" class="btn btn-primary btn-lg" id="btn-back-hub" data-action="back-hub" onclick="window.Bandland&&window.Bandland.exitToHub()">Back to Map</button>
+          <button type="button" class="btn btn-primary btn-lg" id="btn-back-hub-booed" data-action="back-hub">Back to Map</button>
         </div>
       </section>
     `;
   }
 
-  function renderResults() {
+  function renderResultsMarkup() {
     const p = state.performance;
     if (!p) {
       return `
         <section class="screen results-screen">
           <h2>Gig Complete! 🎉</h2>
-          <button type="button" class="btn btn-primary btn-lg" id="btn-back-hub" data-action="back-hub" onclick="window.Bandland&&window.Bandland.exitToHub()">Back to Map</button>
+          <button type="button" class="btn btn-primary btn-lg" id="btn-back-hub-results" data-action="back-hub">Back to Map</button>
         </section>
       `;
     }
@@ -981,9 +1049,13 @@ const Game = (() => {
         ${p.newUnlock
           ? `<p class="unlock-msg">🔓 New venue unlocked: <strong>${p.newUnlock}</strong>!</p>`
           : ''}
-        <button type="button" class="btn btn-primary btn-lg" id="btn-back-hub" data-action="back-hub" onclick="window.Bandland&&window.Bandland.exitToHub()">Back to Map</button>
+        <button type="button" class="btn btn-primary btn-lg" id="btn-back-hub-results" data-action="back-hub">Back to Map</button>
       </section>
     `;
+  }
+
+  function renderResults() {
+    return renderResultsMarkup();
   }
 
   function renderTune() {
@@ -1127,9 +1199,12 @@ const Game = (() => {
     const $$ = (sel) => document.querySelectorAll(sel);
 
     if (!navigationListenerAttached) {
-      const navRoot = document.getElementById('app') || document;
-      navRoot.addEventListener('click', onBackHubNavigation, true);
-      navRoot.addEventListener('pointerup', onBackHubNavigation, true);
+      document.addEventListener('click', onBackHubNavigation, true);
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        const layer = document.getElementById('gig-results-layer');
+        if (layer && !layer.classList.contains('hidden')) exitGigToHub();
+      });
       document.addEventListener('click', (e) => {
         const shopPreview = e.target.closest('.shop-preview-btn[data-preview-inst]');
         if (shopPreview) e.stopPropagation();
@@ -1291,16 +1366,20 @@ const Game = (() => {
     const playBtn = $('#btn-play-note');
     playBtn?.addEventListener('pointerdown', (e) => {
       e.preventDefault();
+      playPointerId = e.pointerId;
       playBtn.setPointerCapture(e.pointerId);
       triggerPlayPress(getActiveInstrument());
       onNotePress();
     });
     playBtn?.addEventListener('pointerup', (e) => {
+      if (playPointerId === e.pointerId) playPointerId = null;
       playBtn.releasePointerCapture?.(e.pointerId);
       onNoteRelease();
       triggerPlayRelease(getActiveInstrument());
     });
-    playBtn?.addEventListener('pointercancel', () => {
+    playBtn?.addEventListener('pointercancel', (e) => {
+      if (playPointerId === e.pointerId) playPointerId = null;
+      playBtn.releasePointerCapture?.(e.pointerId);
       onNoteRelease();
       triggerPlayRelease(getActiveInstrument());
     });
@@ -1333,6 +1412,7 @@ const Game = (() => {
     p.booed = true;
     p.onFire = false;
     p.rhythmActive = false;
+    releasePerformInput();
     resetPerformanceTimers();
     if (typeof StemPlayer !== 'undefined') StemPlayer.stop();
     state.stemsReady = false;
@@ -2150,6 +2230,7 @@ const Game = (() => {
 
   function init() {
     window.Bandland = { exitToHub: exitGigToHub };
+    hideGigResultsOverlay();
     if (new URLSearchParams(window.location.search).get('tune') === '1') {
       state.screen = 'tune';
       state.tuneInstId = Object.keys(INSTRUMENTS)[0];

@@ -14,6 +14,7 @@ const StemPlayer = (() => {
   let stemBus = null;
   let sustainSource = null;
   let sustainGain = null;
+  let onFullMixEnd = null;
 
   const STEM_KEYS = ['Bass', 'Drums', 'Lead', 'Keys', 'Full'];
 
@@ -172,6 +173,10 @@ const StemPlayer = (() => {
     fullSrc.connect(fullGain);
     fullGain.connect(fullMixGain);
     fullSrc.start(startCtxTime, offset);
+    fullSrc.onended = () => {
+      if (sources.Full === fullSrc) sources.Full = null;
+      onFullMixEnd?.();
+    };
     sources.Full = fullSrc;
     gains.Full = fullGain;
 
@@ -213,7 +218,10 @@ const StemPlayer = (() => {
     running = false;
     stopSustain();
     Object.values(sources).forEach((src) => {
-      try { src.stop(); } catch { /* already stopped */ }
+      try {
+        src.onended = null;
+        src.stop();
+      } catch { /* already stopped */ }
     });
     sources = {};
     gains = {};
@@ -243,6 +251,10 @@ const StemPlayer = (() => {
     return STEM_KEYS.some((key) => key !== 'Full' && buffers[key]);
   }
 
+  function setOnFullMixEnd(cb) {
+    onFullMixEnd = typeof cb === 'function' ? cb : null;
+  }
+
   return {
     load,
     start,
@@ -261,5 +273,6 @@ const StemPlayer = (() => {
     hasFullMix,
     hasStem,
     isLoaded,
+    setOnFullMixEnd,
   };
 })();

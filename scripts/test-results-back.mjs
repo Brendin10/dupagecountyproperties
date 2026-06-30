@@ -29,26 +29,15 @@ const browser = await puppeteer.launch({
 });
 const page = await browser.newPage();
 
-const errors = [];
-page.on('pageerror', (err) => errors.push(String(err)));
-
-await page.goto('http://localhost:8899/?v=57', { waitUntil: 'networkidle0' });
+await page.goto('http://localhost:8899/?v=58', { waitUntil: 'networkidle0' });
 await page.evaluate((save) => {
   localStorage.setItem('bandland_save_v2', JSON.stringify(save));
 }, SAVE);
 await page.reload({ waitUntil: 'networkidle0' });
-const continueBtn = await page.$('#btn-continue');
-if (continueBtn) {
-  await continueBtn.click();
-} else {
-  await page.click('#btn-start');
-  await page.click('.character-card');
-  await page.click('#btn-tutorial-next');
-  await page.click('#btn-tap-lid');
-  await page.waitForSelector('.hub-screen', { timeout: 5000 });
-}
-await page.waitForSelector('.hub-screen', { timeout: 10000 });
+await page.click('#btn-continue');
+await page.waitForSelector('.hub-screen');
 
+// Simulate gig results overlay with curtain blocking (the reported bug scenario)
 const result = await page.evaluate(async () => {
   const curtain = document.getElementById('stage-curtain');
   curtain.className = 'stage-curtain curtain-opening';
@@ -56,27 +45,27 @@ const result = await page.evaluate(async () => {
   curtain.style.opacity = '1';
   curtain.style.visibility = 'visible';
 
-  document.getElementById('screen-root').innerHTML = `
+  const layer = document.getElementById('gig-results-layer');
+  layer.innerHTML = `
     <section class="screen results-screen">
       <h2>Gig Complete! 🎉</h2>
-      <button type="button" class="btn btn-primary btn-lg" id="btn-back-hub" data-action="back-hub" onclick="window.Bandland&&window.Bandland.exitToHub()">Back to Map</button>
+      <button type="button" class="btn btn-primary btn-lg" data-action="back-hub">Back to Map</button>
     </section>
   `;
+  layer.classList.remove('hidden');
+  layer.querySelector('[data-action="back-hub"]').onclick = () => window.Bandland.exitToHub();
 
-  const backBtn = document.getElementById('btn-back-hub');
-  backBtn.click();
+  layer.querySelector('[data-action="back-hub"]').click();
   await new Promise((r) => setTimeout(r, 300));
 
-  const curtainPE = getComputedStyle(curtain).pointerEvents;
   return {
-    hasBandland: typeof window.Bandland?.exitToHub === 'function',
+    hasLayer: !!document.getElementById('gig-results-layer'),
     onHub: !!document.querySelector('.hub-screen'),
-    curtainPE,
+    overlayHidden: document.getElementById('gig-results-layer')?.classList.contains('hidden'),
+    curtainPE: getComputedStyle(curtain).pointerEvents,
   };
 });
 
-console.log('Test result:', JSON.stringify(result, null, 2));
-if (errors.length) console.log('Page errors:', errors);
-
+console.log(JSON.stringify(result, null, 2));
 await browser.close();
-process.exit(result.onHub && result.hasBandland ? 0 : 1);
+process.exit(result.onHub && result.overlayHidden ? 0 : 1);
