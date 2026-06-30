@@ -400,6 +400,11 @@ const Game = (() => {
   }
 
   function finishGigScreen(screenName) {
+    const p = state.performance;
+    if (p) {
+      p.rhythmActive = false;
+      p.gigFinished = true;
+    }
     resetPerformanceTimers();
     if (typeof StemPlayer !== 'undefined') {
       StemPlayer.stopSustain();
@@ -407,7 +412,8 @@ const Game = (() => {
     }
     state.stemsReady = false;
     state.gigIntroRunning = false;
-    setCurtainState('idle');
+    activeHold = null;
+    dismissStageCurtain();
     setScreen(screenName);
   }
 
@@ -435,7 +441,7 @@ const Game = (() => {
     state.stemsReady = false;
     state.gigIntroRunning = false;
     activeHold = null;
-    setCurtainState('idle');
+    dismissStageCurtain();
     persist();
     setScreen('hub');
   }
@@ -948,7 +954,7 @@ const Game = (() => {
           <h1 class="booed-title">YOU GOT BOOED OFF STAGE</h1>
           <p class="booed-sub">Five misses in a row — the crowd wasn't feeling it.</p>
           <p class="booed-tip">Keep practicing those gems and come back stronger!</p>
-          <button type="button" class="btn btn-primary btn-lg" data-action="back-hub">Back to Map</button>
+          <button type="button" class="btn btn-primary btn-lg" id="btn-back-hub" data-action="back-hub" onclick="window.Bandland&&window.Bandland.exitToHub()">Back to Map</button>
         </div>
       </section>
     `;
@@ -956,6 +962,14 @@ const Game = (() => {
 
   function renderResults() {
     const p = state.performance;
+    if (!p) {
+      return `
+        <section class="screen results-screen">
+          <h2>Gig Complete! 🎉</h2>
+          <button type="button" class="btn btn-primary btn-lg" id="btn-back-hub" data-action="back-hub" onclick="window.Bandland&&window.Bandland.exitToHub()">Back to Map</button>
+        </section>
+      `;
+    }
     return `
       <section class="screen results-screen">
         <h2>Gig Complete! 🎉</h2>
@@ -967,7 +981,7 @@ const Game = (() => {
         ${p.newUnlock
           ? `<p class="unlock-msg">🔓 New venue unlocked: <strong>${p.newUnlock}</strong>!</p>`
           : ''}
-        <button type="button" class="btn btn-primary btn-lg" data-action="back-hub">Back to Map</button>
+        <button type="button" class="btn btn-primary btn-lg" id="btn-back-hub" data-action="back-hub" onclick="window.Bandland&&window.Bandland.exitToHub()">Back to Map</button>
       </section>
     `;
   }
@@ -1092,6 +1106,13 @@ const Game = (() => {
 
   let navigationListenerAttached = false;
 
+  function onBackHubNavigation(e) {
+    const backBtn = e.target.closest('[data-action="back-hub"]');
+    if (!backBtn) return;
+    e.preventDefault();
+    handleBackToHub();
+  }
+
   function bindBackToHubButtons() {
     root().querySelectorAll('[data-action="back-hub"]').forEach((btn) => {
       btn.onclick = (e) => {
@@ -1106,13 +1127,10 @@ const Game = (() => {
     const $$ = (sel) => document.querySelectorAll(sel);
 
     if (!navigationListenerAttached) {
+      const navRoot = document.getElementById('app') || document;
+      navRoot.addEventListener('click', onBackHubNavigation, true);
+      navRoot.addEventListener('pointerup', onBackHubNavigation, true);
       document.addEventListener('click', (e) => {
-        const backBtn = e.target.closest('[data-action="back-hub"]');
-        if (backBtn) {
-          e.preventDefault();
-          handleBackToHub();
-          return;
-        }
         const shopPreview = e.target.closest('.shop-preview-btn[data-preview-inst]');
         if (shopPreview) e.stopPropagation();
       });
@@ -1314,11 +1332,12 @@ const Game = (() => {
     if (!p || p.booed) return;
     p.booed = true;
     p.onFire = false;
+    p.rhythmActive = false;
     resetPerformanceTimers();
     if (typeof StemPlayer !== 'undefined') StemPlayer.stop();
     state.stemsReady = false;
     state.gigIntroRunning = false;
-    setCurtainState('idle');
+    dismissStageCurtain();
     AudioEngine.setCrowdBooing?.(true);
     AudioEngine.playBoo?.();
     setTimeout(() => AudioEngine.playBoo?.(), 200);
@@ -1791,7 +1810,19 @@ const Game = (() => {
     curtain.classList.remove('curtain-idle', 'curtain-closing', 'curtain-loading', 'curtain-opening', 'curtain-done');
     curtain.classList.add(`curtain-${phase}`);
     curtain.setAttribute('aria-hidden', phase === 'idle' || phase === 'done' ? 'true' : 'false');
+    const blockPointer = ['closing', 'loading', 'opening'].includes(phase);
+    curtain.style.pointerEvents = blockPointer ? 'auto' : 'none';
     if (status) status.textContent = message;
+  }
+
+  function dismissStageCurtain() {
+    setCurtainState('idle');
+    const curtain = document.getElementById('stage-curtain');
+    if (curtain) {
+      curtain.style.pointerEvents = 'none';
+      curtain.style.visibility = 'hidden';
+      curtain.style.opacity = '0';
+    }
   }
 
   function waitMs(ms) {
@@ -1802,86 +1833,89 @@ const Game = (() => {
     const btn = document.getElementById('btn-perform');
     if (btn) btn.disabled = true;
 
-    setCurtainState('closing');
-    AudioEngine.resume();
+    try {
+      setCurtainState('closing');
+      AudioEngine.resume();
 
-    const inst = getActiveInstrument();
-    const preload = Promise.all([
-      AudioEngine.loadCheerSample?.().catch(() => null),
-      AudioEngine.loadBooSample?.().catch(() => null),
-      AudioEngine.loadRewindSample?.().catch(() => null),
-      ensureSongLoaded(state.equippedSong).then(async (song) => {
-        state.stemsReady = false;
-        if (typeof StemPlayer !== 'undefined') {
-          state.stemsReady = await StemPlayer.load(song, {
-            playerStemKey: getPlayerStemForInstrument(inst),
-          });
-        }
-        return song;
-      }),
-    ]);
+      const inst = getActiveInstrument();
+      const preload = Promise.all([
+        AudioEngine.loadCheerSample?.().catch(() => null),
+        AudioEngine.loadBooSample?.().catch(() => null),
+        AudioEngine.loadRewindSample?.().catch(() => null),
+        ensureSongLoaded(state.equippedSong).then(async (song) => {
+          state.stemsReady = false;
+          if (typeof StemPlayer !== 'undefined') {
+            state.stemsReady = await StemPlayer.load(song, {
+              playerStemKey: getPlayerStemForInstrument(inst),
+            });
+          }
+          return song;
+        }),
+      ]);
 
-    await waitMs(600);
-    setCurtainState('loading', 'Tuning up…');
-    await preload;
+      await waitMs(600);
+      setCurtainState('loading', 'Tuning up…');
+      await preload;
 
-    const venue = VENUES.find((v) => v.id === state.currentVenue);
-    const appeal = crowdAppeal();
-    const crowdCap = venue.crowdCap + Math.floor(appeal * 0.5);
-    const bpm = getPerformanceBpm();
-    const song = getActiveSong();
-    const gigDuration = Math.max(15, Math.ceil(song.durationSec || 60));
+      const venue = VENUES.find((v) => v.id === state.currentVenue);
+      const appeal = crowdAppeal();
+      const crowdCap = venue.crowdCap + Math.floor(appeal * 0.5);
+      const bpm = getPerformanceBpm();
+      const song = getActiveSong();
+      const gigDuration = Math.max(15, Math.ceil(song.durationSec || 60));
 
-    state.performance = {
-      timeLeft: gigDuration,
-      crowd: Math.min(3 + Math.floor(appeal * 0.2), crowdCap),
-      crowdCap,
-      cheer: 0,
-      cheerGoal: 50 + venue.starRequired * 0.3,
-      sessionCash: 0,
-      sessionStars: 0,
-      peakCrowd: 0,
-      appeal,
-      tipMultiplier: venue.tipMultiplier,
-      bpm,
-      combo: 0,
-      missStreak: 0,
-      onFire: false,
-      booed: false,
-      venueTier: venue.tier ?? 0,
-      newUnlock: null,
-      recruitRolls: 0,
-      hitBeats: new Set(),
-      missedBeats: new Set(),
-      gigTimerStarted: false,
-      countdownEnded: false,
-      backingStarted: false,
-    };
+      state.performance = {
+        timeLeft: gigDuration,
+        crowd: Math.min(3 + Math.floor(appeal * 0.2), crowdCap),
+        crowdCap,
+        cheer: 0,
+        cheerGoal: 50 + venue.starRequired * 0.3,
+        sessionCash: 0,
+        sessionStars: 0,
+        peakCrowd: 0,
+        appeal,
+        tipMultiplier: venue.tipMultiplier,
+        bpm,
+        combo: 0,
+        missStreak: 0,
+        onFire: false,
+        booed: false,
+        venueTier: venue.tier ?? 0,
+        newUnlock: null,
+        recruitRolls: 0,
+        hitBeats: new Set(),
+        missedBeats: new Set(),
+        gigTimerStarted: false,
+        countdownEnded: false,
+        backingStarted: false,
+      };
 
-    activeHold = null;
-    rewindSnapshots = [];
-    lastSnapshotAt = -1;
-    rewindCooldown = false;
-    rewindActive = false;
-    resetPerformanceTimers();
-    state.perfInterval = setInterval(tickPerformance, 1000);
-    setScreen('perform');
+      activeHold = null;
+      rewindSnapshots = [];
+      lastSnapshotAt = -1;
+      rewindCooldown = false;
+      rewindActive = false;
+      resetPerformanceTimers();
+      state.perfInterval = setInterval(tickPerformance, 1000);
+      setScreen('perform');
 
-    await waitMs(80);
-    setCurtainState('opening');
-    const performContent = document.querySelector('.perform-content');
-    if (performContent) {
-      performContent.classList.add('stage-reveal');
-      document.querySelector('.perform-screen')?.classList.remove('stage-mounting');
+      await waitMs(80);
+      setCurtainState('opening');
+      const performContent = document.querySelector('.perform-content');
+      if (performContent) {
+        performContent.classList.add('stage-reveal');
+        document.querySelector('.perform-screen')?.classList.remove('stage-mounting');
+      }
+
+      await waitMs(800);
+      setCurtainState('done');
+      startPerformanceLoop();
+
+      await waitMs(300);
+    } finally {
+      dismissStageCurtain();
+      if (btn) btn.disabled = false;
     }
-
-    await waitMs(800);
-    setCurtainState('done');
-    startPerformanceLoop();
-
-    if (btn) btn.disabled = false;
-    await waitMs(300);
-    setCurtainState('idle');
   }
 
   function startPerformance() {
@@ -2115,6 +2149,7 @@ const Game = (() => {
   }
 
   function init() {
+    window.Bandland = { exitToHub: exitGigToHub };
     if (new URLSearchParams(window.location.search).get('tune') === '1') {
       state.screen = 'tune';
       state.tuneInstId = Object.keys(INSTRUMENTS)[0];

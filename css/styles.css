@@ -2659,6 +2659,7 @@ body {
 .stage-curtain.curtain-done {
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
 }
 
 .stage-curtain.curtain-closing,
