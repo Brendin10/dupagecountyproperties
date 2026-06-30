@@ -76,7 +76,7 @@ function noteAudioTime(note, song, bpm) {
 }
 
 function getAudioStartOffset(song, leadInBeat, bpm) {
-  return getChartAudioTime(song, leadInBeat, bpm);
+  return 0;
 }
 
 function getSongPlayElapsed(elapsed, countdownSec = 4) {

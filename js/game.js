@@ -502,7 +502,7 @@ const Game = (() => {
     const song = getActiveSong();
     const inst = getActiveInstrument();
     const stemKey = getPlayerStemForInstrument(inst);
-    const audioOffset = getAudioStartOffset(song, p.leadInBeat ?? 0, p.bpm);
+    const audioOffset = 0;
     p.audioStartOffset = audioOffset;
 
     StemPlayer.setPlayerStem(stemKey);
@@ -510,9 +510,19 @@ const Game = (() => {
     if (StemPlayer.startPerformance(stemKey, audioOffset)) {
       p.backingStarted = true;
       StemPlayer.setOnFullMixEnd?.(() => {
-        if (!state.performance || state.screen !== 'perform' || state.performance.gigFinished) return;
-        state.performance.timeLeft = 0;
-        tickPerformance();
+        const perf = state.performance;
+        if (!perf || state.screen !== 'perform' || perf.gigFinished) return;
+        perf.timeLeft = 0;
+        perf.gigFinished = true;
+        const prevMax = VENUES.filter((v) => venueUnlocked(v)).length;
+        updateHud();
+        const newMax = VENUES.filter((v) => venueUnlocked(v)).length;
+        if (newMax > prevMax) {
+          const newest = VENUES.filter((v) => venueUnlocked(v)).pop();
+          perf.newUnlock = newest?.name;
+        }
+        persist();
+        finishGigScreen('results');
       });
     }
   }
@@ -1639,8 +1649,7 @@ const Game = (() => {
 
       if (p.backingStarted && typeof StemPlayer !== 'undefined' && StemPlayer.seek) {
         const songElapsed = getSongPlayElapsed(Metronome.getElapsed(), GIG_COUNTDOWN_SEC);
-        const base = p.audioStartOffset ?? getAudioStartOffset(song, p.leadInBeat ?? 0, p.bpm);
-        StemPlayer.seek(base + songElapsed);
+        StemPlayer.seek(songElapsed);
       }
 
       setTimeout(() => {
@@ -2082,9 +2091,11 @@ const Game = (() => {
 
     const hot = isHotStreak(p);
     const streak = hotStreakMult(p);
-    AudioEngine.playHitBurst?.(rating, streak);
+    if (!useStemHitAudio()) {
+      AudioEngine.playHitBurst?.(rating, streak);
+    }
     if (note) {
-      playInstrumentHit(note, inst, (rating === 'perfect' ? 0.48 : 0.38) * streak);
+      playInstrumentHit(note, inst, (rating === 'perfect' ? 0.95 : 0.82) * streak);
       RhythmLane.explodeGem(note, rating, isMelodic, hot);
     } else {
       RhythmLane.explodeGem({ beat: -1 }, rating, isMelodic, hot);

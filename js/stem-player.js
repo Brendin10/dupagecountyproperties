@@ -11,12 +11,15 @@ const StemPlayer = (() => {
   let playerStemVolume = 0.88;
   let fullMixGain = null;
   let playerStemGain = null;
+  let tracksGain = null;
   let stemBus = null;
   let sustainSource = null;
   let sustainGain = null;
   let onFullMixEnd = null;
 
   const STEM_KEYS = ['Bass', 'Drums', 'Lead', 'Keys', 'Full'];
+  const TRACK_STEMS = ['Bass', 'Drums', 'Lead', 'Keys'];
+  const TRACK_STEM_VOLUME = 0.82;
 
   function getCtx() {
     return AudioEngine.getCtx();
@@ -47,7 +50,7 @@ const StemPlayer = (() => {
       buffers[key] = await decodeUrl(ac, `${url}${sep}v=${bust}`);
     });
     await Promise.all(loads);
-    return hasFullMix();
+    return isLoaded();
   }
 
   function ensureBus() {
@@ -64,6 +67,11 @@ const StemPlayer = (() => {
     if (!playerStemGain) {
       playerStemGain = ac.createGain();
       playerStemGain.connect(stemBus);
+    }
+    if (!tracksGain) {
+      tracksGain = ac.createGain();
+      tracksGain.gain.value = 1;
+      tracksGain.connect(stemBus);
     }
     fullMixGain.gain.value = fullMixVolume;
     playerStemGain.gain.value = playerStemVolume;
@@ -152,6 +160,37 @@ const StemPlayer = (() => {
     sustainGain = null;
   }
 
+  function startStemSource(ac, key, offset, startTime) {
+    const buf = buffers[key];
+    if (!buf) return null;
+
+    const src = ac.createBufferSource();
+    src.buffer = buf;
+    src.loop = false;
+
+    const gain = ac.createGain();
+    src.connect(gain);
+
+    if (key === 'Full') {
+      gain.gain.value = 1;
+      gain.connect(fullMixGain);
+      src.onended = () => {
+        if (sources.Full === src) sources.Full = null;
+        onFullMixEnd?.();
+      };
+    } else {
+      const isPlayerStem = key === playerStemKey;
+      gain.gain.value = isPlayerStem ? 0 : TRACK_STEM_VOLUME;
+      gain.connect(tracksGain);
+    }
+
+    const safeOffset = Math.min(Math.max(offset, 0), buf.duration);
+    src.start(startTime, safeOffset);
+    sources[key] = src;
+    gains[key] = gain;
+    return src;
+  }
+
   function startPerformance(playerStem, audioOffset = 0) {
     if (!song || !buffers.Full) return false;
     stop({ keepSong: true });
@@ -164,21 +203,8 @@ const StemPlayer = (() => {
     running = true;
 
     const offset = Math.min(Math.max(audioOffset, 0), buffers.Full.duration);
-
-    const fullSrc = ac.createBufferSource();
-    fullSrc.buffer = buffers.Full;
-    fullSrc.loop = false;
-    const fullGain = ac.createGain();
-    fullGain.gain.value = 1;
-    fullSrc.connect(fullGain);
-    fullGain.connect(fullMixGain);
-    fullSrc.start(startCtxTime, offset);
-    fullSrc.onended = () => {
-      if (sources.Full === fullSrc) sources.Full = null;
-      onFullMixEnd?.();
-    };
-    sources.Full = fullSrc;
-    gains.Full = fullGain;
+    startStemSource(ac, 'Full', offset, startCtxTime);
+    TRACK_STEMS.forEach((key) => startStemSource(ac, key, offset, startCtxTime));
 
     return true;
   }
@@ -188,7 +214,15 @@ const StemPlayer = (() => {
   }
 
   function setPlayerStem(stemKey) {
+    const prev = playerStemKey;
     playerStemKey = stemKey ?? null;
+    if (!running || !playerStemKey) return;
+    if (prev && gains[prev] && prev !== 'Full') {
+      gains[prev].gain.value = TRACK_STEM_VOLUME;
+    }
+    if (gains[playerStemKey] && playerStemKey !== 'Full') {
+      gains[playerStemKey].gain.value = 0;
+    }
   }
 
   function setPlayerStemAudible(audible) {
@@ -244,7 +278,7 @@ const StemPlayer = (() => {
   }
 
   function isLoaded() {
-    return hasFullMix();
+    return hasFullMix() && TRACK_STEMS.every((key) => hasStem(key));
   }
 
   function hasStems() {
