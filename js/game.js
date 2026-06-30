@@ -416,13 +416,14 @@ const Game = (() => {
     if (!p || p.backingStarted || !state.stemsReady || typeof StemPlayer === 'undefined') return;
 
     const song = getActiveSong();
-    const leadInBeat = p.leadInBeat ?? 0;
-    const audioOffset = typeof getChartAudioTime === 'function'
-      ? getChartAudioTime(song, leadInBeat, p.bpm)
-      : GIG_COUNTDOWN_SEC;
+    const inst = getActiveInstrument();
+    const stemKey = getPlayerStemForInstrument(inst);
+    const audioOffset = getAudioStartOffset(song, p.leadInBeat ?? 0, p.bpm);
+    p.audioStartOffset = audioOffset;
 
-    StemPlayer.setPlayerStem(getPlayerStemForInstrument(getActiveInstrument()));
-    if (StemPlayer.start(p.bpm, audioOffset)) {
+    StemPlayer.setPlayerStem(stemKey);
+    StemPlayer.setPlayerStemAudible?.(true);
+    if (StemPlayer.startPerformance(stemKey, audioOffset)) {
       p.backingStarted = true;
     }
   }
@@ -1521,6 +1522,12 @@ const Game = (() => {
       rewindBtn?.classList.remove('rewinding');
       playBtn?.classList.remove('rewind-disabled');
 
+      if (p.backingStarted && typeof StemPlayer !== 'undefined' && StemPlayer.seek) {
+        const songElapsed = getSongPlayElapsed(Metronome.getElapsed(), GIG_COUNTDOWN_SEC);
+        const base = p.audioStartOffset ?? getAudioStartOffset(song, p.leadInBeat ?? 0, p.bpm);
+        StemPlayer.seek(base + songElapsed);
+      }
+
       setTimeout(() => {
         rewindCooldown = false;
         updateRewindButtonState();
@@ -1555,6 +1562,7 @@ const Game = (() => {
         null,
         displaySnap.onFire,
         inst,
+        GIG_COUNTDOWN_SEC,
       );
 
       if (progress < 1) {
@@ -1573,13 +1581,14 @@ const Game = (() => {
 
     const elapsed = Metronome.getElapsed();
     const beatDur = 60 / p.bpm;
-    const currentBeat = elapsed / beatDur;
     const { note, inst } = activeHold;
-    const endBeat = note.beat + (note.dur || 1);
+    const hitElapsed = note.hitElapsed ?? noteHitElapsed(note, getActiveSong(), p.leadInBeat ?? 0, p.bpm);
+    const endElapsed = note.endElapsed ?? (hitElapsed + (note.dur || 1) * beatDur);
+    const songElapsed = getSongPlayElapsed(elapsed, GIG_COUNTDOWN_SEC);
 
-    if (currentBeat < endBeat) return;
+    if (songElapsed < endElapsed) return;
 
-    const { rating } = rateHoldRelease(note, elapsed, p.bpm);
+    const { rating } = rateHoldRelease(note, elapsed, p.bpm, GIG_COUNTDOWN_SEC);
     activeHold = null;
     stopInstrumentSustain();
     const zone = document.getElementById('hit-zone');
@@ -1597,10 +1606,9 @@ const Game = (() => {
     const isMelodic = inst.type === 'melodic';
     const elapsed = Metronome.getElapsed();
     const beatDur = 60 / p.bpm;
-    const currentBeat = elapsed / beatDur;
-    const late = isMelodic ? 0.24 : 0.2;
-
+    const lateSec = (isMelodic ? 0.24 : 0.2) * beatDur;
     const leadInBeat = p.leadInBeat ?? 0;
+    const songElapsed = getSongPlayElapsed(elapsed, GIG_COUNTDOWN_SEC);
 
     const part = typeof filterPartForInstrument === 'function'
       ? filterPartForInstrument(song.parts?.[partKey], inst)
@@ -1612,23 +1620,31 @@ const Game = (() => {
       const key = noteKey(ev);
       if (p.hitBeats.has(key) || p.missedBeats.has(key)) continue;
 
-      const dur = ev.dur || 1;
-      const isHold = dur > 1.05;
-      const holdLate = isMelodic ? 0.5 : 0.45;
-      const missAfter = isHold ? ev.beat + dur + holdLate * 0.25 : ev.beat + late;
+      const hitElapsed = noteHitElapsed(ev, song, leadInBeat, p.bpm);
+      if (hitElapsed < 0) continue;
 
-      if (ev.beat < leadInBeat) {
-        if (currentBeat > missAfter) p.missedBeats.add(key);
-        continue;
-      }
+      const dur = ev.dur || 1;
+      const durSec = dur * beatDur;
+      const isHold = dur > 1.05;
+      const holdLateSec = (isMelodic ? 0.5 : 0.45) * beatDur;
+      const missAfterElapsed = isHold
+        ? hitElapsed + durSec + holdLateSec * 0.25
+        : hitElapsed + lateSec;
 
       const activeHoldKey = activeHold ? noteKey(activeHold.note) : null;
       if (activeHoldKey === key) continue;
 
-      if (currentBeat <= missAfter) continue;
+      if (songElapsed <= missAfterElapsed) continue;
 
-      if (!earliestMiss || ev.beat < earliestMiss.beat) {
-        earliestMiss = { ...ev, key, isHold, dur };
+      if (!earliestMiss || hitElapsed < (earliestMiss.hitElapsed ?? Infinity)) {
+        earliestMiss = {
+          ...ev,
+          key,
+          isHold,
+          dur,
+          hitElapsed,
+          endElapsed: hitElapsed + durSec,
+        };
       }
     }
 
@@ -1689,7 +1705,7 @@ const Game = (() => {
     }
     updateRewindButtonState();
 
-    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic, p.hitBeats, p.missedBeats, activeHold ? noteKey(activeHold.note) : null, p.leadInBeat ?? 0, activeHold?.note ?? null, p.onFire, inst);
+    RhythmLane.update(song, partKey, elapsed, p.bpm, isMelodic, p.hitBeats, p.missedBeats, activeHold ? noteKey(activeHold.note) : null, p.leadInBeat ?? 0, activeHold?.note ?? null, p.onFire, inst, GIG_COUNTDOWN_SEC);
 
     const crowdPct = Math.min(100, (p.crowd / p.crowdCap) * 100);
     const cheerPct = Math.min(100, (p.cheer / p.cheerGoal) * 100);
@@ -1994,23 +2010,24 @@ const Game = (() => {
     const partKey = getPlayerPartKey(inst);
     const elapsed = Metronome.getElapsed();
     const isMelodic = inst.type === 'melodic';
-    const notes = getUpcomingNotes(song, partKey, elapsed, p.bpm, RhythmLane.LOOKAHEAD, p.hitBeats, p.missedBeats, p.leadInBeat ?? 0, inst);
-    const { rating, note, phase } = rateNotePress(notes, elapsed, p.bpm, isMelodic, p.hitBeats);
+    const notes = getUpcomingNotes(song, partKey, elapsed, p.bpm, RhythmLane.LOOKAHEAD, p.hitBeats, p.missedBeats, p.leadInBeat ?? 0, inst, GIG_COUNTDOWN_SEC);
+    const { rating, note, phase } = rateNotePress(notes, elapsed, p.bpm, isMelodic, p.hitBeats, GIG_COUNTDOWN_SEC, song, p.leadInBeat ?? 0);
 
     if (!note || rating === 'miss') {
-      const tapLate = isMelodic ? 0.24 : 0.2;
-      const tapEarly = isMelodic ? 0.14 : 0.12;
-      const holdLate = isMelodic ? 0.5 : 0.45;
-      const holdEarly = isMelodic ? 0.42 : 0.38;
       const beatDur = 60 / p.bpm;
-      const currentBeat = elapsed / beatDur;
+      const tapLate = (isMelodic ? 0.24 : 0.2) * beatDur;
+      const tapEarly = (isMelodic ? 0.14 : 0.12) * beatDur;
+      const holdLate = (isMelodic ? 0.5 : 0.45) * beatDur;
+      const holdEarly = (isMelodic ? 0.42 : 0.38) * beatDur;
+      const songElapsed = getSongPlayElapsed(elapsed, GIG_COUNTDOWN_SEC);
       const hittable = notes.some((n) => {
-        const dist = n.beat - currentBeat;
+        const distSec = (n.hitElapsed ?? 0) - songElapsed;
         if (n.isHold) {
-          const inBody = currentBeat >= n.beat && currentBeat < n.endBeat;
-          return dist >= -holdLate && dist <= holdEarly || inBody;
+          const endElapsed = n.endElapsed ?? (n.hitElapsed + (n.dur || 1) * beatDur);
+          const inBody = songElapsed >= n.hitElapsed && songElapsed < endElapsed;
+          return (distSec >= -holdLate && distSec <= holdEarly) || inBody;
         }
-        return dist >= -tapLate && dist <= tapEarly;
+        return distSec >= -tapLate && distSec <= tapEarly;
       });
       if (hittable) applyHitScore('miss', null, inst);
       return;
@@ -2040,7 +2057,7 @@ const Game = (() => {
 
     const { note, inst, pressElapsed } = activeHold;
     const elapsed = Metronome.getElapsed();
-    const { rating } = rateHoldRelease(note, elapsed, p.bpm);
+    const { rating } = rateHoldRelease(note, elapsed, p.bpm, GIG_COUNTDOWN_SEC);
     activeHold = null;
     stopInstrumentSustain();
     const zone = document.getElementById('hit-zone');

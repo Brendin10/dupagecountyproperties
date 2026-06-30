@@ -57,49 +57,91 @@ function getPartEvents(song, partKey, beat, instrument = null) {
 
 function eventLabel(ev) { return ev.chord || ev.note || ev.hit || '•'; }
 
-function getUpcomingNotes(song, partKey, elapsed, bpm, lookAhead, hitBeats, missedBeats, leadInBeat = 0, instrument = null) {
-  const la = lookAhead ?? 3;
+function getChartAudioTime(song, beat, bpm) {
+  if (!song?.parts) {
+    const beatDur = 60 / bpm;
+    return (beat * beatDur) + (song?.beatOffset || 0);
+  }
+  for (const key of ['Drums', 'Bass', 'Lead', 'Keys']) {
+    const ev = song.parts[key]?.find((e) => e.beat === beat);
+    if (ev?.timeSec != null) return ev.timeSec;
+  }
   const beatDur = 60 / bpm;
+  return (beat * beatDur) + (song.beatOffset || 0);
+}
+
+function noteAudioTime(note, song, bpm) {
+  if (note?.timeSec != null) return note.timeSec;
+  return getChartAudioTime(song, note.beat, bpm);
+}
+
+function getAudioStartOffset(song, leadInBeat, bpm) {
+  return getChartAudioTime(song, leadInBeat, bpm);
+}
+
+function getSongPlayElapsed(elapsed, countdownSec = 4) {
+  return Math.max(0, elapsed - countdownSec);
+}
+
+function noteHitElapsed(note, song, leadInBeat, bpm) {
+  return noteAudioTime(note, song, bpm) - getAudioStartOffset(song, leadInBeat, bpm);
+}
+
+function getUpcomingNotes(song, partKey, elapsed, bpm, lookAhead, hitBeats, missedBeats, leadInBeat = 0, instrument = null, countdownSec = 4) {
+  const beatDur = 60 / bpm;
+  const laBeats = lookAhead ?? 3;
+  const laSec = laBeats * beatDur;
   const rawPart = song.parts?.[partKey] || [];
   const part = instrument ? filterPartForInstrument(rawPart, instrument) : (
     partKey === 'Drums' ? rawPart.filter((ev) => !ev.hit || ev.hit === 'kick' || ev.hit === 'snare') : rawPart
   );
-  const currentBeat = elapsed / beatDur;
+  const songElapsed = getSongPlayElapsed(elapsed, countdownSec);
+  const audioStart = getAudioStartOffset(song, leadInBeat, bpm);
   const notes = [];
+
   for (const ev of part) {
-    if (ev.beat < leadInBeat) continue;
     const key = noteKey(ev);
     if (hitBeats?.has(key) || missedBeats?.has(key)) continue;
+
+    const hitElapsed = noteHitElapsed(ev, song, leadInBeat, bpm);
+    if (hitElapsed < 0) continue;
+
     const dur = ev.dur || 1;
-    const endBeat = ev.beat + dur;
-    const dist = ev.beat - currentBeat;
-    if (dist > la) continue;
-    if (currentBeat > endBeat + 0.15) continue;
+    const durSec = dur * beatDur;
+    const endElapsed = hitElapsed + durSec;
+    const distSec = hitElapsed - songElapsed;
+
+    if (distSec > laSec) continue;
+    if (songElapsed > endElapsed + beatDur * 0.15) continue;
+
     const sec = sectionAt(song.sections, ev.beat);
     notes.push({
       ...ev,
       beat: ev.beat,
       dur,
-      endBeat,
-      dist,
-      active: currentBeat >= ev.beat && currentBeat < endBeat,
+      endBeat: ev.beat + dur,
+      endElapsed,
+      dist: distSec / beatDur,
+      distSec,
+      hitElapsed,
+      active: songElapsed >= hitElapsed && songElapsed < endElapsed,
       section: sec?.name,
       label: eventLabel(ev),
       melodic: !!ev.chord || !!ev.note,
       isHold: dur > 1.05,
     });
   }
-  return notes.sort((a, b) => a.beat - b.beat);
+  return notes.sort((a, b) => a.hitElapsed - b.hitElapsed);
 }
 
-function rateNotePress(notes, elapsed, bpm, isMelodic, hitBeats) {
+function rateNotePress(notes, elapsed, bpm, isMelodic, hitBeats, countdownSec = 4, song = null, leadInBeat = 0) {
   const beatDur = 60 / bpm;
-  const currentBeat = elapsed / beatDur;
-  const tapLate = isMelodic ? 0.24 : 0.2;
-  const tapEarly = isMelodic ? 0.14 : 0.12;
-  const holdLate = isMelodic ? 0.5 : 0.45;
-  const holdEarly = isMelodic ? 0.42 : 0.38;
-  const perfect = isMelodic ? 0.14 : 0.12;
+  const songElapsed = getSongPlayElapsed(elapsed, countdownSec);
+  const tapLate = (isMelodic ? 0.24 : 0.2) * beatDur;
+  const tapEarly = (isMelodic ? 0.14 : 0.12) * beatDur;
+  const holdLate = (isMelodic ? 0.5 : 0.45) * beatDur;
+  const holdEarly = (isMelodic ? 0.42 : 0.38) * beatDur;
+  const perfect = (isMelodic ? 0.14 : 0.12) * beatDur;
   let best = null;
   let bestDist = Infinity;
   let bestPhase = 'press';
@@ -109,17 +151,19 @@ function rateNotePress(notes, elapsed, bpm, isMelodic, hitBeats) {
     const key = noteKey(n);
     if (hitBeats?.has(key)) continue;
 
-    const dist = n.beat - currentBeat;
+    const hitElapsed = n.hitElapsed ?? noteHitElapsed(n, song || {}, leadInBeat, bpm);
+    const distSec = hitElapsed - songElapsed;
 
     if (n.isHold) {
-      const inBody = currentBeat >= n.beat && currentBeat < n.endBeat;
-      const inStartWindow = dist >= -holdLate && dist <= holdEarly;
-      const bodyGraceLimit = Math.max(holdLate, (n.dur || 1) * 0.55);
-      const inBodyGrace = inBody && (currentBeat - n.beat) <= bodyGraceLimit;
+      const endElapsed = n.endElapsed ?? (hitElapsed + (n.dur || 1) * beatDur);
+      const inBody = songElapsed >= hitElapsed && songElapsed < endElapsed;
+      const inStartWindow = distSec >= -holdLate && distSec <= holdEarly;
+      const bodyGraceLimit = Math.max(holdLate, (n.dur || 1) * beatDur * 0.55);
+      const inBodyGrace = inBody && (songElapsed - hitElapsed) <= bodyGraceLimit;
       if (!inStartWindow && !inBodyGrace) continue;
 
-      const fromBody = inBodyGrace && dist <= 0;
-      const startDist = fromBody ? currentBeat - n.beat : Math.abs(dist);
+      const fromBody = inBodyGrace && distSec <= 0;
+      const startDist = fromBody ? songElapsed - hitElapsed : Math.abs(distSec);
       if (startDist < bestDist) {
         bestDist = startDist;
         best = n;
@@ -129,8 +173,8 @@ function rateNotePress(notes, elapsed, bpm, isMelodic, hitBeats) {
       continue;
     }
 
-    if (dist > tapEarly || dist < -tapLate) continue;
-    const d = Math.abs(dist);
+    if (distSec > tapEarly || distSec < -tapLate) continue;
+    const d = Math.abs(distSec);
     if (d < bestDist) {
       bestDist = d;
       best = n;
@@ -151,30 +195,22 @@ function rateNotePress(notes, elapsed, bpm, isMelodic, hitBeats) {
   return { rating, note: best, phase: bestPhase };
 }
 
-function rateHoldRelease(activeNote, elapsed, bpm) {
+function rateHoldRelease(activeNote, elapsed, bpm, countdownSec = 4) {
   if (!activeNote) return { rating: 'miss', note: null };
-  const held = elapsed / (60 / bpm) - activeNote.beat;
-  const required = activeNote.dur || 1;
+  const beatDur = 60 / bpm;
+  const songElapsed = getSongPlayElapsed(elapsed, countdownSec);
+  const hitElapsed = activeNote.hitElapsed ?? (activeNote.beat * beatDur);
+  const held = songElapsed - hitElapsed;
+  const required = (activeNote.dur || 1) * beatDur;
   if (held >= required * 0.7) return { rating: 'perfect', note: activeNote };
   if (held >= required * 0.45) return { rating: 'good', note: activeNote };
   return { rating: 'miss', note: activeNote };
 }
 
-function rateNoteHit(notes, elapsed, bpm, isMelodic, hitBeats) { return rateNotePress(notes, elapsed, bpm, isMelodic, hitBeats); }
-function noteKey(note) { return `${note.beat}:${note.chord || ''}:${note.note || ''}:${note.hit || ''}`; }
-
-function getChartAudioTime(song, beat, bpm) {
-  if (!song?.parts) {
-    const beatDur = 60 / bpm;
-    return (beat * beatDur) + (song?.beatOffset || 0);
-  }
-  for (const key of ['Drums', 'Bass', 'Lead', 'Keys']) {
-    const ev = song.parts[key]?.find((e) => e.beat === beat);
-    if (ev?.timeSec != null) return ev.timeSec;
-  }
-  const beatDur = 60 / bpm;
-  return (beat * beatDur) + (song.beatOffset || 0);
+function rateNoteHit(notes, elapsed, bpm, isMelodic, hitBeats, countdownSec = 4, song = null, leadInBeat = 0) {
+  return rateNotePress(notes, elapsed, bpm, isMelodic, hitBeats, countdownSec, song, leadInBeat);
 }
+function noteKey(note) { return `${note.beat}:${note.chord || ''}:${note.note || ''}:${note.hit || ''}`; }
 
 function getSong(id) {
   if (typeof SongLoader !== 'undefined') {

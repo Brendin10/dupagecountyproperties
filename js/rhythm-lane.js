@@ -152,18 +152,29 @@ const RhythmLane = (() => {
     setTimeout(() => gem.remove(), 300);
   }
 
-  function heldNoteEntry(holdNote, elapsed, bpm, isMelodic) {
+  function heldNoteEntry(holdNote, elapsed, bpm, isMelodic, leadInBeat = 0, song = null, countdownSec = 4) {
     const beatDur = 60 / bpm;
-    const currentBeat = elapsed / beatDur;
+    const songElapsed = typeof getSongPlayElapsed === 'function'
+      ? getSongPlayElapsed(elapsed, countdownSec)
+      : Math.max(0, elapsed - countdownSec);
+    const hitElapsed = holdNote.hitElapsed ?? (
+      typeof noteHitElapsed === 'function'
+        ? noteHitElapsed(holdNote, song || {}, leadInBeat, bpm)
+        : holdNote.beat * beatDur
+    );
     const dur = holdNote.dur || 1;
-    const endBeat = holdNote.beat + dur;
+    const durSec = dur * beatDur;
+    const endElapsed = hitElapsed + durSec;
     return {
       ...holdNote,
       beat: holdNote.beat,
       dur,
-      endBeat,
-      dist: holdNote.beat - currentBeat,
-      active: currentBeat >= holdNote.beat && currentBeat < endBeat,
+      endBeat: holdNote.beat + dur,
+      endElapsed,
+      dist: (hitElapsed - songElapsed) / beatDur,
+      distSec: hitElapsed - songElapsed,
+      hitElapsed,
+      active: songElapsed >= hitElapsed && songElapsed < endElapsed,
       label: holdNote.chord || holdNote.note || holdNote.hit || '•',
       melodic: !!holdNote.chord || !!holdNote.note || isMelodic,
       isHold: true,
@@ -174,35 +185,42 @@ const RhythmLane = (() => {
     return `${note.beat}:${note.chord || ''}:${note.note || ''}:${note.hit || ''}`;
   }
 
-  function update(song, partKey, elapsed, bpm, isMelodic, hitBeats, missedBeats, holdingKey, leadInBeat = 0, heldNote = null, onFire = false, instrument = null) {
+  function update(song, partKey, elapsed, bpm, isMelodic, hitBeats, missedBeats, holdingKey, leadInBeat = 0, heldNote = null, onFire = false, instrument = null, countdownSec = 4) {
     const lane = document.getElementById('note-lane');
     if (!lane) return;
 
-    let notes = getUpcomingNotes(song, partKey, elapsed, bpm, LOOKAHEAD, hitBeats, missedBeats, leadInBeat, instrument);
+    let notes = getUpcomingNotes(song, partKey, elapsed, bpm, LOOKAHEAD, hitBeats, missedBeats, leadInBeat, instrument, countdownSec);
     if (holdingKey && heldNote && noteKeyFor(heldNote) === holdingKey) {
       const visible = notes.some((n) => noteKeyFor(n) === holdingKey);
       if (!visible) {
-        notes.push(heldNoteEntry(heldNote, elapsed, bpm, isMelodic));
-        notes.sort((a, b) => a.beat - b.beat);
+        notes.push(heldNoteEntry(heldNote, elapsed, bpm, isMelodic, leadInBeat, song, countdownSec));
+        notes.sort((a, b) => a.hitElapsed - b.hitElapsed);
       }
     }
     const beatDur = 60 / bpm;
-    const currentBeat = elapsed / beatDur;
+    const laSec = LOOKAHEAD * beatDur;
+    const songElapsed = typeof getSongPlayElapsed === 'function'
+      ? getSongPlayElapsed(elapsed, countdownSec)
+      : Math.max(0, elapsed - countdownSec);
 
     lane.innerHTML = notes.map((n) => {
-      const pct = HIT_X + (n.dist / LOOKAHEAD) * (88 - HIT_X);
+      const distSec = n.distSec ?? (n.hitElapsed - songElapsed);
+      const pct = HIT_X + (distSec / laSec) * (88 - HIT_X);
       return noteEl(n, Math.min(92, Math.max(HIT_X - 2, pct)), isMelodic, holdingKey);
     }).join('');
 
     const pulse = document.getElementById('hit-zone-pulse');
     if (pulse) {
-      const near = notes.find((n) => Math.abs(n.beat - currentBeat) < 0.12 || n.active);
+      const near = notes.find((n) => Math.abs(n.distSec ?? 0) < beatDur * 0.12 || n.active);
       pulse.classList.toggle('active', !!near);
     }
 
     const hitZone = document.getElementById('hit-zone');
     if (hitZone) {
-      const inWindow = notes.some((n) => n.active || Math.abs(n.beat - currentBeat) < (isMelodic ? 0.22 : 0.18));
+      const inWindow = notes.some((n) => {
+        const distSec = Math.abs(n.distSec ?? 0);
+        return n.active || distSec < (isMelodic ? beatDur * 0.22 : beatDur * 0.18);
+      });
       hitZone.classList.toggle('ready', inWindow);
       hitZone.classList.toggle('holding', !!holdingKey);
     }
