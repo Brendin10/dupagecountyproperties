@@ -16,6 +16,7 @@ const StemPlayer = (() => {
   let sustainSource = null;
   let sustainGain = null;
   let onFullMixEnd = null;
+  let lastElapsed = 0;
 
   const STEM_KEYS = ['Bass', 'Drums', 'Lead', 'Keys', 'Full'];
   const TRACK_STEMS = ['Bass', 'Drums', 'Lead', 'Keys'];
@@ -175,7 +176,12 @@ const StemPlayer = (() => {
       gain.gain.value = 1;
       gain.connect(fullMixGain);
       src.onended = () => {
-        if (sources.Full === src) sources.Full = null;
+        if (sources.Full === src) {
+          sources.Full = null;
+          const dur = getDuration();
+          if (dur > 0) lastElapsed = dur;
+          running = false;
+        }
         onFullMixEnd?.();
       };
     } else {
@@ -200,6 +206,7 @@ const StemPlayer = (() => {
     ensureBus();
     startCtxTime = ac.currentTime + 0.05;
     startElapsed = audioOffset;
+    lastElapsed = audioOffset;
     running = true;
 
     const offset = Math.min(Math.max(audioOffset, 0), buffers.Full.duration);
@@ -234,10 +241,26 @@ const StemPlayer = (() => {
     setPlayerStemAudible(false);
   }
 
+  function getDuration() {
+    return buffers.Full?.duration ?? 0;
+  }
+
+  function isPlaybackComplete() {
+    const dur = getDuration();
+    if (!dur) return false;
+    return getElapsed() >= dur - 0.05;
+  }
+
   function getElapsed() {
-    if (!running) return startElapsed;
-    const ac = getCtx();
-    return startElapsed + Math.max(0, ac.currentTime - startCtxTime);
+    if (running) {
+      const ac = getCtx();
+      let elapsed = startElapsed + Math.max(0, ac.currentTime - startCtxTime);
+      const dur = getDuration();
+      if (dur > 0) elapsed = Math.min(elapsed, dur);
+      lastElapsed = elapsed;
+      return elapsed;
+    }
+    return lastElapsed;
   }
 
   function seek(audioOffset) {
@@ -250,6 +273,7 @@ const StemPlayer = (() => {
 
   function stop(options = {}) {
     running = false;
+    lastElapsed = 0;
     stopSustain();
     Object.values(sources).forEach((src) => {
       try {
@@ -302,6 +326,8 @@ const StemPlayer = (() => {
     duckPlayerStem,
     seek,
     getElapsed,
+    getDuration,
+    isPlaybackComplete,
     isRunning,
     hasStems,
     hasFullMix,

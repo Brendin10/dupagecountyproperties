@@ -477,6 +477,38 @@ const Game = (() => {
     setScreen('hub');
   }
 
+  function completeGigResults() {
+    const p = state.performance;
+    if (!p || p.gigFinished) return false;
+    if (state.screen !== 'perform') return false;
+
+    p.timeLeft = 0;
+    const prevMax = VENUES.filter((v) => venueUnlocked(v)).length;
+    updateHud();
+    const newMax = VENUES.filter((v) => venueUnlocked(v)).length;
+    if (newMax > prevMax) {
+      const newest = VENUES.filter((v) => venueUnlocked(v)).pop();
+      p.newUnlock = newest?.name;
+    }
+    persist();
+    finishGigScreen('results');
+    return true;
+  }
+
+  function syncGigTimerFromAudio() {
+    const p = state.performance;
+    if (!p?.backingStarted || typeof StemPlayer === 'undefined') return false;
+
+    const dur = p.gigDurationSec ?? StemPlayer.getDuration?.() ?? 60;
+    const elapsed = StemPlayer.getElapsed?.() ?? 0;
+    p.timeLeft = Math.max(0, Math.ceil(dur - elapsed));
+
+    if (StemPlayer.isPlaybackComplete?.() || p.timeLeft <= 0) {
+      return completeGigResults();
+    }
+    return false;
+  }
+
   function finishGigScreen(screenName) {
     const p = state.performance;
     if (p) {
@@ -509,20 +541,10 @@ const Game = (() => {
     StemPlayer.setPlayerStemAudible?.(true);
     if (StemPlayer.startPerformance(stemKey, audioOffset)) {
       p.backingStarted = true;
+      p.gigDurationSec = StemPlayer.getDuration?.() || song.durationSec || 60;
+      p.timeLeft = Math.max(1, Math.ceil(p.gigDurationSec));
       StemPlayer.setOnFullMixEnd?.(() => {
-        const perf = state.performance;
-        if (!perf || state.screen !== 'perform' || perf.gigFinished) return;
-        perf.timeLeft = 0;
-        perf.gigFinished = true;
-        const prevMax = VENUES.filter((v) => venueUnlocked(v)).length;
-        updateHud();
-        const newMax = VENUES.filter((v) => venueUnlocked(v)).length;
-        if (newMax > prevMax) {
-          const newest = VENUES.filter((v) => venueUnlocked(v)).pop();
-          perf.newUnlock = newest?.name;
-        }
-        persist();
-        finishGigScreen('results');
+        completeGigResults();
       });
     }
   }
@@ -1812,10 +1834,19 @@ const Game = (() => {
     } else if (!p.countdownEnded) {
       p.countdownEnded = true;
       p.gigTimerStarted = true;
+      if (state.perfInterval) {
+        clearInterval(state.perfInterval);
+        state.perfInterval = setInterval(tickPerformance, 1000);
+      }
       startPerformanceBacking();
       AudioEngine.endCrowdIntro?.();
       crowdRow?.classList.remove('crowd-steady');
       setRhythmHint('Tap quick gems · hold long gems through the zone!', 'good');
+    }
+
+    if (p.backingStarted && syncGigTimerFromAudio()) {
+      state._updatingPerfUi = false;
+      return;
     }
 
     checkMissedNotes();
@@ -2239,6 +2270,10 @@ const Game = (() => {
       return;
     }
 
+    if (p.backingStarted && syncGigTimerFromAudio()) {
+      return;
+    }
+
     p.timeLeft -= 1;
 
     if (p.crowd > 2) {
@@ -2247,16 +2282,7 @@ const Game = (() => {
 
     if (p.timeLeft <= 0) {
       if (!p.gigFinished) {
-        p.gigFinished = true;
-        const prevMax = VENUES.filter((v) => venueUnlocked(v)).length;
-        updateHud();
-        const newMax = VENUES.filter((v) => venueUnlocked(v)).length;
-        if (newMax > prevMax) {
-          const newest = VENUES.filter((v) => venueUnlocked(v)).pop();
-          p.newUnlock = newest?.name;
-        }
-        persist();
-        finishGigScreen('results');
+        completeGigResults();
       }
       return;
     }
