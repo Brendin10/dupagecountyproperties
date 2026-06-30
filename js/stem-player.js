@@ -39,7 +39,7 @@ const StemPlayer = (() => {
     buffers = {};
     playerStemKey = options.playerStemKey !== undefined ? options.playerStemKey : 'Drums';
     fullMixVolume = songObj?.fullMixVolume ?? 0.85;
-    playerStemVolume = options.playerStemVolume ?? 0.88;
+    playerStemVolume = options.playerStemVolume ?? 0.95;
 
     if (!song?.stems) return false;
     const ac = getCtx();
@@ -109,7 +109,7 @@ const StemPlayer = (() => {
     const src = ac.createBufferSource();
     src.buffer = buf;
     const gain = ac.createGain();
-    const vol = (note.hit ? 0.95 : 0.85) * volScale;
+    const vol = (note.hit ? 1 : 0.92) * volScale;
     gain.gain.setValueAtTime(vol, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.96);
     src.connect(gain);
@@ -211,7 +211,9 @@ const StemPlayer = (() => {
 
     const offset = Math.min(Math.max(audioOffset, 0), buffers.Full.duration);
     startStemSource(ac, 'Full', offset, startCtxTime);
-    TRACK_STEMS.forEach((key) => startStemSource(ac, key, offset, startCtxTime));
+    TRACK_STEMS.forEach((key) => {
+      if (key !== playerStemKey) startStemSource(ac, key, offset, startCtxTime);
+    });
 
     return true;
   }
@@ -302,7 +304,7 @@ const StemPlayer = (() => {
   }
 
   function isLoaded() {
-    return hasFullMix() && TRACK_STEMS.every((key) => hasStem(key));
+    return hasFullMix() && hasStem(playerStemKey);
   }
 
   function hasStems() {
