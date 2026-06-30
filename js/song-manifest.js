@@ -8,5 +8,14 @@ const SONG_MANIFEST = [
     "bpm": 120.19,
     "durationSec": 60.0,
     "beatCount": 120
+  },
+  {
+    "id": "neon-lights",
+    "name": "Neon Lights",
+    "emoji": "\ud83c\udf03",
+    "cost": 120,
+    "bpm": 120.19,
+    "durationSec": 60.0,
+    "beatCount": 120
   }
 ];
