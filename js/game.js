@@ -412,7 +412,6 @@ const Game = (() => {
   function bindGigResultsExit(layer) {
     const go = (e) => {
       e?.preventDefault?.();
-      e?.stopPropagation?.();
       exitGigToHub();
     };
     layer.querySelectorAll('[data-action="back-hub"]').forEach((btn) => {
@@ -423,13 +422,10 @@ const Game = (() => {
   function showGigResultsOverlay() {
     const layer = document.getElementById('gig-results-layer');
     if (!layer) {
-      state.screen = 'results';
-      updateHud();
-      render();
+      setScreen('results');
       return;
     }
 
-    releasePerformInput();
     dismissStageCurtain();
     layer.innerHTML = renderResultsMarkup();
     layer.classList.remove('hidden');
@@ -437,7 +433,15 @@ const Game = (() => {
     bindGigResultsExit(layer);
     state.screen = 'results';
     updateHud();
-    root().innerHTML = '<section class="screen results-placeholder" aria-hidden="true"></section>';
+
+    // Hub is rendered underneath so Back to Map reveals the venue map immediately.
+    state.performance = null;
+    activeHold = null;
+    playPointerId = null;
+    state.screen = 'hub';
+    render();
+    state.screen = 'results';
+    updateHud();
   }
 
   function handleBackToHub() {
@@ -502,16 +506,21 @@ const Game = (() => {
 
   function exitGigToHub() {
     hideGigResultsOverlay();
-    releasePerformInput();
-    resetPerformanceTimers();
-    if (typeof StemPlayer !== 'undefined') StemPlayer.stop();
     state.performance = null;
+    activeHold = null;
+    playPointerId = null;
+    resetPerformanceTimers();
+    if (typeof StemPlayer !== 'undefined') {
+      StemPlayer.setOnFullMixEnd?.(null);
+      StemPlayer.stop();
+    }
     state.stemsReady = false;
     state.gigIntroRunning = false;
-    activeHold = null;
     dismissStageCurtain();
     persist();
-    setScreen('hub');
+    state.screen = 'hub';
+    updateHud();
+    render();
   }
 
   function resetPerformanceTimers() {
@@ -685,7 +694,7 @@ const Game = (() => {
   }
 
   function renderHub() {
-    const char = CHARACTERS[state.character];
+    const char = CHARACTERS[state.character] || CHARACTERS.benny;
     const appeal = crowdAppeal();
 
     const venueCards = VENUES.map((v) => {
