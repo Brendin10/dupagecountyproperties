@@ -512,7 +512,16 @@ const Game = (() => {
     const elapsed = StemPlayer.getElapsed?.() ?? 0;
     p.timeLeft = Math.max(0, Math.ceil(dur - elapsed));
 
-    if (StemPlayer.isPlaybackComplete?.() || p.timeLeft <= 0) {
+    const audioEnded = StemPlayer.hasPlaybackEnded?.()
+      || StemPlayer.isPlaybackComplete?.()
+      || (!StemPlayer.isRunning?.() && elapsed >= Math.max(0, dur - 1.5));
+
+    if (p.gigAudioWallStart) {
+      const wallElapsed = (performance.now() - p.gigAudioWallStart) / 1000;
+      if (wallElapsed >= dur + 2) return completeGigResults();
+    }
+
+    if (audioEnded || p.timeLeft <= 0) {
       return completeGigResults();
     }
     return false;
@@ -551,9 +560,10 @@ const Game = (() => {
     if (StemPlayer.startPerformance(stemKey, audioOffset)) {
       p.backingStarted = true;
       p.gigDurationSec = StemPlayer.getDuration?.() || song.durationSec || 60;
+      p.gigAudioWallStart = performance.now();
       p.timeLeft = Math.max(1, Math.ceil(p.gigDurationSec));
       StemPlayer.setOnFullMixEnd?.(() => {
-        completeGigResults();
+        setTimeout(() => completeGigResults(), 0);
       });
     }
   }
@@ -1820,9 +1830,6 @@ const Game = (() => {
     const isMelodic = inst.type === 'melodic';
     const elapsed = Metronome.getElapsed();
 
-    const timer = document.getElementById('perf-timer');
-    if (timer) timer.textContent = `⏱ ${p.timeLeft}s`;
-
     if (!p.rhythmActive) {
       state._updatingPerfUi = false;
       return;
@@ -1857,6 +1864,9 @@ const Game = (() => {
       state._updatingPerfUi = false;
       return;
     }
+
+    const timer = document.getElementById('perf-timer');
+    if (timer) timer.textContent = `⏱ ${p.timeLeft}s`;
 
     checkMissedNotes();
     if (!state.performance || state.screen !== 'perform') {
@@ -2280,7 +2290,9 @@ const Game = (() => {
       return;
     }
 
-    p.timeLeft -= 1;
+    if (!p.backingStarted) {
+      p.timeLeft -= 1;
+    }
 
     if (p.crowd > 2) {
       p.crowd = Math.max(2, p.crowd - 0.15);

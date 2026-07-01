@@ -17,6 +17,7 @@ const StemPlayer = (() => {
   let sustainGain = null;
   let onFullMixEnd = null;
   let lastElapsed = 0;
+  let playbackEnded = false;
 
   const STEM_KEYS = ['Bass', 'Drums', 'Lead', 'Keys', 'Full'];
   const TRACK_STEMS = ['Bass', 'Drums', 'Lead', 'Keys'];
@@ -181,6 +182,7 @@ const StemPlayer = (() => {
           const dur = getDuration();
           if (dur > 0) lastElapsed = dur;
           running = false;
+          playbackEnded = true;
         }
         onFullMixEnd?.();
       };
@@ -207,6 +209,7 @@ const StemPlayer = (() => {
     startCtxTime = ac.currentTime + 0.05;
     startElapsed = audioOffset;
     lastElapsed = audioOffset;
+    playbackEnded = false;
     running = true;
 
     const offset = Math.min(Math.max(audioOffset, 0), buffers.Full.duration);
@@ -248,9 +251,14 @@ const StemPlayer = (() => {
   }
 
   function isPlaybackComplete() {
+    if (playbackEnded) return true;
     const dur = getDuration();
     if (!dur) return false;
-    return getElapsed() >= dur - 0.05;
+    return getElapsed() >= dur - 0.25;
+  }
+
+  function hasPlaybackEnded() {
+    return playbackEnded;
   }
 
   function getElapsed() {
@@ -275,6 +283,7 @@ const StemPlayer = (() => {
 
   function stop(options = {}) {
     running = false;
+    playbackEnded = false;
     lastElapsed = 0;
     stopSustain();
     Object.values(sources).forEach((src) => {
@@ -330,6 +339,7 @@ const StemPlayer = (() => {
     getElapsed,
     getDuration,
     isPlaybackComplete,
+    hasPlaybackEnded,
     isRunning,
     hasStems,
     hasFullMix,
