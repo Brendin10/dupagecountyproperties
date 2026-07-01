@@ -8,7 +8,7 @@ const StemPlayer = (() => {
   let startElapsed = 0;
   let playerStemKey = 'Drums';
   let fullMixVolume = 0.85;
-  let playerStemVolume = 0.88;
+  let playerStemVolume = 1.15;
   let fullMixGain = null;
   let playerStemGain = null;
   let tracksGain = null;
@@ -21,7 +21,8 @@ const StemPlayer = (() => {
 
   const STEM_KEYS = ['Bass', 'Drums', 'Lead', 'Keys', 'Full'];
   const TRACK_STEMS = ['Bass', 'Drums', 'Lead', 'Keys'];
-  const TRACK_STEM_VOLUME = 0.82;
+  const HIT_DUCK_MIX = 0.52;
+  const HIT_DUCK_SEC = 0.16;
 
   function getCtx() {
     return AudioEngine.getCtx();
@@ -40,7 +41,7 @@ const StemPlayer = (() => {
     buffers = {};
     playerStemKey = options.playerStemKey !== undefined ? options.playerStemKey : 'Drums';
     fullMixVolume = songObj?.fullMixVolume ?? 0.85;
-    playerStemVolume = options.playerStemVolume ?? 0.95;
+    playerStemVolume = options.playerStemVolume ?? 1.15;
 
     if (!song?.stems) return false;
     const ac = getCtx();
@@ -89,10 +90,22 @@ const StemPlayer = (() => {
   function sliceDuration(note, songObj, bpm) {
     const beatDur = 60 / bpm;
     const noteDur = (note.dur || 1) * beatDur;
-    if (note.hit === 'kick') return Math.min(noteDur, 0.35);
-    if (note.hit === 'snare') return Math.min(noteDur, 0.42);
-    if (note.hit) return Math.min(noteDur, 0.28);
+    if (note.hit === 'kick') return Math.min(noteDur, 0.4);
+    if (note.hit === 'snare') return Math.min(noteDur, 0.48);
+    if (note.hit) return Math.min(noteDur, 0.32);
+    if (note.note || note.chord) return Math.min(Math.max(noteDur, 0.45), 1.1);
     return Math.min(noteDur, 1.25);
+  }
+
+  function duckFullMixForHit() {
+    if (!fullMixGain) return;
+    const ac = getCtx();
+    const now = ac.currentTime;
+    const g = fullMixGain.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    g.linearRampToValueAtTime(fullMixVolume * HIT_DUCK_MIX, now + 0.03);
+    g.linearRampToValueAtTime(fullMixVolume, now + HIT_DUCK_SEC);
   }
 
   function playHit(stemKey, note, songObj, bpm, volScale = 1) {
@@ -102,7 +115,8 @@ const StemPlayer = (() => {
     const ac = getCtx();
     ensureBus();
     const now = ac.currentTime;
-    const offset = Math.min(Math.max(noteTimeSec(note, songObj, bpm), 0), Math.max(0, buf.duration - 0.02));
+    const chartOffset = noteTimeSec(note, songObj, bpm);
+    const offset = Math.min(Math.max(chartOffset, 0), Math.max(0, buf.duration - 0.02));
     let duration = sliceDuration(note, songObj, bpm);
     duration = Math.min(duration, buf.duration - offset);
     if (duration <= 0.01) return false;
@@ -110,12 +124,13 @@ const StemPlayer = (() => {
     const src = ac.createBufferSource();
     src.buffer = buf;
     const gain = ac.createGain();
-    const vol = (note.hit ? 1 : 0.92) * volScale;
+    const vol = (note.hit ? 1.08 : 1.02) * volScale;
     gain.gain.setValueAtTime(vol, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.96);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.97);
     src.connect(gain);
     gain.connect(playerStemGain);
     src.start(now, offset, duration);
+    duckFullMixForHit();
     return true;
   }
 
@@ -187,8 +202,7 @@ const StemPlayer = (() => {
         onFullMixEnd?.();
       };
     } else {
-      const isPlayerStem = key === playerStemKey;
-      gain.gain.value = isPlayerStem ? 0 : TRACK_STEM_VOLUME;
+      gain.gain.value = 0;
       gain.connect(tracksGain);
     }
 
@@ -214,9 +228,6 @@ const StemPlayer = (() => {
 
     const offset = Math.min(Math.max(audioOffset, 0), buffers.Full.duration);
     startStemSource(ac, 'Full', offset, startCtxTime);
-    TRACK_STEMS.forEach((key) => {
-      if (key !== playerStemKey) startStemSource(ac, key, offset, startCtxTime);
-    });
 
     return true;
   }
@@ -226,15 +237,7 @@ const StemPlayer = (() => {
   }
 
   function setPlayerStem(stemKey) {
-    const prev = playerStemKey;
     playerStemKey = stemKey ?? null;
-    if (!running || !playerStemKey) return;
-    if (prev && gains[prev] && prev !== 'Full') {
-      gains[prev].gain.value = TRACK_STEM_VOLUME;
-    }
-    if (gains[playerStemKey] && playerStemKey !== 'Full') {
-      gains[playerStemKey].gain.value = 0;
-    }
   }
 
   function setPlayerStemAudible(audible) {

@@ -394,11 +394,16 @@ const Game = (() => {
   }
 
   function playInstrumentHit(note, inst, volScale = 1) {
-    if (!note || !isStemBackedGig()) return false;
+    if (!note) return false;
     const song = getActiveSong();
-    const p = state.performance;
+    if (!song?.stemBacked || typeof StemPlayer === 'undefined') return false;
+
     const stemKey = getPlayerStemForInstrument(inst);
     if (!StemPlayer.hasStem?.(stemKey)) return false;
+
+    const p = state.performance;
+    if (!state.stemsReady) return false;
+
     return StemPlayer.playHit(stemKey, note, song, p?.bpm ?? song.bpm, volScale);
   }
 
@@ -2142,7 +2147,7 @@ const Game = (() => {
     const hot = isHotStreak(p);
     const streak = hotStreakMult(p);
     if (note) {
-      playInstrumentHit(note, inst, (rating === 'perfect' ? 1 : 0.9) * streak);
+      playInstrumentHit(note, inst, (rating === 'perfect' ? 1.15 : 1.05) * streak);
       RhythmLane.explodeGem(note, rating, isMelodic, hot);
     } else {
       RhythmLane.explodeGem({ beat: -1 }, rating, isMelodic, hot);
